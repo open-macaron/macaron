@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RunResult, allowedActions } from "../src/index.ts";
+import { ReviewVerdicts, RunResult, allowedActions } from "../src/index.ts";
 
 const base = {
   replies: [],
@@ -31,6 +31,15 @@ describe("RunResult", () => {
 
     const one = { id: "a", path: "media/a.png", kind: "image", caption: "x" };
     expect(RunResult.safeParse({ ...base, action: "reply", attachments: [one, one] }).success).toBe(false);
+  });
+
+  it("carries verdicts exactly when the action is review", () => {
+    const verdict = { ruleId: "sandbox/no-runtime-json-read", verdict: "violation", evidence: [{ file: "src/extension.ts", line: 12, quote: "readFile(" }], explanation: "Reads package.json at runtime." };
+    expect(RunResult.safeParse({ ...base, action: "review", review: [verdict] }).success).toBe(true);
+    expect(RunResult.safeParse({ ...base, action: "review" }).success).toBe(false);
+    expect(RunResult.safeParse({ ...base, action: "reply", review: [verdict] }).success).toBe(false);
+    expect(ReviewVerdicts.safeParse({ verdicts: [{ ...verdict, verdict: "maybe" }] }).success).toBe(false);
+    expect(allowedActions.review).toEqual(["review"]);
   });
 
   it("never lets triage or reproduce commit", () => {

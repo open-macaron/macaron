@@ -1,7 +1,7 @@
 import { deepmergeCustom } from "deepmerge-ts";
 import { z } from "zod";
 import { GitHubLogin, RepoSlug, Slug, Usd } from "./ids.ts";
-import { Capability, Harness } from "./mode.ts";
+import { Capability, Harness, Mode } from "./mode.ts";
 
 const Params = z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/), z.string());
 
@@ -33,6 +33,7 @@ export const Budgets = z.strictObject({
   reproduce: Usd,
   verify: Usd,
   retro: Usd,
+  review: Usd,
 });
 export type Budgets = z.infer<typeof Budgets>;
 
@@ -63,6 +64,8 @@ export type Contribution = z.infer<typeof Contribution>;
 export const RepoSettings = z.strictObject({
   harness: Harness,
   model: z.string().min(1),
+  /** Per-mode overrides of `model`, e.g. a cheap model for `review`. */
+  models: z.partialRecord(Mode, z.string().min(1)),
   runsOn: z.string().min(1),
   draftPr: z.boolean(),
   timeoutMinutes: z.int().min(5).max(360),
@@ -79,6 +82,7 @@ export type RepoSettings = z.infer<typeof RepoSettings>;
 export const RepoSettingsPatch = z.strictObject({
   harness: Harness.optional(),
   model: z.string().min(1).optional(),
+  models: z.partialRecord(Mode, z.string().min(1)).optional(),
   runsOn: z.string().min(1).optional(),
   draftPr: z.boolean().optional(),
   timeoutMinutes: z.int().min(5).max(360).optional(),

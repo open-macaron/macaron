@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Commands } from "./config.ts";
 import { BotBranch, CommitSha, GitHubLogin, RepoSlug, Ticket, Usd } from "./ids.ts";
+import { PublishedRule } from "./knowledge.ts";
 import { Harness, Mode, ResultAction } from "./mode.ts";
 
 const Body = z.string().max(65_536);
@@ -39,6 +40,22 @@ export const AttachmentLimits = z.strictObject({
 });
 export type AttachmentLimits = z.infer<typeof AttachmentLimits>;
 
+/**
+ * What a `review` run checks (DESIGN.md §6.3): the pull request at an exact head, and the knowledge
+ * rules whose globs match its changed files. Rules that match nothing are listed so the review's
+ * table can show them as ignored; the agent never sees them.
+ */
+export const ReviewContext = z.strictObject({
+  pull: z.int().positive(),
+  baseSha: CommitSha,
+  headSha: CommitSha,
+  rules: z.array(PublishedRule).max(200),
+  skipped: z.array(PublishedRule.pick({ id: true, title: true, severity: true })),
+  /** open-macaron/knowledge commit the rules come from; null when no slice exists for the repo. */
+  knowledgeCommit: CommitSha.nullable(),
+});
+export type ReviewContext = z.infer<typeof ReviewContext>;
+
 /** `context.json`: everything the agent is told about its task. Text fields are untrusted user content. */
 export const RunContext = z.strictObject({
   mode: Mode,
@@ -59,8 +76,34 @@ export const RunContext = z.strictObject({
   priorLoops: z.array(LoopSummary),
   commands: Commands,
   attachments: AttachmentLimits,
+  /** Set iff mode is `review`. */
+  review: ReviewContext.optional(),
 });
 export type RunContext = z.infer<typeof RunContext>;
+
+/** One rule's verdict. A claimed violation only counts once the controller finds each quote on a line the PR adds. */
+export const RuleVerdict = z.strictObject({
+  ruleId: z.string().min(1).max(200),
+  verdict: z.enum(["pass", "violation", "not_applicable"]),
+  evidence: z
+    .array(
+      z.strictObject({
+        /** Path in the repository, as in the diff. */
+        file: z.string().min(1).max(1_024),
+        /** Line number in the pull request's version of the file. */
+        line: z.int().positive(),
+        /** Text copied from that line. */
+        quote: z.string().min(1).max(300),
+      }),
+    )
+    .max(10),
+  explanation: z.string().max(500),
+});
+export type RuleVerdict = z.infer<typeof RuleVerdict>;
+
+/** The review session's structured output (Claude Code `--json-schema`): one verdict per rule it was given. */
+export const ReviewVerdicts = z.strictObject({ verdicts: z.array(RuleVerdict).max(200) });
+export type ReviewVerdicts = z.infer<typeof ReviewVerdicts>;
 
 /** Reference used in reply bodies: `![caption](attachment:<id>)`. */
 export const AttachmentId = z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/, "lowercase id, digits and hyphens");
@@ -105,8 +148,12 @@ export const RunResult = z
     summary: z.string().min(1).max(4_096),
     attachments: z.array(Attachment).max(50),
     learnings: z.array(Learning).max(20),
+    review: z.array(RuleVerdict).max(200).optional(),
   })
   .superRefine((result, ctx) => {
+    if ((result.action === "review") !== (result.review !== undefined)) {
+      ctx.addIssue({ code: "custom", path: ["review"], message: "required when action is review, and only then" });
+    }
     if (result.action === "escalate" && result.escalateTo === undefined) {
       ctx.addIssue({ code: "custom", path: ["escalateTo"], message: "required when action is escalate" });
     }

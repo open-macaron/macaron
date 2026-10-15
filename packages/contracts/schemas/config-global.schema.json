@@ -17,6 +17,26 @@
           "type": "string",
           "minLength": 1
         },
+        "models": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "triage",
+              "plan",
+              "implement",
+              "address_review",
+              "reproduce",
+              "verify",
+              "retro",
+              "review"
+            ]
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "runsOn": {
           "type": "string",
           "minLength": 1
@@ -66,6 +86,11 @@
               "type": "number",
               "minimum": 0,
               "maximum": 1000
+            },
+            "review": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
             }
           },
           "required": [
@@ -75,7 +100,8 @@
             "address_review",
             "reproduce",
             "verify",
-            "retro"
+            "retro",
+            "review"
           ],
           "additionalProperties": false
         },
@@ -257,6 +283,7 @@
       "required": [
         "harness",
         "model",
+        "models",
         "runsOn",
         "draftPr",
         "timeoutMinutes",

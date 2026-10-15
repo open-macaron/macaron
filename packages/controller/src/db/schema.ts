@@ -21,7 +21,7 @@ const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull(
 export const threadKind = pgEnum("thread_kind", ["issue", "pull"]);
 export const eventStatus = pgEnum("event_status", ["pending", "done", "dropped"]);
 export const runStatus = pgEnum("run_status", ["pending", "dispatched", "running", "completed", "failed", "aborted"]);
-export const runMode = pgEnum("run_mode", ["triage", "plan", "implement", "address_review", "reproduce", "verify", "retro"]);
+export const runMode = pgEnum("run_mode", ["triage", "plan", "implement", "address_review", "reproduce", "verify", "retro", "review"]);
 export const ledgerKind = pgEnum("ledger_kind", ["run", "router"]);
 
 /** Singleton row (id = 1): the notifications poller's state. Persisted so restarts never poll early. */

@@ -1,0 +1,1 @@
+ALTER TYPE "run_mode" ADD VALUE 'review';

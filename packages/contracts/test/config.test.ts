@@ -5,10 +5,11 @@ const global = GlobalFile.parse({
   defaults: {
     harness: "claude",
     model: "anthropic/claude-sonnet-5.5",
+    models: { review: "anthropic/claude-haiku-5.5" },
     runsOn: "ubuntu-24.04",
     draftPr: true,
     timeoutMinutes: 60,
-    budgets: { triage: 0.2, plan: 1, implement: 5, address_review: 2, reproduce: 3, verify: 3, retro: 0.5 },
+    budgets: { triage: 0.2, plan: 1, implement: 5, address_review: 2, reproduce: 3, verify: 3, retro: 0.5, review: 0.5 },
     caps: { perThreadUsd: 20, perRepoMonthUsd: 150, reviewLoops: 6, botReviewLoops: 2, openPrs: 3 },
     environment: { source: "shared", name: "generic", params: {} },
     commands: {},
@@ -82,6 +83,14 @@ describe("resolveRepoConfig", () => {
   it("rejects upstream paths outside .github/macaron", () => {
     expect(RepoFile.safeParse({ repo: "a/b", fork: "abc123-b", environment: { source: "upstream", path: ".github/macaron/../../x" } }).success).toBe(false);
     expect(RepoFile.safeParse({ repo: "a/b", fork: "abc123-b", environment: { source: "upstream", path: "scripts/env" } }).success).toBe(false);
+  });
+
+  it("merges per-mode model overrides and rejects unknown modes", () => {
+    const repo = RepoFile.parse({ repo: "podman-desktop/extension-a", fork: "abc123-extension-a", models: { implement: "anthropic/claude-opus-5.5" } });
+    const config = resolveRepoConfig(global, project, repo);
+
+    expect(config.models).toEqual({ review: "anthropic/claude-haiku-5.5", implement: "anthropic/claude-opus-5.5" });
+    expect(RepoFile.safeParse({ repo: "o/r", fork: "abc123-r", models: { reviw: "m" } }).success).toBe(false);
   });
 
   it("rejects unknown keys so typos never pass silently", () => {

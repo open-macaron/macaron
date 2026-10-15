@@ -10,7 +10,8 @@
         "ask",
         "commit",
         "escalate",
-        "noop"
+        "noop",
+        "review"
       ]
     },
     "escalateTo": {
@@ -22,7 +23,8 @@
         "address_review",
         "reproduce",
         "verify",
-        "retro"
+        "retro",
+        "review"
       ]
     },
     "commitMessage": {
@@ -156,6 +158,69 @@
           "topic",
           "text",
           "evidence"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "review": {
+      "maxItems": 200,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ruleId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "violation",
+              "not_applicable"
+            ]
+          },
+          "evidence": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "file": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "line": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                }
+              },
+              "required": [
+                "file",
+                "line",
+                "quote"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "explanation": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "ruleId",
+          "verdict",
+          "evidence",
+          "explanation"
         ],
         "additionalProperties": false
       }

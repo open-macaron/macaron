@@ -14,6 +14,26 @@
       "type": "string",
       "minLength": 1
     },
+    "models": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "triage",
+          "plan",
+          "implement",
+          "address_review",
+          "reproduce",
+          "verify",
+          "retro",
+          "review"
+        ]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
     "runsOn": {
       "type": "string",
       "minLength": 1
@@ -60,6 +80,11 @@
           "maximum": 1000
         },
         "retro": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "review": {
           "type": "number",
           "minimum": 0,
           "maximum": 1000

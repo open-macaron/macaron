@@ -12,6 +12,9 @@ concurrency:
 defaults:
   harness: claude
   model: anthropic/claude-sonnet-5.5
+  # Per-mode overrides. Reviews check rules one by one against a diff: a cheap model is enough.
+  models:
+    review: anthropic/claude-haiku-5.5
   runsOn: ubuntu-24.04
   draftPr: true
   timeoutMinutes: 60
@@ -24,6 +27,7 @@ defaults:
     reproduce: 3.00
     verify: 3.00
     retro: 0.50
+    review: 0.50
   caps:
     perThreadUsd: 20.00
     perRepoMonthUsd: 150.00

@@ -14,6 +14,8 @@ const MODE_INSTRUCTIONS: Readonly<Record<Mode, string>> = {
   verify:
     "Verify that the change on this branch fixes the problem, with the repository's own tooling. Capture evidence with `macaron-agent attach`. Do not change files. Report with action `reply`.",
   retro: "Extract durable lessons from this finished thread as `learnings` (with evidence URLs). Action `noop`.",
+  review:
+    "Review the pull request against each rule in `review.rules`, one rule at a time, only on the lines the pull request adds. Do not change files.",
 };
 
 /** Appended to the harness's own system prompt. */
