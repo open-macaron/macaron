@@ -55,7 +55,7 @@ How `run.yml` gets the agent-cli:
 | `GH_PUSH` | fine-grained, owner `macaron-bot`, all repositories | Contents: write | `git push` to forks only (macaron-bot owns nothing else). No Workflows or Administration permission |
 | `GH_ORG` | fine-grained, owner `open-macaron`, repository `runner` only, approved by an org owner | Actions: read and write | Start and cancel runs. Artifacts and the knowledge PR use `GH_INTERACT` (public repos, no write needed). A GitHub App could replace this token later, to avoid manual renewal |
 
-Forking and disabling Actions on forks need Administration permission. That happens only at onboarding (§5), with a short-lived token held by a human, never stored on the VPS.
+Forking and disabling Actions on a fork happen at onboarding (§5). `GH_INTERACT` can do both, because the bot owns its forks; GitHub enables Actions on new forks, so onboarding must switch them off.
 
 ## 4. Org settings
 
@@ -85,7 +85,7 @@ The `macaron-bot` account itself: 2FA on; the profile says it's a bot and links 
                  includes `fork: <6 random chars>-repo-a` (onboard-repo.sh --suggest prints one)
         │ merge
         ▼
- maintainer runs onboard-repo.sh org-x/repo-a   (short-lived fine-grained token: Administration + Contents on macaron-bot)
+ maintainer runs onboard-repo.sh org-x/repo-a   (with GH_INTERACT: the bot owns its forks, so it can configure them)
    ├ check upstream is public                    ← DESIGN.md "Everything is public"
    ├ check contribution rules: DCO? CLA (sign once for macaron-bot)? interaction limits?
    ├ POST /repos/org-x/repo-a/forks              (owner macaron-bot, name = the `fork:` from config, default branch only)

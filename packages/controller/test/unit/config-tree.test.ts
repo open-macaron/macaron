@@ -10,7 +10,7 @@ describe("the committed config/ tree", () => {
   it("is valid", async () => {
     const snapshot = await loadConfigTree(repoConfigDir);
 
-    expect(snapshot.repos.get("axel7083/macaron-sandbox")?.budgets.implement).toBe(1);
+    expect(snapshot.repos.get("axel7083/foobar-tmp-demo")?.budgets.implement).toBe(1);
   });
 });
 

@@ -1,6 +1,0 @@
-# yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
-
-repo: axel7083/macaron-sandbox
-fork: k3x9qa-macaron-sandbox
-commands:
-  test: npm test

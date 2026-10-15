@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
+#
+# Sandbox upstream for end-to-end tests: a Podman Desktop extension template.
+
+repo: axel7083/foobar-tmp-demo
+fork: 430d4l-foobar-tmp-demo
+commands:
+  build: npm run build
