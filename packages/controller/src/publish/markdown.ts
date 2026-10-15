@@ -45,7 +45,8 @@ export interface CostRow {
   readonly trigger: string;
   readonly mode: Mode;
   readonly model: string;
-  readonly costMicros: UsdMicros;
+  /** null while OpenRouter hasn't reported the final usage yet. */
+  readonly costMicros: UsdMicros | null;
   readonly runUrl: string | null;
 }
 
@@ -56,14 +57,15 @@ export function renderCostTable(rows: readonly CostRow[], routerMicros: UsdMicro
     escapeCell(row.trigger),
     row.mode,
     escapeCell(row.model.replace(/^[^/]+\//, "")),
-    formatUsd(row.costMicros),
+    row.costMicros === null ? "settling…" : formatUsd(row.costMicros),
     row.runUrl === null ? "" : `[run](${row.runUrl})`,
   ]);
   if (routedComments > 0) {
     body.push(["–", `${String(routedComments)} routed comment${routedComments === 1 ? "" : "s"}`, "router", "", formatUsd(routerMicros), ""]);
   }
-  const total = rows.reduce((sum, row) => sum + row.costMicros, routerMicros);
-  body.push(["**Total**", "", "", "", `**${formatUsd(total)}**`, ""]);
+  const total = rows.reduce((sum, row) => sum + (row.costMicros ?? 0), routerMicros);
+  const pending = rows.some((row) => row.costMicros === null);
+  body.push(["**Total**", "", "", "", `**${formatUsd(total)}${pending ? " +" : ""}**`, ""]);
   const table = markdownTable([["Loop", "Trigger", "Mode", "Model", "Cost", "Run"], ...body], { alignDelimiters: false });
   return [COST_START, "### macaron-bot cost", "", table, COST_END].join("\n");
 }

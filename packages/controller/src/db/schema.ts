@@ -101,6 +101,8 @@ export const runs = pgTable(
     ghRunId: bigint("gh_run_id", { mode: "number" }),
     redeemedAt: timestamp("redeemed_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
+    /** Set once the key's final usage is in the ledger (OpenRouter reports usage ~25 s late). */
+    settledAt: timestamp("settled_at", { withTimezone: true }),
     failure: text("failure"),
     createdAt: createdAt(),
   },

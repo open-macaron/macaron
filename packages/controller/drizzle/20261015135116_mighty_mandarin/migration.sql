@@ -60,6 +60,7 @@ CREATE TABLE "runs" (
 	"gh_run_id" bigint,
 	"redeemed_at" timestamp with time zone,
 	"finished_at" timestamp with time zone,
+	"settled_at" timestamp with time zone,
 	"failure" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );

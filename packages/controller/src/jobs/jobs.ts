@@ -12,6 +12,8 @@ export const Queue = {
   threadReady: "thread-ready",
   /** A workflow run finished (webhook or reconcile); one job per run, whoever saw it first. */
   runCompleted: "run-completed",
+  /** A finished run's final cost, read ~90 s later (OpenRouter reports usage asynchronously). */
+  settleCost: "settle-cost",
   /** Periodic: recover workflow_run completions missed during a restart, enforce timeouts. */
   reconcile: "reconcile",
   /** Periodic: delete leftover `macaron-run-*` OpenRouter keys. */
@@ -23,6 +25,7 @@ const POLL_KEY = "poll";
 
 export const ThreadReadyJob = z.object({ threadId: z.uuid() });
 export const NoPayload = z.unknown();
+export const SettleCostJob = z.object({ runId: z.uuid() });
 export const RunCompletedJob = z.object({ ghRunId: z.int().positive(), conclusion: z.string().nullable() });
 
 /**
@@ -46,6 +49,7 @@ export class Jobs implements OnModuleInit, OnApplicationShutdown {
     await this.boss.createQueue(Queue.pollNotifications, { policy: "stately", retryLimit: 0, expireInSeconds: 120 });
     await this.boss.createQueue(Queue.threadReady, { policy: "stately", retryLimit: 3, retryDelay: 30, retryBackoff: true, expireInSeconds: 600 });
     await this.boss.createQueue(Queue.runCompleted, { policy: "short", retryLimit: 5, retryDelay: 60, retryBackoff: true, expireInSeconds: 900 });
+    await this.boss.createQueue(Queue.settleCost, { policy: "short", retryLimit: 10, retryDelay: 60, retryBackoff: true, expireInSeconds: 600 });
     await this.boss.createQueue(Queue.reconcile, { policy: "singleton", expireInSeconds: 300 });
     await this.boss.createQueue(Queue.sweepKeys, { policy: "singleton", expireInSeconds: 300 });
     await this.boss.schedule(Queue.reconcile, "*/2 * * * *");
@@ -78,6 +82,11 @@ export class Jobs implements OnModuleInit, OnApplicationShutdown {
   /** Deduplicated by run id: the webhook and reconcile may both report the same completion. */
   async runCompleted(ghRunId: number, conclusion: string | null): Promise<void> {
     await this.boss.send(Queue.runCompleted, { ghRunId, conclusion }, { singletonKey: String(ghRunId) });
+  }
+
+  /** Settles a run's cost after `delayMs`; deduplicated by run id. */
+  async settleCost(runId: string, delayMs: number): Promise<void> {
+    await this.boss.send(Queue.settleCost, { runId }, { singletonKey: runId, startAfter: new Date(Date.now() + delayMs) });
   }
 
   /** Registers a handler; the payload is validated with `schema` before `handle` sees it. */

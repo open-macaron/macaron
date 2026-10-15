@@ -14,6 +14,10 @@ export default defineConfig({
       { extends: true, test: { name: "controller", include: ["packages/controller/test/unit/**/*.test.ts"] } },
       {
         extends: true,
+        test: { name: "controller-live", include: ["packages/controller/test/live/**/*.test.ts"] },
+      },
+      {
+        extends: true,
         test: {
           name: "controller-integration",
           include: ["packages/controller/test/integration/**/*.test.ts"],

@@ -16,11 +16,13 @@ import { toMicros, type UsdMicros } from "../common/money.ts";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { RepoConfigService } from "../config/repo-config.service.ts";
 import { GH_ORG, type GitHub } from "../github/github.ts";
+import { Jobs } from "../jobs/jobs.ts";
 import { repoRef } from "../github/repo-ref.ts";
 import { gate } from "../publish/gate.ts";
 import { Publisher } from "../publish/publisher.ts";
 import { ArtifactDownloader, ArtifactInvalid, readArtifact } from "./artifact.ts";
 import { OidcVerifier } from "./oidc-verifier.ts";
+import { runUrl } from "./run-url.ts";
 import { type RunRecord, RunsRepository, type ThreadRecord } from "./runs.repository.ts";
 
 export interface LaunchRequest {
@@ -44,12 +46,11 @@ export interface Escalation {
 
 const DispatchDetails = z.object({ workflow_run_id: z.int().positive() });
 
+/** OpenRouter reports usage ~25 s late (measured); the final read waits comfortably longer. */
+export const SETTLE_DELAY_MS = 90_000;
+
 /** Keys outlive the job by this margin before OpenRouter expires them on its own. */
 const KEY_GRACE_MINUTES = 15;
-
-export function runUrl(env: AppEnv, ghRunId: number | null): string | null {
-  return ghRunId === null ? null : `https://github.com/${env.RUNNER_REPO}/actions/runs/${String(ghRunId)}`;
-}
 
 function monthStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -72,6 +73,7 @@ export class RunLauncher {
     private readonly oidc: OidcVerifier,
     private readonly artifacts: ArtifactDownloader,
     private readonly publisher: Publisher,
+    private readonly jobs: Jobs,
     private readonly clock: Clock,
   ) {}
 
@@ -102,7 +104,9 @@ export class RunLauncher {
       return { kind: "launched", run: { ...run, status: "dispatched", ghRunId, keyHash: key.hash } };
     } catch (error: unknown) {
       if (keyHash !== undefined) await this.budget.revoke(keyHash);
-      await this.runs.finish(run.id, { status: "failed", costMicros: 0, failure: `launch failed: ${describeError(error)}` }, this.attribution(config), this.clock.now());
+      // The key never reached a runner: nothing was spent.
+      await this.runs.finish(run.id, { status: "failed", failure: `launch failed: ${describeError(error)}` }, this.clock.now());
+      await this.runs.settle(run.id, 0, this.attribution(config), this.clock.now());
       throw error;
     }
   }
@@ -121,14 +125,14 @@ export class RunLauncher {
     if (run?.finishedAt !== null) return undefined;
     const thread = await this.runs.threadById(run.threadId);
     const config = this.config.repo(thread.repo);
-    const attribution = config === undefined ? { repo: thread.repo, project: "unknown" } : this.attribution(config);
     const url = runUrl(this.env, ghRunId);
 
-    const signal = AbortSignal.timeout(120_000);
-    const costMicros: UsdMicros = run.keyHash === null ? 0 : await this.budget.settle(run.keyHash, signal);
+    // Spending stops now; the cost is settled in the background once OpenRouter has reported it.
+    if (run.keyHash !== null) await this.budget.freeze(run.keyHash);
+    await this.jobs.settleCost(run.id, SETTLE_DELAY_MS);
 
     const fail = async (reason: string): Promise<Escalation | undefined> => {
-      const closed = await this.runs.finish(run.id, { status: "failed", costMicros, failure: reason }, attribution, this.clock.now());
+      const closed = await this.runs.finish(run.id, { status: "failed", failure: reason }, this.clock.now());
       if (closed) await this.publisher.reportFailure({ run, thread, reason, runUrl: url });
       return undefined;
     };
@@ -152,7 +156,7 @@ export class RunLauncher {
       return fail(`the result was refused by policy (${verdict.violations.slice(0, 3).join("; ")})`);
     }
 
-    const closed = await this.runs.finish(run.id, { status: "completed", costMicros, failure: null }, attribution, this.clock.now());
+    const closed = await this.runs.finish(run.id, { status: "completed", failure: null }, this.clock.now());
     if (!closed) return undefined;
     try {
       await this.publisher.publish({ run, thread, config, publishable: verdict.publishable, runUrl: url ?? "", attachmentUrls: new Map() });
@@ -169,20 +173,29 @@ export class RunLauncher {
   /** /stop, watchdog, timeout: spending stops now, then the workflow is cancelled. */
   async abort(run: RunRecord, reason: string): Promise<void> {
     const thread = await this.runs.threadById(run.threadId);
-    const config = this.config.repo(thread.repo);
-    let costMicros: UsdMicros = 0;
-    if (run.keyHash !== null) {
-      costMicros = await this.budget.usage(run.keyHash).catch(() => run.limitMicros);
-      await this.budget.revoke(run.keyHash);
-    }
+    if (run.keyHash !== null) await this.budget.freeze(run.keyHash);
+    await this.jobs.settleCost(run.id, SETTLE_DELAY_MS);
     if (run.ghRunId !== null) {
       await this.gh.rest.actions.cancelWorkflowRun({ ...repoRef(this.env.RUNNER_REPO), run_id: run.ghRunId }).catch((error: unknown) => {
         this.logger.warn(`cancelling workflow run ${String(run.ghRunId)} failed: ${describeError(error)}`);
       });
     }
-    const attribution = config === undefined ? { repo: thread.repo, project: "unknown" } : this.attribution(config);
-    const closed = await this.runs.finish(run.id, { status: "aborted", costMicros, failure: reason }, attribution, this.clock.now());
+    const closed = await this.runs.finish(run.id, { status: "aborted", failure: reason }, this.clock.now());
     if (closed) await this.publisher.reportFailure({ run, thread, reason, runUrl: runUrl(this.env, run.ghRunId) });
+  }
+
+  /** settle-cost job: the run's final cost into the ledger (once), key deleted, cost table refreshed. */
+  async settle(runId: string): Promise<void> {
+    const run = await this.runs.byId(runId);
+    if (run.settledAt !== null) return;
+    const thread = await this.runs.threadById(run.threadId);
+    const config = this.config.repo(thread.repo);
+    const attribution = config === undefined ? { repo: thread.repo, project: "unknown" } : this.attribution(config);
+    const costMicros: UsdMicros = run.keyHash === null ? 0 : await this.budget.finalUsage(run.keyHash, AbortSignal.timeout(300_000));
+    if (await this.runs.settle(run.id, costMicros, attribution, this.clock.now())) {
+      this.logger.log(`run ${run.id} cost ${String(costMicros)} µ$`);
+      await this.publisher.refreshCost(await this.runs.threadById(thread.id));
+    }
   }
 
   private async refusal(request: LaunchRequest): Promise<LaunchOutcome | undefined> {
@@ -194,7 +207,7 @@ export class RunLauncher {
     if (mode === "address_review" && thread.loops >= caps.reviewLoops) {
       return { kind: "refused", reason: `this thread reached its limit of ${String(caps.reviewLoops)} review loops` };
     }
-    if ((await this.runs.spentOnThread(thread.id)) + limit > toMicros(caps.perThreadUsd)) {
+    if ((await this.runs.spentOnThread(thread.id)) + (await this.runs.reservedMicros({ threadId: thread.id })) + limit > toMicros(caps.perThreadUsd)) {
       return { kind: "refused", reason: "this thread reached its budget" };
     }
     const now = this.clock.now();

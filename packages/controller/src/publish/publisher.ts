@@ -1,11 +1,13 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { RepoConfig, RunContext } from "@open-macaron/contracts";
 import { describeError } from "../common/errors.ts";
 import { formatUsd } from "../common/money.ts";
+import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { BotIdentity } from "../github/bot-identity.ts";
 import { repoRef, type RepoRef } from "../github/repo-ref.ts";
 import type { RunRecord, ThreadRecord } from "../runs/runs.repository.ts";
 import { RunsRepository } from "../runs/runs.repository.ts";
+import { runUrl } from "../runs/run-url.ts";
 import { ForkCommitter } from "./fork-committer.ts";
 import type { Publishable } from "./gate.ts";
 import { type CostRow, renderCostTable, resolveAttachments, sanitize, upsertCostSection } from "./markdown.ts";
@@ -38,6 +40,7 @@ export class Publisher {
   private readonly logger = new Logger(Publisher.name);
 
   constructor(
+    @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly runs: RunsRepository,
     private readonly committer: ForkCommitter,
     private readonly writer: UpstreamWriter,
@@ -109,6 +112,11 @@ export class Publisher {
     await this.reactions.finish(input.thread.id, input.run.loop, upstream, "confused");
   }
 
+  /** Called when a loop's cost is settled: the PR's cost table picks up the final number. */
+  async refreshCost(thread: ThreadRecord): Promise<void> {
+    await this.updateCostTable(thread);
+  }
+
   /** No run happened (caps, pause, missing capability): explain in the status comment, react 😕. */
   async reportRefusal(thread: ThreadRecord, reason: string): Promise<void> {
     const upstream = repoRef(thread.repo);
@@ -153,14 +161,14 @@ export class Publisher {
     const upstream = repoRef(thread.repo);
     const loops = await this.runs.loops(thread.id);
     const rows: CostRow[] = loops
-      .filter((loop) => loop.costMicros !== null)
+      .filter((loop) => loop.finishedAt !== null)
       .map((loop) => ({
         loop: loop.loop,
         trigger: `${loop.context.trigger.kind} by @${loop.context.trigger.author}`,
         mode: loop.mode,
         model: loop.model,
-        costMicros: loop.costMicros ?? 0,
-        runUrl: null,
+        costMicros: loop.costMicros,
+        runUrl: runUrl(this.env, loop.ghRunId),
       }));
     const prNumber = thread.prNumber;
     await this.post(async () => {

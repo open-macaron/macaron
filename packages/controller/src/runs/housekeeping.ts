@@ -7,7 +7,7 @@ import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { RepoConfigService } from "../config/repo-config.service.ts";
 import { GH_ORG, type GitHub } from "../github/github.ts";
 import { repoRef } from "../github/repo-ref.ts";
-import { Jobs, NoPayload, Queue } from "../jobs/jobs.ts";
+import { Jobs, NoPayload, Queue, SettleCostJob } from "../jobs/jobs.ts";
 import { RunLauncher } from "./run-launcher.ts";
 import { RunsRepository } from "./runs.repository.ts";
 
@@ -42,6 +42,7 @@ export class Housekeeping implements OnApplicationBootstrap {
   async onApplicationBootstrap(): Promise<void> {
     await this.jobs.work(Queue.reconcile, NoPayload, () => this.reconcile());
     await this.jobs.work(Queue.sweepKeys, NoPayload, () => this.sweepKeys());
+    await this.jobs.work(Queue.settleCost, SettleCostJob, ({ runId }) => this.launcher.settle(runId));
   }
 
   async reconcile(): Promise<void> {
@@ -66,7 +67,8 @@ export class Housekeeping implements OnApplicationBootstrap {
   }
 
   async sweepKeys(): Promise<void> {
-    const active = new Set((await this.runs.active()).map((run) => `${RUN_KEY_PREFIX}${run.id}`));
+    // Keys of runs still running or awaiting their cost settlement are kept.
+    const active = new Set((await this.runs.unsettled()).map((run) => `${RUN_KEY_PREFIX}${run.id}`));
     const now = this.clock.now().getTime();
     for (const key of await this.keys.listByPrefix(RUN_KEY_PREFIX)) {
       if (!active.has(key.name) || now - key.createdAt.getTime() > KEY_MAX_AGE_MS) {

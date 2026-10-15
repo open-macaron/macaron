@@ -30,6 +30,8 @@ export const Env = z.object({
   EVIDENCE_REPO: RepoSlug.default(RepoSlug.parse("open-macaron/evidence")),
 
   OPENROUTER_BASE_URL: z.url().default("https://openrouter.ai/api/v1"),
+  /** Workspace (slug) holding every key we create, so its dashboard shows the bot's total spend. */
+  OPENROUTER_WORKSPACE: z.string().regex(/^[a-z0-9-]+$/).default("macaron"),
   OPENROUTER_PROVISIONING_KEY: Secret,
   OPENROUTER_ROUTER_KEY: Secret,
 

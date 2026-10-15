@@ -1,10 +1,11 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { apiKeysCreate } from "@openrouter/sdk/funcs/apiKeysCreate.js";
 import { apiKeysDelete } from "@openrouter/sdk/funcs/apiKeysDelete.js";
 import { apiKeysGet } from "@openrouter/sdk/funcs/apiKeysGet.js";
 import { apiKeysList } from "@openrouter/sdk/funcs/apiKeysList.js";
 import { apiKeysUpdate } from "@openrouter/sdk/funcs/apiKeysUpdate.js";
+import { workspacesList } from "@openrouter/sdk/funcs/workspacesList.js";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { UpstreamError } from "../common/errors.ts";
 
@@ -33,13 +34,15 @@ function statusOf(error: unknown): number | undefined {
 /**
  * OpenRouter key management through the official SDK (generated from OpenRouter's OpenAPI
  * spec, responses validated with Zod). Authenticated with the provisioning key, which never
- * leaves this class.
+ * leaves this class. Every key lives in one workspace, so its dashboard is the bot's total spend.
  */
 @Injectable()
-export class OpenRouterKeys {
+export class OpenRouterKeys implements OnModuleInit {
+  private readonly logger = new Logger(OpenRouterKeys.name);
   private readonly core: OpenRouterCore;
+  private resolvedWorkspaceId: string | undefined;
 
-  constructor(@Inject(APP_ENV) env: AppEnv) {
+  constructor(@Inject(APP_ENV) private readonly env: AppEnv) {
     this.core = new OpenRouterCore({
       apiKey: env.OPENROUTER_PROVISIONING_KEY,
       serverURL: env.OPENROUTER_BASE_URL,
@@ -47,10 +50,32 @@ export class OpenRouterKeys {
     });
   }
 
+  /** Resolves the workspace slug once; refuses to start rather than create keys in the wrong workspace. */
+  async onModuleInit(): Promise<void> {
+    for (let offset = 0; ; ) {
+      const result = await workspacesList(this.core, { offset, limit: 100 });
+      if (!result.ok) throw this.failure("list workspaces", result.error);
+      const page = result.value.result.data;
+      const match = page.find((workspace) => workspace.slug === this.env.OPENROUTER_WORKSPACE);
+      if (match !== undefined) {
+        this.resolvedWorkspaceId = match.id;
+        this.logger.log(`OpenRouter keys live in workspace "${match.slug}"`);
+        return;
+      }
+      if (page.length === 0) throw new Error(`OpenRouter workspace "${this.env.OPENROUTER_WORKSPACE}" not found`);
+      offset += page.length;
+    }
+  }
+
+  private get workspaceId(): string {
+    if (this.resolvedWorkspaceId === undefined) throw new Error("OpenRouter workspace not resolved yet");
+    return this.resolvedWorkspaceId;
+  }
+
   /** Creates a key capped at `limitUsd` that expires on its own at `expiresAt`. */
   async create(name: string, limitUsd: number, expiresAt: Date): Promise<ProvisionedKey> {
     const result = await apiKeysCreate(this.core, {
-      requestBody: { name, limit: limitUsd, limitReset: null, includeByokInLimit: true, expiresAt },
+      requestBody: { name, limit: limitUsd, limitReset: null, includeByokInLimit: true, expiresAt, workspaceId: this.workspaceId },
     });
     if (!result.ok) throw this.failure("create key", result.error);
     return { key: result.value.key, hash: result.value.data.hash };
@@ -79,7 +104,7 @@ export class OpenRouterKeys {
   async listByPrefix(prefix: string): Promise<KeyStatus[]> {
     const found: KeyStatus[] = [];
     for (let offset = 0; ; ) {
-      const result = await apiKeysList(this.core, { offset, includeDisabled: true });
+      const result = await apiKeysList(this.core, { offset, includeDisabled: true, workspaceId: this.workspaceId });
       if (!result.ok) throw this.failure("list keys", result.error);
       const page = result.value.data;
       for (const key of page) {

@@ -135,28 +135,35 @@ export class RunsRepository {
     return run;
   }
 
+  /** Runs whose cost is not in the ledger yet (running, or finished and awaiting settlement). */
+  async unsettled(): Promise<RunRecord[]> {
+    return this.db.select().from(runs).where(isNull(runs.settledAt));
+  }
+
   async active(): Promise<RunRecord[]> {
     return this.db.select().from(runs).where(inArray(runs.status, [...ACTIVE_STATUSES]));
   }
 
-  /**
-   * Closes a run exactly once: returns false if it was already finished (webhook and reconcile racing).
-   * The cost goes to the append-only ledger in the same transaction.
-   */
-  async finish(
-    runId: string,
-    outcome: { status: "completed" | "failed" | "aborted"; costMicros: UsdMicros; failure: string | null },
-    attribution: { repo: string; project: string },
-    now: Date,
-  ): Promise<boolean> {
+  /** Closes a run exactly once: false if it was already finished (webhook and reconcile racing). */
+  async finish(runId: string, outcome: { status: "completed" | "failed" | "aborted"; failure: string | null }, now: Date): Promise<boolean> {
+    const [closed] = await this.db
+      .update(runs)
+      .set({ status: outcome.status, failure: outcome.failure, finishedAt: now, keySecret: null })
+      .where(and(eq(runs.id, runId), isNull(runs.finishedAt)))
+      .returning({ id: runs.id });
+    return closed !== undefined;
+  }
+
+  /** Records the run's final cost, once, in the run and in the append-only ledger. */
+  async settle(runId: string, costMicros: UsdMicros, attribution: { repo: string; project: string }, now: Date): Promise<boolean> {
     return this.db.transaction(async (tx) => {
-      const [closed] = await tx
+      const [settled] = await tx
         .update(runs)
-        .set({ status: outcome.status, costMicros: outcome.costMicros, failure: outcome.failure, finishedAt: now, keySecret: null })
-        .where(and(eq(runs.id, runId), isNull(runs.finishedAt)))
+        .set({ costMicros, settledAt: now })
+        .where(and(eq(runs.id, runId), isNull(runs.settledAt)))
         .returning({ id: runs.id });
-      if (closed === undefined) return false;
-      await tx.insert(ledger).values({ kind: "run", runId, usdMicros: outcome.costMicros, ...attribution });
+      if (settled === undefined) return false;
+      await tx.insert(ledger).values({ kind: "run", runId, usdMicros: costMicros, ...attribution });
       return true;
     });
   }
@@ -184,9 +191,13 @@ export class RunsRepository {
     return row?.total ?? 0;
   }
 
-  /** Limits still committed to unfinished runs: counted against caps so parallel runs can't overshoot. */
-  async reservedMicros(filter: { repo?: string }): Promise<UsdMicros> {
-    const where = and(inArray(runs.status, [...ACTIVE_STATUSES]), filter.repo === undefined ? undefined : eq(threads.repo, filter.repo));
+  /** Limits of runs whose cost isn't settled yet: counted against caps so parallel runs can't overshoot. */
+  async reservedMicros(filter: { repo?: string; threadId?: string }): Promise<UsdMicros> {
+    const where = and(
+      isNull(runs.settledAt),
+      filter.repo === undefined ? undefined : eq(threads.repo, filter.repo),
+      filter.threadId === undefined ? undefined : eq(runs.threadId, filter.threadId),
+    );
     const [row] = await this.db
       .select({ total: sql<number>`coalesce(sum(${runs.limitMicros}), 0)`.mapWith(Number) })
       .from(runs)

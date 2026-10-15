@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "9818529f-8a3c-478b-97e5-7ed26df89ae8",
+  "id": "265023ca-5687-4d45-9d28-323b850b7150",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -652,6 +652,19 @@
       "generated": null,
       "identity": null,
       "name": "finished_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "runs"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "settled_at",
       "entityType": "columns",
       "schema": "public",
       "table": "runs"

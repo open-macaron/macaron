@@ -92,15 +92,16 @@ describe("RunsRepository", () => {
     expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
   });
 
-  it("closes a run once and writes its cost to the ledger once", async () => {
+  it("closes a run once, keeps its limit reserved until settled, then writes its cost to the ledger once", async () => {
     const { thread, run } = await newRun(4);
     const attribution = { repo: "org-x/repo-a", project: "sandbox" };
-    const outcome = { status: "completed" as const, costMicros: 1_840_000, failure: null };
+    const outcome = { status: "completed" as const, failure: null };
 
-    const first = await runs.finish(run.id, outcome, attribution, new Date());
-    const second = await runs.finish(run.id, outcome, attribution, new Date());
+    expect([await runs.finish(run.id, outcome, new Date()), await runs.finish(run.id, outcome, new Date())]).toEqual([true, false]);
+    expect(await runs.reservedMicros({ threadId: thread.id })).toBe(1_000_000);
 
-    expect([first, second]).toEqual([true, false]);
+    expect([await runs.settle(run.id, 1_840_000, attribution, new Date()), await runs.settle(run.id, 1_840_000, attribution, new Date())]).toEqual([true, false]);
+    expect(await runs.reservedMicros({ threadId: thread.id })).toBe(0);
     expect(await runs.spentOnThread(thread.id)).toBe(1_840_000);
   });
 

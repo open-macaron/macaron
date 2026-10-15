@@ -95,7 +95,7 @@ sequenceDiagram
   end
   J->>J: upload artifact: changes.patch + result.json
   J-->>C: org webhook: workflow_run completed
-  C->>OR: disable key → poll usage → cost → delete key
+  C->>OR: disable key now (spending stops); settle-cost job ~90 s later: final usage → ledger → delete key
   C->>C: download artifact → Gate (policy)
   Note over C: Publisher: commit, FF push, replies, cost table, 👀 → 👍/😕
 ```
@@ -194,14 +194,19 @@ Latency is therefore *at least* one poll interval (typically ~60 s, more when Gi
 
 ```ts
 class BudgetService {
-  /** POST /keys { name: `macaron-${ticket}`, limit }. */
-  mint(ticket: string, limitUsd: number): Promise<RunKey>;
-  /** PATCH disabled → poll GET /keys/{hash} until usage is stable → DELETE. Returns USD. */
-  settle(key: RunKey): Promise<number>;
-  /** Live usage; the watchdog aborts at 100 % (OpenRouter itself also refuses past the limit). */
-  usage(key: RunKey): Promise<number>;
+  /** POST /keys in the `macaron` workspace: capped at limitUsd, expiring by itself after ttlMinutes. */
+  mint(runId: string, limitUsd: number, ttlMinutes: number): Promise<ProvisionedKey>;
+  /** Disable now: spending stops at the next request. Called when a run completes or is aborted. */
+  freeze(hash: string): Promise<void>;
+  /** Final usage (two agreeing reads), then DELETE. Run by the settle-cost job ~90 s after the run. */
+  finalUsage(hash: string, signal: AbortSignal): Promise<UsdMicros>;
+  /** Live usage, for the watchdog. */
+  usage(hash: string): Promise<UsdMicros>;
 }
 ```
+
+- **All keys live in one OpenRouter workspace** (`OPENROUTER_WORKSPACE`, default `macaron`). The controller resolves it at startup and refuses to start if it's missing. The workspace dashboard is therefore the bot's total spend, and a workspace budget can act as a hard global ceiling on top of our caps.
+- **Costs are settled in two phases.** OpenRouter reports a key's usage asynchronously (measured: ~25 s after the call). At completion the key is frozen and the result is published immediately. A `settle-cost` job runs ~90 s later, writes the final cost to the ledger once, deletes the key and refreshes the PR's cost table, where the loop shows "settling…" until then. A run's whole limit counts against the caps until it is settled, so nothing can overshoot in between.
 
 - Caps exist at four levels: per-run key limit, per thread, per repo per month, and global concurrency. There is also a kill switch (`MACARON_ENABLED`).
 - Every run key expires on its own (`expires_at` = timeout + 15 min). A `sweep-keys` pg-boss cron job deletes leftovers, as a safety net.
