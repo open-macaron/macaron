@@ -10,9 +10,11 @@ export function toUsd(micros: UsdMicros): number {
   return micros / 1_000_000;
 }
 
-/** `$1.84`, `$0.004` — enough precision for router calls, no trailing noise. */
+const cents = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const subCent = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 4 });
+
+/** `$1.84`; amounts under a cent keep four decimals (`$0.0040`) so router calls stay visible. */
 export function formatUsd(micros: UsdMicros): string {
   const usd = toUsd(micros);
-  const digits = usd !== 0 && usd < 0.01 ? 4 : 2;
-  return `$${usd.toFixed(digits)}`;
+  return (usd !== 0 && usd < 0.01 ? subCent : cents).format(usd);
 }

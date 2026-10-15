@@ -22,6 +22,7 @@
     "gen": "node --conditions=@open-macaron/source scripts/emit-json-schemas.ts"
   },
   "dependencies": {
+    "deepmerge-ts": "catalog:",
     "zod": "catalog:"
   }
 }

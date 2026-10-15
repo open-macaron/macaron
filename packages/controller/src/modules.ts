@@ -3,7 +3,6 @@ import { TerminusModule } from "@nestjs/terminus";
 import { BudgetService } from "./budget/budget.service.ts";
 import { OpenRouterKeys } from "./budget/openrouter-keys.ts";
 import { RepoConfigService } from "./config/repo-config.service.ts";
-import { LeaderLock, PostgresLeaderLock } from "./db/leader-lock.ts";
 import { BotIdentity } from "./github/bot-identity.ts";
 import { BootstrapController } from "./http/bootstrap.controller.ts";
 import { HealthController } from "./http/health.controller.ts";
@@ -11,7 +10,7 @@ import { WebhookController } from "./http/webhook.controller.ts";
 import { ContextBuilder } from "./ingest/context-builder.ts";
 import { EventsRepository } from "./ingest/events.repository.ts";
 import { IngestService } from "./ingest/ingest.service.ts";
-import { NotificationSink, NotificationsPoller } from "./ingest/notifications-poller.ts";
+import { NotificationSink, NotificationsPoller, PgBossPollScheduler, PollScheduler } from "./ingest/notifications-poller.ts";
 import { NotificationsApi, NotificationsSource } from "./ingest/notifications-source.ts";
 import { DrizzlePollStateStore, PollStateStore } from "./ingest/poll-state.store.ts";
 import { ThreadWorker } from "./ingest/thread-worker.ts";
@@ -36,9 +35,8 @@ import { RunsRepository } from "./runs/runs.repository.ts";
     RunsRepository,
     EventsRepository,
     { provide: PollStateStore, useClass: DrizzlePollStateStore },
-    { provide: LeaderLock, useClass: PostgresLeaderLock },
   ],
-  exports: [RepoConfigService, Jobs, BotIdentity, RunsRepository, EventsRepository, PollStateStore, LeaderLock],
+  exports: [RepoConfigService, Jobs, BotIdentity, RunsRepository, EventsRepository, PollStateStore],
 })
 export class CoreModule {}
 
@@ -67,6 +65,7 @@ export class RunsModule {}
   providers: [
     { provide: NotificationsApi, useClass: NotificationsSource },
     { provide: NotificationSink, useClass: IngestService },
+    { provide: PollScheduler, useClass: PgBossPollScheduler },
     NotificationsPoller,
     ContextBuilder,
     ThreadWorker,

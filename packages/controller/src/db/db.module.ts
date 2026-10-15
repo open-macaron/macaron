@@ -3,7 +3,7 @@ import { Global, Logger, Module } from "@nestjs/common";
 import { DrizzleModule } from "@nestjs/drizzle";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { setTimeout as delay } from "node:timers/promises";
+import pRetry from "p-retry";
 import type { Pool, PoolClient } from "pg";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
 
@@ -37,17 +37,16 @@ export async function connectAndMigrate(databaseUrl: string): Promise<Db> {
 }
 
 /** Postgres may still be starting (same pod, container restarts): retry for up to a minute. */
-async function firstConnection(pool: Pool, logger: Logger): Promise<PoolClient> {
-  const deadline = Date.now() + 60_000;
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await pool.connect();
-    } catch (error: unknown) {
-      if (Date.now() > deadline) throw error;
-      logger.warn(`database not reachable yet (attempt ${String(attempt)}), retrying`);
-      await delay(Math.min(5_000, 250 * 2 ** attempt));
-    }
-  }
+function firstConnection(pool: Pool, logger: Logger): Promise<PoolClient> {
+  return pRetry(() => pool.connect(), {
+    retries: Number.POSITIVE_INFINITY,
+    maxRetryTime: 60_000,
+    minTimeout: 250,
+    maxTimeout: 5_000,
+    onFailedAttempt: ({ attemptNumber }) => {
+      logger.warn(`database not reachable yet (attempt ${String(attemptNumber)}), retrying`);
+    },
+  });
 }
 
 @Global()

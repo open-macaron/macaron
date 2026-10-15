@@ -1,10 +1,10 @@
-import { Inject, Injectable, Logger, type OnApplicationBootstrap, type OnApplicationShutdown } from "@nestjs/common";
-import { Clock, isAborted } from "../common/clock.ts";
+import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { Clock } from "../common/clock.ts";
 import { describeError } from "../common/errors.ts";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
-import { LeaderLock, LockKey } from "../db/leader-lock.ts";
-import { NotificationsApi, type NotificationThread } from "./notifications-source.ts";
-import { initialPollState, nextPollState, type PollOutcome } from "./poll-policy.ts";
+import { Jobs, NoPayload, Queue } from "../jobs/jobs.ts";
+import { NotificationsApi, type NotificationThread, type PollResult } from "./notifications-source.ts";
+import { initialPollState, nextPollState } from "./poll-policy.ts";
 import { PollStateStore } from "./poll-state.store.ts";
 
 /** Receives every notification thread the poller sees. Must be idempotent: a thread can come twice. */
@@ -12,74 +12,70 @@ export abstract class NotificationSink {
   abstract accept(thread: NotificationThread): Promise<void>;
 }
 
+/** Runs `tick` as a single-instance job and decides when. Implemented with pg-boss; abstract so the poller is testable alone. */
+export abstract class PollScheduler {
+  abstract start(tick: () => Promise<void>): Promise<void>;
+  abstract at(when: Date): Promise<void>;
+}
+
+@Injectable()
+export class PgBossPollScheduler extends PollScheduler {
+  constructor(private readonly jobs: Jobs) {
+    super();
+  }
+
+  override async start(tick: () => Promise<void>): Promise<void> {
+    await this.jobs.work(Queue.pollNotifications, NoPayload, tick);
+    await this.jobs.keepPolling();
+  }
+
+  override at(when: Date): Promise<void> {
+    return this.jobs.pollAt(when);
+  }
+}
+
 /**
- * Drives GET /notifications under X-Poll-Interval. Guarantees, in order of importance:
- * 1. no request before the persisted `notBefore` (restarts and crashes included);
- * 2. a single poller across instances (advisory lock);
- * 3. `notBefore` is saved before the loop sleeps again, whatever happened in between.
+ * GET /notifications under X-Poll-Interval, as a pg-boss job (one active across instances).
+ * Guarantees, in order of importance:
+ * 1. no request before the persisted `notBefore`: a tick that wakes early only reschedules;
+ * 2. `notBefore` is saved, and the next poll scheduled, whatever happened during the tick.
  */
 @Injectable()
-export class NotificationsPoller implements OnApplicationBootstrap, OnApplicationShutdown {
+export class NotificationsPoller implements OnApplicationBootstrap {
   private readonly logger = new Logger(NotificationsPoller.name);
-  private readonly stop = new AbortController();
-  private loop: Promise<void> | undefined;
 
   constructor(
     @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly source: NotificationsApi,
     private readonly store: PollStateStore,
-    private readonly lock: LeaderLock,
     private readonly sink: NotificationSink,
+    private readonly scheduler: PollScheduler,
     private readonly clock: Clock,
   ) {}
 
-  onApplicationBootstrap(): void {
+  async onApplicationBootstrap(): Promise<void> {
     if (!this.env.MACARON_ENABLED) {
       this.logger.warn("MACARON_ENABLED=false: notifications are not polled");
       return;
     }
-    this.loop = this.run(this.stop.signal);
+    await this.scheduler.start(async () => {
+      await this.tick();
+    });
   }
 
-  async onApplicationShutdown(): Promise<void> {
-    this.stop.abort();
-    await this.loop;
-  }
-
-  private async run(signal: AbortSignal): Promise<void> {
-    while (!signal.aborted) {
-      try {
-        await this.tick(signal);
-      } catch (error: unknown) {
-        if (isAborted(signal)) return;
-        // tick() already persisted pacing; this only guards against tight loops on unexpected failures.
-        this.logger.error(`poll tick failed: ${describeError(error)}`);
-        await this.clock.sleep(60_000, signal).catch(() => undefined);
-      }
-    }
-  }
-
-  /** One paced poll. Returns the threads handed to the sink (empty when not leader or nothing new). */
-  async tick(signal: AbortSignal): Promise<readonly NotificationThread[]> {
+  /** One paced poll. Returns the threads handed to the sink (empty when it was too early or nothing changed). */
+  async tick(): Promise<readonly NotificationThread[]> {
     const state = (await this.store.load()) ?? initialPollState(this.clock.now());
-    await this.clock.sleep(state.notBefore.getTime() - this.clock.now().getTime(), signal);
-
-    if (!(await this.lock.holds(LockKey.notificationsPoller))) {
-      // Another instance polls. Check again one interval later, without touching the shared state.
-      await this.clock.sleep(state.intervalSec * 1000, signal);
+    if (state.notBefore.getTime() > this.clock.now().getTime()) {
+      await this.scheduler.at(state.notBefore);
       return [];
     }
-    // Re-read under the lock: the previous leader may have polled while we were sleeping.
-    const current = (await this.store.load()) ?? state;
-    if (current.notBefore.getTime() > this.clock.now().getTime()) return [];
 
-    const result = await this.source.fetch(current.lastModified).catch(
-      (error: unknown): { outcome: PollOutcome; threads: readonly NotificationThread[] } => {
-        this.logger.error(`GET /notifications failed: ${describeError(error)}`);
-        return { outcome: { kind: "error", headers: {} }, threads: [] };
-      },
-    );
-    let next = nextPollState(current, result.outcome, this.clock.now());
+    const result = await this.source.fetch(state.lastModified).catch((error: unknown): PollResult => {
+      this.logger.error(`GET /notifications failed: ${describeError(error)}`);
+      return { outcome: { kind: "error", headers: {} }, threads: [] };
+    });
+    let next = nextPollState(state, result.outcome, this.clock.now());
     try {
       for (const thread of result.threads) {
         await this.sink.accept(thread);
@@ -88,10 +84,11 @@ export class NotificationsPoller implements OnApplicationBootstrap, OnApplicatio
       return result.threads;
     } catch (error: unknown) {
       // Keep the previous Last-Modified so the unprocessed threads come back on the next poll.
-      next = { ...next, lastModified: current.lastModified };
+      next = { ...next, lastModified: state.lastModified };
       throw error;
     } finally {
       await this.store.save(next);
+      await this.scheduler.at(next.notBefore);
       if (result.outcome.kind === "error") {
         this.logger.warn(`poll failed (${String(next.consecutiveErrors)} in a row), next at ${next.notBefore.toISOString()}`);
       }

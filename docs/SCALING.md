@@ -150,7 +150,7 @@ The platform team only reviews money and trust. Everything else is owned by the 
 | Actions concurrency | Per org plan (e.g. 20 jobs; macOS lower) | Controller queue with global and per-project shares, fair scheduling across projects, interactive (`triage`) before batch (`implement`) |
 | OpenRouter spend | Bounded by keys and budgets | Per-project monthly budgets; the Router keeps chit-chat at ~$0.001 |
 | GitHub API rate limits | 5,000 req/h per token | Conditional requests (304s are free), ETag caches, batched GraphQL for thread snapshots. About 50 calls per loop means roughly 100 loops/h per token before it matters |
-| Controller | One VPS | Stateless besides Postgres; a second instance is possible because of `SKIP LOCKED` and advisory locks. Unlikely to be needed before ~1,000 loops/day |
+| Controller | One VPS | Stateless besides Postgres; a second instance is possible because pg-boss and the migration lock coordinate through Postgres. Unlikely to be needed before ~1,000 loops/day |
 | One bot identity | All projects share `macaron-bot` | Later, a project can bring its own identity (`<project>-bot`) with its own tokens; `RepoConfig` gains an `identity` field and the GitHub clients become per-identity |
 
 ## 7. What changes in the other docs

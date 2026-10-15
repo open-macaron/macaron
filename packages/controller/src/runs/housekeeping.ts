@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
-import { z } from "zod";
 import { BudgetService, RUN_KEY_PREFIX } from "../budget/budget.service.ts";
 import { OpenRouterKeys } from "../budget/openrouter-keys.ts";
 import { Clock } from "../common/clock.ts";
@@ -8,7 +7,7 @@ import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { RepoConfigService } from "../config/repo-config.service.ts";
 import { GH_ORG, type GitHub } from "../github/github.ts";
 import { repoRef } from "../github/repo-ref.ts";
-import { Jobs, Queue } from "../jobs/jobs.ts";
+import { Jobs, NoPayload, Queue } from "../jobs/jobs.ts";
 import { RunLauncher } from "./run-launcher.ts";
 import { RunsRepository } from "./runs.repository.ts";
 
@@ -18,8 +17,6 @@ const UNBOUND_TIMEOUT_MS = 10 * 60_000;
 const TIMEOUT_GRACE_MS = 10 * 60_000;
 /** Keys older than this are deleted whatever their run's state: no run lives that long. */
 const KEY_MAX_AGE_MS = 6 * 60 * 60_000;
-
-const Empty = z.unknown();
 
 /**
  * Safety nets, scheduled by pg-boss (one instance runs each tick):
@@ -43,8 +40,8 @@ export class Housekeeping implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    await this.jobs.work(Queue.reconcile, Empty, () => this.reconcile());
-    await this.jobs.work(Queue.sweepKeys, Empty, () => this.sweepKeys());
+    await this.jobs.work(Queue.reconcile, NoPayload, () => this.reconcile());
+    await this.jobs.work(Queue.sweepKeys, NoPayload, () => this.sweepKeys());
   }
 
   async reconcile(): Promise<void> {

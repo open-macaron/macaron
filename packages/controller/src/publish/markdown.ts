@@ -1,35 +1,37 @@
 import type { Mode } from "@open-macaron/contracts";
+import { markdownTable } from "markdown-table";
 import { formatUsd, type UsdMicros } from "../common/money.ts";
+import { applyEdits, htmlRanges, proseRanges } from "./markdown-ast.ts";
 
 /** GitHub rejects bodies over 65 536 characters; keep room for our own sections. */
 export const MAX_BODY_CHARS = 60_000;
 
 const COST_START = "<!-- macaron:cost:start -->";
 const COST_END = "<!-- macaron:cost:end -->";
-/** Any HTML comment claiming to be ours; agents must not be able to forge our sections. */
-const OUR_MARKERS = /<!--\s*macaron:[\s\S]*?-->/g;
-const MENTION = /(^|[^\w`/@])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\/[A-Za-z0-9_.-]+)?)/g;
+/** A GitHub @mention: user or org/team, preceded by start or a non-word character. */
+const MENTION = /(?<![\w@/`])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\/[A-Za-z0-9_.-]+)?)/g;
 
 /**
- * Makes untrusted text safe to post:
- * - strips anything that looks like our own markers;
+ * Makes untrusted Markdown safe to post, editing the source in place (formatting preserved):
+ * - removes raw HTML claiming to be ours (`<!-- macaron:… -->`), so our sections can't be forged;
  * - turns @mentions of people outside `allowedMentions` into code spans (no notification);
+ *   only prose is touched — code, links and autolinked emails are left as they are;
  * - truncates to MAX_BODY_CHARS.
- * Fenced code blocks are left untouched (mentions inside them never notify anyway).
  */
 export function sanitize(body: string, allowedMentions: ReadonlySet<string>): string {
   const allowed = new Set([...allowedMentions].map((login) => login.toLowerCase()));
-  const cleaned = body
-    .replace(OUR_MARKERS, "")
-    .split(/(^```[\s\S]*?^```)/m)
-    .map((segment, index) =>
-      index % 2 === 1
-        ? segment
-        : segment.replace(MENTION, (_match, prefix: string, login: string) =>
-            allowed.has(login.toLowerCase()) ? `${prefix}@${login}` : `${prefix}\`@${login}\``,
-          ),
-    )
-    .join("");
+  const edits = htmlRanges(body)
+    .filter((range) => /^<!--\s*macaron:/.test(body.slice(range.start, range.end)))
+    .map((range) => ({ ...range, text: "" }));
+  for (const range of proseRanges(body)) {
+    for (const match of body.slice(range.start, range.end).matchAll(MENTION)) {
+      const login = match[1];
+      if (login === undefined || allowed.has(login.toLowerCase())) continue;
+      const start = range.start + match.index;
+      edits.push({ start, end: start + match[0].length, text: `\`${match[0]}\`` });
+    }
+  }
+  const cleaned = applyEdits(body, edits);
   return cleaned.length <= MAX_BODY_CHARS ? cleaned : `${cleaned.slice(0, MAX_BODY_CHARS)}\n\n…(truncated)`;
 }
 
@@ -49,18 +51,21 @@ export interface CostRow {
 
 /** The table at the end of the PR body, regenerated from the ledger on every loop. */
 export function renderCostTable(rows: readonly CostRow[], routerMicros: UsdMicros, routedComments: number): string {
-  const lines = ["| Loop | Trigger | Mode | Model | Cost | Run |", "|---|---|---|---|---|---|"];
-  for (const row of rows) {
-    const model = row.model.replace(/^[^/]+\//, "");
-    const run = row.runUrl === null ? "" : `[run](${row.runUrl})`;
-    lines.push(`| ${String(row.loop)} | ${escapeCell(row.trigger)} | ${row.mode} | ${escapeCell(model)} | ${formatUsd(row.costMicros)} | ${run} |`);
-  }
+  const body = rows.map((row) => [
+    String(row.loop),
+    escapeCell(row.trigger),
+    row.mode,
+    escapeCell(row.model.replace(/^[^/]+\//, "")),
+    formatUsd(row.costMicros),
+    row.runUrl === null ? "" : `[run](${row.runUrl})`,
+  ]);
   if (routedComments > 0) {
-    lines.push(`| – | ${String(routedComments)} routed comment${routedComments === 1 ? "" : "s"} | router | | ${formatUsd(routerMicros)} | |`);
+    body.push(["–", `${String(routedComments)} routed comment${routedComments === 1 ? "" : "s"}`, "router", "", formatUsd(routerMicros), ""]);
   }
   const total = rows.reduce((sum, row) => sum + row.costMicros, routerMicros);
-  lines.push(`| **Total** | | | | **${formatUsd(total)}** | |`);
-  return [COST_START, "### macaron-bot cost", "", ...lines, COST_END].join("\n");
+  body.push(["**Total**", "", "", "", `**${formatUsd(total)}**`, ""]);
+  const table = markdownTable([["Loop", "Trigger", "Mode", "Model", "Cost", "Run"], ...body], { alignDelimiters: false });
+  return [COST_START, "### macaron-bot cost", "", table, COST_END].join("\n");
 }
 
 /** Puts `section` (which carries its own markers) in place of the previous one, or appends it. */
@@ -71,6 +76,7 @@ export function upsertCostSection(body: string, section: string): string {
   return `${body.slice(0, start)}${section}${body.slice(end + COST_END.length)}`;
 }
 
+/** markdown-table doesn't escape cell content: a `|` would split the cell. */
 function escapeCell(text: string): string {
   return text.replaceAll("|", "\\|").replaceAll("\n", " ");
 }

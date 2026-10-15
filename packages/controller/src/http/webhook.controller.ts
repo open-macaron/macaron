@@ -1,58 +1,50 @@
-import { BadRequestException, Controller, Headers, HttpCode, HttpStatus, Inject, Logger, Post, type RawBodyRequest, Req, UnauthorizedException } from "@nestjs/common";
+import { Controller, Headers, HttpCode, HttpStatus, Inject, Logger, Post, type RawBodyRequest, Req, UnauthorizedException } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
-import { verify } from "@octokit/webhooks-methods";
+import { Webhooks } from "@octokit/webhooks";
 import type { Request } from "express";
-import { z } from "zod";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { Jobs } from "../jobs/jobs.ts";
 
-const WorkflowRunEvent = z.looseObject({
-  action: z.string(),
-  workflow_run: z.looseObject({ id: z.int().positive(), conclusion: z.string().nullable() }),
-  repository: z.looseObject({ id: z.int().positive() }),
-});
-
 /**
- * GitHub webhooks (org webhook on open-macaron). The signature is checked on the raw bytes
- * before anything is parsed; the handler only enqueues work and answers within milliseconds.
+ * GitHub webhooks (org webhook on open-macaron), through @octokit/webhooks: the signature is
+ * verified on the raw bytes and payloads are typed from GitHub's own schemas. Handlers only
+ * enqueue work, so GitHub gets its answer within milliseconds.
  */
 @ApiExcludeController()
 @Controller("v1/webhook")
 export class WebhookController {
   private readonly logger = new Logger(WebhookController.name);
+  private readonly webhooks: Webhooks;
 
   constructor(
-    @Inject(APP_ENV) private readonly env: AppEnv,
-    private readonly jobs: Jobs,
-  ) {}
+    @Inject(APP_ENV) env: AppEnv,
+    jobs: Jobs,
+  ) {
+    this.webhooks = new Webhooks({ secret: env.WEBHOOK_HMAC });
+    this.webhooks.on("workflow_run.completed", async ({ payload }) => {
+      // Only our runner repository's completions matter; everything else is acknowledged and ignored.
+      if (payload.repository.id !== env.RUNNER_REPO_ID) return;
+      const run = payload.workflow_run;
+      this.logger.log(`workflow run ${String(run.id)} completed (${run.conclusion ?? "no conclusion"})`);
+      await jobs.runCompleted(run.id, run.conclusion);
+    });
+  }
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
   async receive(
     @Req() request: RawBodyRequest<Request>,
+    @Headers("x-github-delivery") id: string | undefined,
+    @Headers("x-github-event") name: string | undefined,
     @Headers("x-hub-signature-256") signature: string | undefined,
-    @Headers("x-github-event") event: string | undefined,
   ): Promise<void> {
-    const raw = request.rawBody;
-    if (raw === undefined || signature === undefined) throw new UnauthorizedException();
-    if (!(await verify(this.env.WEBHOOK_HMAC, raw.toString("utf8"), signature))) throw new UnauthorizedException();
-
-    let payload: unknown;
+    const payload = request.rawBody?.toString("utf8");
+    if (payload === undefined || id === undefined || name === undefined || signature === undefined) throw new UnauthorizedException();
     try {
-      payload = JSON.parse(raw.toString("utf8"));
-    } catch {
-      throw new BadRequestException();
-    }
-
-    if (event === "workflow_run") {
-      const parsed = WorkflowRunEvent.safeParse(payload);
-      if (!parsed.success) throw new BadRequestException();
-      const { action, workflow_run: run, repository } = parsed.data;
-      // Only our runner repository's completions matter; everything else is acknowledged and ignored.
-      if (action === "completed" && repository.id === this.env.RUNNER_REPO_ID) {
-        this.logger.log(`workflow run ${String(run.id)} completed (${run.conclusion ?? "no conclusion"})`);
-        await this.jobs.runCompleted(run.id, run.conclusion);
-      }
+      await this.webhooks.verifyAndReceive({ id, name, payload, signature });
+    } catch (error: unknown) {
+      this.logger.warn(`webhook ${id} rejected: ${error instanceof Error ? error.message : "unknown error"}`);
+      throw new UnauthorizedException();
     }
   }
 }

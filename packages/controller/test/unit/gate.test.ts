@@ -7,8 +7,8 @@ import { BASE_SHA, PNG, runContext, runResult, SVG, text, WEBM } from "../suppor
 const changes = (files: readonly unknown[], baseSha = BASE_SHA): Changes => ChangesSchema.parse({ baseSha, files });
 const upsert = (path: string, content: string) => ({ action: "upsert", path, mode: "100644", contentBase64: text(content) });
 
-function check(overrides: Partial<GateInput> = {}): readonly string[] {
-  const verdict = gate({
+async function check(overrides: Partial<GateInput> = {}): Promise<readonly string[]> {
+  const verdict = await gate({
     mode: "implement",
     context: runContext(),
     result: runResult(),
@@ -20,52 +20,52 @@ function check(overrides: Partial<GateInput> = {}): readonly string[] {
 }
 
 describe("gate", () => {
-  it("accepts a clean commit", () => {
-    expect(check()).toEqual([]);
+  it("accepts a clean commit", async () => {
+    expect(await check()).toEqual([]);
   });
 
-  it("refuses actions the mode does not allow", () => {
-    expect(check({ mode: "triage" })).toEqual(['action "commit" is not allowed in mode "triage"']);
-    expect(check({ mode: "reproduce" })).toEqual(['action "commit" is not allowed in mode "reproduce"']);
+  it("refuses actions the mode does not allow", async () => {
+    expect(await check({ mode: "triage" })).toEqual(['action "commit" is not allowed in mode "triage"']);
+    expect(await check({ mode: "reproduce" })).toEqual(['action "commit" is not allowed in mode "reproduce"']);
   });
 
-  it("refuses changes on another base commit", () => {
-    expect(check({ changes: changes([upsert("a.txt", "x")], "b".repeat(40)) })).toEqual(["changes were made on another base commit"]);
+  it("refuses changes on another base commit", async () => {
+    expect(await check({ changes: changes([upsert("a.txt", "x")], "b".repeat(40)) })).toEqual(["changes were made on another base commit"]);
   });
 
-  it.each([".github/workflows/ci.yml", ".github/CODEOWNERS", ".gitmodules", "vendor/.git/config"])("refuses to touch %s", (path) => {
-    expect(check({ changes: changes([upsert(path, "x")]) })).toEqual([expect.stringContaining("may not be changed")]);
+  it.each([".github/workflows/ci.yml", ".github/CODEOWNERS", ".gitmodules", "vendor/.git/config"])("refuses to touch %s", async (path) => {
+    expect(await check({ changes: changes([upsert(path, "x")]) })).toEqual([expect.stringContaining("may not be changed")]);
   });
 
-  it("refuses binaries and oversized files", () => {
+  it("refuses binaries and oversized files", async () => {
     const binary = { action: "upsert", path: "a.bin", mode: "100644", contentBase64: Buffer.from([1, 0, 2]).toString("base64") };
-    expect(check({ changes: changes([binary]) })).toEqual([expect.stringContaining("binary")]);
+    expect(await check({ changes: changes([binary]) })).toEqual([expect.stringContaining("binary")]);
 
     const limits = { maxChangedFiles: 10, maxFileBytes: 4, maxTotalBytes: 100 };
-    expect(check({ changes: changes([upsert("a.txt", "too long")]), limits })).toEqual([expect.stringContaining("limit is 4")]);
+    expect(await check({ changes: changes([upsert("a.txt", "too long")]), limits })).toEqual([expect.stringContaining("limit is 4")]);
   });
 
-  it("refuses a commit without changes", () => {
-    expect(check({ changes: undefined })).toEqual(["action is commit but there are no changes"]);
+  it("refuses a commit without changes", async () => {
+    expect(await check({ changes: undefined })).toEqual(["action is commit but there are no changes"]);
   });
 
-  it("refuses credentials in files and in texts, naming each kind once", () => {
+  it("refuses credentials in files and in texts, naming each kind once", async () => {
     const token = `ghp_${"A".repeat(36)}`;
-    expect(check({ changes: changes([upsert("config.ts", `const t = "${token}";`)]) })).toEqual(["config.ts: contains a GitHub token"]);
-    expect(check({ result: runResult({ summary: `used sk-or-v1-${"0".repeat(64)}` }) })).toEqual(["text contains a OpenRouter key"]);
+    expect(await check({ changes: changes([upsert("config.ts", `const t = "${token}";`)]) })).toEqual(["config.ts: contains a github secret"]);
+    expect(await check({ result: runResult({ summary: `used sk-or-v1-${"0".repeat(64)}` }) })).toEqual(["text contains a OpenRouter API key secret"]);
   });
 
-  it("refuses replies to comments the agent was never shown", () => {
+  it("refuses replies to comments the agent was never shown", async () => {
     const result = runResult({ action: "reply", replies: [{ inReplyTo: 999, body: "done" }], commitMessage: undefined, pr: undefined });
-    expect(check({ mode: "address_review", result, changes: undefined })).toEqual(["reply targets unknown comment 999"]);
+    expect(await check({ mode: "address_review", result, changes: undefined })).toEqual(["reply targets unknown comment 999"]);
   });
 
   describe("attachments", () => {
     const reproduce = (attachments: readonly unknown[], message: string) =>
       runResult({ action: "reply", message, attachments, commitMessage: undefined, pr: undefined });
 
-    it("accepts a video with its image preview, typed by magic bytes", () => {
-      const verdict = gate({
+    it("accepts a video with its image preview, typed by magic bytes", async () => {
+      const verdict = await gate({
         mode: "reproduce",
         context: runContext({ mode: "reproduce" }),
         result: reproduce(
@@ -79,11 +79,11 @@ describe("gate", () => {
         ]),
       });
 
-      expect(verdict.ok && verdict.publishable.attachments.map((a) => [a.type, a.previewType])).toEqual([["webm", "png"]]);
+      expect(verdict.ok && verdict.publishable.attachments.map((a) => [a.media.mime, a.previewMedia?.mime])).toEqual([["video/webm", "image/png"]]);
     });
 
-    it("refuses SVG (or anything else) disguised with an image extension", () => {
-      const violations = check({
+    it("refuses SVG (or anything else) disguised with an image extension", async () => {
+      const violations = await check({
         mode: "reproduce",
         context: runContext({ mode: "reproduce" }),
         result: reproduce([{ id: "x", path: "media/x.png", kind: "image", caption: "x" }], "![x](attachment:x)"),
@@ -94,8 +94,8 @@ describe("gate", () => {
       expect(violations).toEqual(["attachment x: media/x.png is not an allowed image or video type"]);
     });
 
-    it("refuses missing files and references to unknown attachments", () => {
-      const violations = check({
+    it("refuses missing files and references to unknown attachments", async () => {
+      const violations = await check({
         mode: "reproduce",
         context: runContext({ mode: "reproduce" }),
         result: reproduce([{ id: "a", path: "media/a.png", kind: "image", caption: "a" }], "![a](attachment:a) ![b](attachment:b)"),

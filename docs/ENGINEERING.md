@@ -17,6 +17,7 @@ How the controller and the agent-side CLI are built. The system design is in [DE
 | OIDC | `jose` | JWKS from `token.actions.githubusercontent.com`, cached |
 | Infra libs | `nestjs-pino` (JSON logs, secrets redacted), `@nestjs/terminus` (probes), `nestjs-cls` (request/run correlation id) | |
 | Tests | Vitest 5, `@nestjs/testing`, Testcontainers (Postgres), `msw` (GitHub and OpenRouter HTTP) | Vitest is the default for ESM projects in Nest 12 |
+| Prefer libraries | maintained packages over hand-rolled code | `file-type` (media sniffing), `secretlint` (credentials), `mdast-util-from-markdown` + GFM (mentions, sanitising), `markdown-table`, `@sindresorhus/slugify`, `p-retry`, `deepmerge-ts`, `@octokit/webhooks`, pg-boss. We keep our own code only for policy (Gate, caps) and GitHub-specific pacing |
 | Package manager | pnpm 12 workspace | `--frozen-lockfile`, lifecycle scripts denied except where allow-listed, `minimumReleaseAge` set to 3 days |
 
 ## 2. Repository layout
@@ -52,7 +53,7 @@ macaron/                                (open-macaron/macaron, public)
 ```
 
 - **Dependencies point one way:** Ingest → Routing → Runs → Publish. Each module exports only its façade service. `dependency-cruiser` enforces the direction in CI.
-- **State lives in Postgres, not in memory.** Background work runs on [pg-boss](https://github.com/timgit/pg-boss), on the same database: per-thread debounce (`upsert` on a `stately` queue moves the pending job back), deduplicated `run-completed` jobs, and cron-scheduled `reconcile` and `sweep-keys`. The notifications poller and sweepers take a Postgres advisory lock. So a restart loses nothing, and a second instance would be safe if we ever need one.
+- **State lives in Postgres, not in memory.** Background work runs on [pg-boss](https://github.com/timgit/pg-boss), on the same database: per-thread debounce (`upsert` on a `stately` queue moves the pending job back), deduplicated `run-completed` jobs, and cron-scheduled `reconcile` and `sweep-keys`. The notifications poller is itself a pg-boss job (see DESIGN.md §4), so a restart loses nothing.
 - **Idempotency.** Every external effect (reaction, comment, push, dispatch) is keyed in the database by `(thread, loop, effect)`. A retried job never double-posts.
 
 Drizzle tables (`packages/controller/src/db/schema.ts`):

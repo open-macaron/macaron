@@ -115,10 +115,10 @@ class Ingest {
   schedule(ev: TriggerEvent): Promise<void>;
 }
 
-/** The only code allowed to call GET /notifications. A single instance cluster-wide (Postgres advisory lock). */
+/** The only code allowed to call GET /notifications. Runs as a pg-boss job: one active across instances. */
 class NotificationsPoller {
-  constructor(@Inject(GH_INTERACT) gh: Octokit, state: PollStateRepository, clock: Clock) {}
-  /** Sleeps until state.notBefore, does ONE conditional poll, persists the new state, and returns the threads that changed. */
+  constructor(source: NotificationsApi, state: PollStateStore, sink: NotificationSink, scheduler: PollScheduler, clock: Clock) {}
+  /** Polls only if now ≥ state.notBefore (otherwise reschedules), persists the new state, schedules the next poll. */
   tick(): Promise<NotificationThread[]>;
 }
 
@@ -172,7 +172,7 @@ GitHub's documentation: *"There is an `X-Poll-Interval` header that specifies ho
 ```mermaid
 stateDiagram-v2
   [*] --> Waiting: load PollState from Postgres
-  Waiting --> Polling: now ≥ notBefore AND holds advisory lock
+  Waiting --> Polling: pg-boss runs the poll job AND now ≥ notBefore
   Polling --> Waiting: 304 Not Modified → notBefore = now + X-Poll-Interval
   Polling --> Processing: 200 → store Last-Modified
   Processing --> Waiting: enqueue threads, mark each read → notBefore = now + X-Poll-Interval
@@ -182,7 +182,7 @@ stateDiagram-v2
 
 1. **The header always wins.** Every response (200, 304, error) updates `intervalSec` from `X-Poll-Interval`. If it is missing, the last known value is kept, and never less than 60 s. The poller has no "poll now" path: no deploy, webhook, command or admin endpoint can trigger an early poll.
 2. **`notBefore` is persisted before the next sleep.** A restart, a crash loop or a deploy every five minutes can never cause an extra request.
-3. **Exactly one poller.** A second controller instance would double the rate. A Postgres advisory lock guarantees a single poller, and the instance without the lock doesn't poll.
+3. **Exactly one poller.** A second controller instance would double the rate. The poll is a pg-boss job on a `stately` queue with one key, so at most one runs at a time across instances. It reschedules itself for exactly `notBefore`; a once-a-minute cron entry only guarantees a poll stays pending, and a job that wakes early makes no request.
 4. **Conditional requests.** `If-Modified-Since` carries the stored `Last-Modified`, so a 304 costs no rate limit.
 5. **One poll is one logical request.** We use `participating=true` (only direct involvement: `mention`, `author`, `comment`, rarely `assign`). We mark threads as read after enqueueing (`PATCH /notifications/threads/{id}`), and auto-watch is off on the bot account, so a poll fits in one page (`per_page=50`). If `Link: next` appears, the remaining pages are fetched within the same poll. A warning metric fires, because it means the inbox isn't being drained.
 6. **Errors back off, they never retry fast.** The wait is `Retry-After`, the rate-limit reset, or an exponential backoff, whichever is longest, and never shorter than the poll interval.
@@ -204,7 +204,7 @@ class BudgetService {
 ```
 
 - Caps exist at four levels: per-run key limit, per thread, per repo per month, and global concurrency. There is also a kill switch (`MACARON_ENABLED`).
-- A `KeySweeper` (in-process, under a Postgres advisory lock) deletes any `macaron-*` key older than 6 h, as a safety net.
+- Every run key expires on its own (`expires_at` = timeout + 15 min). A `sweep-keys` pg-boss cron job deletes leftovers, as a safety net.
 - The last request can overshoot a key's limit a little, so harness `max_tokens` stays bounded.
 
 ### Gate and Publisher (`PublishModule`)

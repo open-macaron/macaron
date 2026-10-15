@@ -1,18 +1,28 @@
-/**
- * Credential shapes that must never be published. Deterministic and cheap; GitHub's own secret
- * scanning on the public forks is the second line.
- */
-const PATTERNS: readonly { readonly name: string; readonly pattern: RegExp }[] = [
-  { name: "GitHub token", pattern: /\b(gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{60,255})\b/ },
-  { name: "OpenRouter key", pattern: /\bsk-or-(v1-)?[A-Za-z0-9]{32,}\b/ },
-  { name: "Anthropic key", pattern: /\bsk-ant-[A-Za-z0-9_-]{32,}\b/ },
-  { name: "OpenAI key", pattern: /\bsk-(?!or-|ant-)(proj-)?[A-Za-z0-9_-]{40,}\b/ },
-  { name: "AWS access key", pattern: /\b(AKIA|ASIA)[0-9A-Z]{16}\b/ },
-  { name: "Slack token", pattern: /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/ },
-  { name: "private key", pattern: /-----BEGIN ((RSA|EC|DSA|OPENSSH|PGP) )?PRIVATE KEY( BLOCK)?-----/ },
+import { lintSource } from "@secretlint/core";
+import { creator as pattern } from "@secretlint/secretlint-rule-pattern";
+import { creator as recommended } from "@secretlint/secretlint-rule-preset-recommend";
+
+const RULE_PREFIX = "@secretlint/secretlint-rule-";
+
+/** secretlint's recommended preset (GitHub, OpenAI, Anthropic, AWS, private keys…) plus what it lacks. */
+const RULES = [
+  { id: "@secretlint/secretlint-rule-preset-recommend", rule: recommended },
+  {
+    id: "@secretlint/secretlint-rule-pattern",
+    rule: pattern,
+    options: { patterns: [{ name: "OpenRouter API key", patterns: ["/sk-or-v1-[0-9a-f]{64}/"] }] },
+  },
 ];
 
-/** Names of the credential kinds found in `text` (empty when clean). */
-export function findSecrets(text: string): readonly string[] {
-  return PATTERNS.filter(({ pattern }) => pattern.test(text)).map(({ name }) => name);
+/**
+ * Names of the credential kinds secretlint finds in `content` (empty when clean).
+ * `path` lets path-aware rules (e.g. `.npmrc`, `.env`) apply; secrets are masked in messages.
+ */
+export async function findSecrets(content: string, path = "content.txt"): Promise<readonly string[]> {
+  const result = await lintSource({
+    source: { content, filePath: path, contentType: "text" },
+    options: { config: { rules: RULES }, maskSecrets: true, noPhysicFilePath: true },
+  });
+  const kinds = result.messages.map((message) => (message.ruleId === `${RULE_PREFIX}pattern` ? "OpenRouter API key" : message.ruleId.replace(RULE_PREFIX, "")));
+  return [...new Set(kinds)];
 }

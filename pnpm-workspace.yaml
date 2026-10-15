@@ -26,6 +26,21 @@ catalog:
   zod: 4.6.6
   yaml: 2.9.1
   fflate: 0.8.3
+  deepmerge-ts: 8.0.2
+  # Hand-rolled code replaced by maintained libraries
+  file-type: 22.1.1
+  "@secretlint/core": 13.0.7
+  "@secretlint/secretlint-rule-preset-recommend": 13.0.7
+  "@secretlint/secretlint-rule-pattern": 13.0.7
+  mdast-util-from-markdown: 2.1.0
+  mdast-util-gfm: 3.1.0
+  micromark-extension-gfm: 3.0.0
+  unist-util-visit: 5.1.0
+  "@types/mdast": 4.0.4
+  markdown-table: 3.0.4
+  "@sindresorhus/slugify": 3.0.1
+  p-retry: 8.0.1
+  "@octokit/webhooks": 14.2.0
   # OpenRouter (official SDK, generated from their OpenAPI spec)
   "@openrouter/sdk": 1.4.25
   # GitHub, OIDC
@@ -33,7 +48,6 @@ catalog:
   "@octokit/rest": 22.0.1
   "@octokit/plugin-retry": 8.1.1
   "@octokit/plugin-throttling": 11.0.5
-  "@octokit/webhooks-methods": 6.0.0
   jose: 6.2.12
   # Logging
   nestjs-pino: 5.3.1

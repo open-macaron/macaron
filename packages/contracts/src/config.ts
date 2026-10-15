@@ -1,3 +1,4 @@
+import { deepmergeCustom } from "deepmerge-ts";
 import { z } from "zod";
 import { GitHubLogin, RepoSlug, Slug, Usd } from "./ids.ts";
 import { Capability, Harness } from "./mode.ts";
@@ -136,22 +137,8 @@ export const RepoConfig = RepoSettings.extend({
 });
 export type RepoConfig = z.infer<typeof RepoConfig>;
 
-type PlainRecord = Readonly<Record<string, unknown>>;
-
-function isPlainRecord(value: unknown): value is PlainRecord {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** Recursive merge: plain objects merge key by key, everything else (arrays, scalars) is replaced. */
-export function deepMerge(base: PlainRecord, patch: PlainRecord): Record<string, unknown> {
-  const merged: Record<string, unknown> = { ...base };
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) continue;
-    const previous = merged[key];
-    merged[key] = isPlainRecord(previous) && isPlainRecord(value) ? deepMerge(previous, value) : value;
-  }
-  return merged;
-}
+/** Objects merge key by key; arrays and scalars are replaced (last value wins); undefined is ignored. */
+const mergeSettings = deepmergeCustom({ mergeArrays: false });
 
 /**
  * Applies one level of overrides. Switching the environment `source` starts that environment
@@ -159,8 +146,8 @@ export function deepMerge(base: PlainRecord, patch: PlainRecord): Record<string,
  */
 export function applySettingsPatch(base: RepoSettings, patch: RepoSettingsPatch): RepoSettings {
   const switchesSource = patch.environment?.source !== undefined && patch.environment.source !== base.environment.source;
-  const seed: PlainRecord = switchesSource ? { ...base, environment: { params: {} } } : base;
-  return RepoSettings.parse(deepMerge(seed, patch));
+  const seed = switchesSource ? { ...base, environment: { params: {} } } : base;
+  return RepoSettings.parse(mergeSettings(seed, patch));
 }
 
 /** global → project → repo. Throws a ZodError naming the offending field if the result is invalid. */

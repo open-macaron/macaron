@@ -146,7 +146,7 @@ export class RunLauncher {
       throw error;
     }
 
-    const verdict = gate({ mode: run.mode, context: run.context, result: artifact.result, changes: artifact.changes, media: artifact.media });
+    const verdict = await gate({ mode: run.mode, context: run.context, result: artifact.result, changes: artifact.changes, media: artifact.media });
     if (!verdict.ok) {
       this.logger.warn(`run ${run.id} refused by the Gate: ${verdict.violations.join("; ")}`);
       return fail(`the result was refused by policy (${verdict.violations.slice(0, 3).join("; ")})`);

@@ -6,6 +6,8 @@ import { APP_ENV, type AppEnv } from "../config/env.ts";
 
 /** Every queue the controller uses, with its pg-boss policy. */
 export const Queue = {
+  /** GET /notifications, one at a time across instances, self-scheduled at X-Poll-Interval. */
+  pollNotifications: "poll-notifications",
   /** One job per thread that has new triggers; `stately` = at most one queued and one active per thread. */
   threadReady: "thread-ready",
   /** A workflow run finished (webhook or reconcile); one job per run, whoever saw it first. */
@@ -17,7 +19,10 @@ export const Queue = {
 } as const;
 export type QueueName = (typeof Queue)[keyof typeof Queue];
 
+const POLL_KEY = "poll";
+
 export const ThreadReadyJob = z.object({ threadId: z.uuid() });
+export const NoPayload = z.unknown();
 export const RunCompletedJob = z.object({ ghRunId: z.int().positive(), conclusion: z.string().nullable() });
 
 /**
@@ -38,6 +43,7 @@ export class Jobs implements OnModuleInit, OnApplicationShutdown {
 
   async onModuleInit(): Promise<void> {
     await this.boss.start();
+    await this.boss.createQueue(Queue.pollNotifications, { policy: "stately", retryLimit: 0, expireInSeconds: 120 });
     await this.boss.createQueue(Queue.threadReady, { policy: "stately", retryLimit: 3, retryDelay: 30, retryBackoff: true, expireInSeconds: 600 });
     await this.boss.createQueue(Queue.runCompleted, { policy: "short", retryLimit: 5, retryDelay: 60, retryBackoff: true, expireInSeconds: 900 });
     await this.boss.createQueue(Queue.reconcile, { policy: "singleton", expireInSeconds: 300 });
@@ -57,6 +63,16 @@ export class Jobs implements OnModuleInit, OnApplicationShutdown {
    */
   async threadReady(threadId: string, quietMs: number): Promise<void> {
     await this.boss.upsert(Queue.threadReady, { threadId }, { singletonKey: threadId, startAfter: new Date(Date.now() + quietMs) });
+  }
+
+  /** The next notifications poll, at exactly `at` (moves the pending one if there is one). */
+  async pollAt(at: Date): Promise<void> {
+    await this.boss.upsert(Queue.pollNotifications, {}, { singletonKey: POLL_KEY, startAfter: at });
+  }
+
+  /** Safety net: makes sure a poll is always pending, without moving one that already is. */
+  async keepPolling(): Promise<void> {
+    await this.boss.schedule(Queue.pollNotifications, "* * * * *", {}, { singletonKey: POLL_KEY });
   }
 
   /** Deduplicated by run id: the webhook and reconcile may both report the same completion. */

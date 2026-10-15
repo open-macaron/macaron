@@ -1,4 +1,6 @@
+import slugify from "@sindresorhus/slugify";
 import type { Mode } from "@open-macaron/contracts";
+import { proseRanges } from "../publish/markdown-ast.ts";
 
 export interface Subject {
   readonly repo: string;
@@ -35,42 +37,33 @@ export interface Mention {
 }
 
 /**
- * Finds a mention of `login` outside code and quotes. `@macaron-bot implement` and
- * `@macaron-bot can you reproduce?` both yield a command; a bare mention yields none.
+ * Finds a mention of `login` in prose (never in code, quotes or links' URLs, thanks to a real
+ * Markdown parser). `@macaron-bot implement` and `@macaron-bot can you reproduce?` both yield a
+ * command; a bare mention yields none. The instruction is the rest of the mention's line.
  */
 export function parseMention(body: string, login: string): Mention | undefined {
-  const prose = body
-    .replace(/^```[\s\S]*?^```/gm, "")
-    .replace(/`[^`\n]*`/g, "")
-    .split("\n")
-    .filter((line) => !line.trimStart().startsWith(">"))
-    .join("\n");
-  const pattern = new RegExp(`(^|[^\\w@/-])@${login.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&")}(?![\\w-])([^\\n]*)`, "i");
-  const match = pattern.exec(prose);
-  if (match === null) return undefined;
-  const rest = (match[2] ?? "").trim();
-  const first = rest.split(/\s+/)[0]?.toLowerCase().replace(/[^a-z_]/g, "") ?? "";
-  if (isCommand(first)) return { command: first, instruction: rest };
-  const alias = ALIASES.find(([regex]) => regex.test(rest));
-  return { command: alias?.[1], instruction: rest };
+  const mention = new RegExp(`(?<![\\w@/-])@${RegExp.escape(login)}(?![\\w-])`, "i");
+  for (const range of proseRanges(body, { skipQuotes: true })) {
+    const match = mention.exec(body.slice(range.start, range.end));
+    if (match === null) continue;
+    const after = range.start + match.index + match[0].length;
+    const lineEnd = body.indexOf("\n", after);
+    const rest = body.slice(after, lineEnd === -1 ? undefined : lineEnd).trim();
+    const first = rest.split(/\s+/)[0]?.toLowerCase().replace(/[^a-z_]/g, "") ?? "";
+    if (isCommand(first)) return { command: first, instruction: rest };
+    return { command: ALIASES.find(([regex]) => regex.test(rest))?.[1], instruction: rest };
+  }
+  return undefined;
 }
 
 function isCommand(value: string): value is Command {
   return COMMANDS.has(value);
 }
 
-/** `macaron/<number>-<slug>` from an issue title: lowercase, ascii, at most 40 chars of slug. */
+/** `macaron/<number>-<slug>` from an issue title (slug by @sindresorhus/slugify, at most 40 chars). */
 export function branchFor(number: number, title: string): string {
-  const slug =
-    title
-      .normalize("NFKD")
-      .replace(/\p{M}/gu, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 40)
-      .replace(/-+$/g, "") || "work";
-  return `macaron/${String(number)}-${slug}`;
+  const slug = slugify(title).slice(0, 40).replace(/-+$/, "");
+  return `macaron/${String(number)}-${slug === "" ? "work" : slug}`;
 }
 
 export interface TriggerEvent {

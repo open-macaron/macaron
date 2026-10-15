@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import type { RepoConfig, RunContext } from "@open-macaron/contracts";
 import { describeError } from "../common/errors.ts";
+import { formatUsd } from "../common/money.ts";
 import { BotIdentity } from "../github/bot-identity.ts";
 import { repoRef, type RepoRef } from "../github/repo-ref.ts";
 import type { RunRecord, ThreadRecord } from "../runs/runs.repository.ts";
@@ -139,7 +140,7 @@ export class Publisher {
       outcome,
       where,
       "",
-      `<sub>Spent on this thread: $${(spent / 1_000_000).toFixed(2)}.</sub>`,
+      `<sub>Spent on this thread: ${formatUsd(spent)}.</sub>`,
     ].join("\n");
     await this.post(async () => {
       const id = await this.writer.upsertComment(upstream, thread.number, thread.statusCommentId, body);

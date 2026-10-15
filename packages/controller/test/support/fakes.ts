@@ -1,5 +1,5 @@
 import { Clock } from "../../src/common/clock.ts";
-import { LeaderLock, type LockKey } from "../../src/db/leader-lock.ts";
+import { PollScheduler } from "../../src/ingest/notifications-poller.ts";
 import type { PollState } from "../../src/ingest/poll-policy.ts";
 import { PollStateStore } from "../../src/ingest/poll-state.store.ts";
 
@@ -45,12 +45,15 @@ export class InMemoryPollStateStore extends PollStateStore {
   }
 }
 
-export class FakeLeaderLock extends LeaderLock {
-  constructor(public leader = true) {
-    super();
+export class RecordingPollScheduler extends PollScheduler {
+  readonly scheduled: Date[] = [];
+
+  override start(_tick: () => Promise<void>): Promise<void> {
+    return Promise.resolve();
   }
 
-  override holds(_key: LockKey): Promise<boolean> {
-    return Promise.resolve(this.leader);
+  override at(when: Date): Promise<void> {
+    this.scheduled.push(when);
+    return Promise.resolve();
   }
 }
