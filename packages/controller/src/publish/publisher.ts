@@ -69,8 +69,11 @@ export class Publisher {
         const prNumber = await this.runs.once(thread.id, run.loop, "pr", async () => {
           const base = await this.writer.defaultBranch(upstream);
           const title = result.pr?.title ?? result.summary.slice(0, 120);
-          const reference = thread.kind === "issue" ? `\n\nRelated to #${String(thread.number)}.` : "";
-          const body = `${clean(result.pr?.body ?? result.summary)}${reference}`;
+          const text = clean(result.pr?.body ?? result.summary);
+          // Link the issue unless the agent already did (e.g. "Closes #12").
+          const mentionsIssue = new RegExp(`#${String(thread.number)}\\b`).test(text);
+          const reference = thread.kind === "issue" && !mentionsIssue ? `\n\nRelated to #${String(thread.number)}.` : "";
+          const body = `${text}${reference}`;
           return this.writer.openPullRequest(upstream, `${fork.owner}:${context.branch}`, base.name, title, body, config.draftPr);
         });
         if (typeof prNumber === "number") {
