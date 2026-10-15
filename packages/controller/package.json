@@ -6,6 +6,10 @@
   "license": "Apache-2.0",
   "type": "module",
   "main": "dist/main.js",
+  "files": [
+    "dist",
+    "drizzle"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
