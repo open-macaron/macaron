@@ -193,7 +193,8 @@ export class RunLauncher {
     const run = await this.runs.byId(runId);
     if (run.settledAt !== null) return;
     const now = this.clock.now();
-    const observedMicros: UsdMicros = run.keyHash === null ? 0 : await this.budget.usage(run.keyHash);
+    const since = new Date(run.createdAt.getTime() - 5 * 60_000);
+    const observedMicros: UsdMicros = run.keyHash === null ? 0 : await this.budget.usage(run.keyHash, since);
     const decision = decideSettlement({
       redeemed: run.redeemedAt !== null,
       observedMicros,

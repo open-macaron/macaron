@@ -33,7 +33,7 @@ describe.skipIf(env === undefined)("OpenRouter key lifecycle (live)", () => {
       let costMicros = 0;
       for (let attempt = 0; attempt < 12 && costMicros === 0; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 15_000));
-        costMicros = await budget.usage(key.hash);
+        costMicros = await budget.usage(key.hash, new Date(Date.now() - 10 * 60_000));
       }
       expect(costMicros).toBeGreaterThan(0);
       expect(costMicros).toBeLessThan(10_000);

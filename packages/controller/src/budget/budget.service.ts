@@ -25,8 +25,9 @@ export class BudgetService {
     return this.keys.create(`${RUN_KEY_PREFIX}${runId}`, limitUsd, expiresAt);
   }
 
-  async usage(hash: string): Promise<UsdMicros> {
-    return toMicros((await this.keys.status(hash)).usageUsd);
+  /** What the key spent since `since` (a little before the run started), from OpenRouter analytics. */
+  async usage(hash: string, since: Date): Promise<UsdMicros> {
+    return toMicros(await this.keys.spentSince(hash, since));
   }
 
   /** Spending stops now: the next request with the key is refused. Idempotent. */

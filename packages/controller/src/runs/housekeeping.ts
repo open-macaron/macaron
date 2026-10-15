@@ -46,6 +46,11 @@ export class Housekeeping implements OnApplicationBootstrap {
   }
 
   async reconcile(): Promise<void> {
+    // Finished runs whose cost isn't in the ledger get a settle-cost job (deduplicated by run id),
+    // in case one was lost.
+    for (const run of await this.runs.unsettled()) {
+      if (run.finishedAt !== null) await this.jobs.settleCost(run.id, 0);
+    }
     const now = this.clock.now().getTime();
     for (const run of await this.runs.active()) {
       try {

@@ -6,6 +6,7 @@ import { apiKeysGet } from "@openrouter/sdk/funcs/apiKeysGet.js";
 import { apiKeysList } from "@openrouter/sdk/funcs/apiKeysList.js";
 import { apiKeysUpdate } from "@openrouter/sdk/funcs/apiKeysUpdate.js";
 import { workspacesList } from "@openrouter/sdk/funcs/workspacesList.js";
+import { z } from "zod";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { UpstreamError } from "../common/errors.ts";
 
@@ -22,6 +23,10 @@ export interface KeyStatus {
   readonly disabled: boolean;
   readonly createdAt: Date;
 }
+
+const AnalyticsResponse = z.object({
+  data: z.object({ data: z.array(z.object({ total_usage: z.coerce.number().nonnegative().optional() })) }),
+});
 
 /** HTTP status carried by the SDK's typed errors, when there is one. */
 function statusOf(error: unknown): number | undefined {
@@ -115,6 +120,31 @@ export class OpenRouterKeys implements OnModuleInit {
       if (page.length === 0) return found;
       offset += page.length;
     }
+  }
+
+  /**
+   * What a key really spent, from OpenRouter's analytics (the source of its Activity dashboard),
+   * between `since` and now. Works for disabled and deleted keys.
+   *
+   * Why not the key's own `usage` field: it stayed at $0 for keys in a non-default workspace
+   * (measured on 2026-10-15) while analytics had the real cost. Why plain fetch: the SDK's
+   * generated schema types analytics rows as `{}` and strips every field.
+   */
+  async spentSince(hash: string, since: Date): Promise<number> {
+    const response = await fetch(`${this.env.OPENROUTER_BASE_URL}/analytics/query`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${this.env.OPENROUTER_PROVISIONING_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        metrics: ["total_usage"],
+        filters: [{ field: "api_key_id", operator: "eq", value: hash }],
+        time_range: { start: since.toISOString(), end: new Date().toISOString() },
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) throw new UpstreamError("openrouter", `analytics query failed (HTTP ${String(response.status)})`, response.status);
+    const parsed = AnalyticsResponse.safeParse(await response.json());
+    if (!parsed.success) throw new UpstreamError("openrouter", "unexpected analytics response", response.status);
+    return parsed.data.data.data.reduce((total, row) => total + (row.total_usage ?? 0), 0);
   }
 
   private failure(action: string, error: unknown): UpstreamError {
