@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "9621900f-c4f7-4254-ae66-e7cc88c1d1a8",
+  "id": "9818529f-8a3c-478b-97e5-7ed26df89ae8",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -9,7 +9,6 @@
     {
       "values": [
         "pending",
-        "claimed",
         "done",
         "dropped"
       ],
@@ -268,19 +267,6 @@
       "table": "events"
     },
     {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "due_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "events"
-    },
-    {
       "type": "event_status",
       "typeSchema": "public",
       "notNull": true,
@@ -289,19 +275,6 @@
       "generated": null,
       "identity": null,
       "name": "status",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "events"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "claimed_at",
       "entityType": "columns",
       "schema": "public",
       "table": "events"
@@ -893,14 +866,14 @@
       "nameExplicit": true,
       "columns": [
         {
-          "value": "status",
+          "value": "thread_id",
           "isExpression": false,
           "asc": true,
           "nullsFirst": false,
           "opclass": null
         },
         {
-          "value": "due_at",
+          "value": "status",
           "isExpression": false,
           "asc": true,
           "nullsFirst": false,
@@ -912,7 +885,7 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "events_due",
+      "name": "events_thread_status",
       "entityType": "indexes",
       "schema": "public",
       "table": "events"

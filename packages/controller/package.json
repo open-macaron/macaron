@@ -33,6 +33,7 @@
     "jose": "catalog:",
     "nestjs-pino": "catalog:",
     "pg": "catalog:",
+    "pg-boss": "catalog:",
     "pino": "catalog:",
     "pino-http": "catalog:",
     "reflect-metadata": "catalog:",
@@ -43,6 +44,7 @@
   "devDependencies": {
     "@nestjs/testing": "catalog:",
     "@testcontainers/postgresql": "catalog:",
+    "@types/express": "catalog:",
     "@types/pg": "catalog:",
     "drizzle-kit": "catalog:",
     "msw": "catalog:"

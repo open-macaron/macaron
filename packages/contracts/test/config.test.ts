@@ -34,7 +34,7 @@ const project = ProjectFile.parse({
 
 describe("resolveRepoConfig", () => {
   it("inherits project defaults and merges objects key by key", () => {
-    const repo = RepoFile.parse({ repo: "podman-desktop/extension-a", budgets: { implement: 8 } });
+    const repo = RepoFile.parse({ repo: "podman-desktop/extension-a", fork: "abc123-extension-a", budgets: { implement: 8 } });
 
     const config = resolveRepoConfig(global, project, repo);
 
@@ -50,7 +50,7 @@ describe("resolveRepoConfig", () => {
   });
 
   it("overrides a single shared parameter without dropping the others", () => {
-    const repo = RepoFile.parse({ repo: "podman-desktop/extension-b", environment: { params: { hostRef: "v1.22.0" } } });
+    const repo = RepoFile.parse({ repo: "podman-desktop/extension-b", fork: "abc123-extension-b", environment: { params: { hostRef: "v1.22.0" } } });
 
     const config = resolveRepoConfig(global, project, repo);
 
@@ -64,6 +64,7 @@ describe("resolveRepoConfig", () => {
   it("starts the environment from scratch when the source changes", () => {
     const repo = RepoFile.parse({
       repo: "podman-desktop/podman-desktop",
+      fork: "abc123-podman-desktop",
       environment: { source: "upstream", path: ".github/macaron/env" },
     });
 
@@ -73,17 +74,17 @@ describe("resolveRepoConfig", () => {
   });
 
   it("rejects an incomplete environment with a precise path", () => {
-    const repo = RepoFile.parse({ repo: "podman-desktop/podman-desktop", environment: { source: "upstream" } });
+    const repo = RepoFile.parse({ repo: "podman-desktop/podman-desktop", fork: "abc123-podman-desktop", environment: { source: "upstream" } });
 
     expect(() => resolveRepoConfig(global, project, repo)).toThrow(/path/);
   });
 
   it("rejects upstream paths outside .github/macaron", () => {
-    expect(RepoFile.safeParse({ repo: "a/b", environment: { source: "upstream", path: ".github/macaron/../../x" } }).success).toBe(false);
-    expect(RepoFile.safeParse({ repo: "a/b", environment: { source: "upstream", path: "scripts/env" } }).success).toBe(false);
+    expect(RepoFile.safeParse({ repo: "a/b", fork: "abc123-b", environment: { source: "upstream", path: ".github/macaron/../../x" } }).success).toBe(false);
+    expect(RepoFile.safeParse({ repo: "a/b", fork: "abc123-b", environment: { source: "upstream", path: "scripts/env" } }).success).toBe(false);
   });
 
   it("rejects unknown keys so typos never pass silently", () => {
-    expect(RepoFile.safeParse({ repo: "a/b", budget: { implement: 1 } }).success).toBe(false);
+    expect(RepoFile.safeParse({ repo: "a/b", fork: "abc123-b", budget: { implement: 1 } }).success).toBe(false);
   });
 });

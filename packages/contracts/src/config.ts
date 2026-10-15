@@ -111,13 +111,25 @@ export const ProjectFile = z.strictObject({
 });
 export type ProjectFile = z.infer<typeof ProjectFile>;
 
+/**
+ * Name of the bot's fork of a repo: a random 6-character prefix and the upstream name
+ * (`sf465s-podman-desktop`), so two upstreams with the same name never collide. Chosen at
+ * onboarding (`onboard-repo.sh` generates it); the owner is always the bot account.
+ */
+export const ForkName = z
+  .string()
+  .regex(/^[a-z0-9]{6}-[A-Za-z0-9._-]{1,93}$/, "expected <6 random lowercase chars>-<name>")
+  .brand<"ForkName">();
+export type ForkName = z.infer<typeof ForkName>;
+
 /** `config/projects/<project>/repos/<name>.yaml` */
-export const RepoFile = RepoSettingsPatch.extend({ repo: RepoSlug });
+export const RepoFile = RepoSettingsPatch.extend({ repo: RepoSlug, fork: ForkName });
 export type RepoFile = z.infer<typeof RepoFile>;
 
 /** What the controller works with for one repository. */
 export const RepoConfig = RepoSettings.extend({
   repo: RepoSlug,
+  fork: ForkName,
   project: Slug,
   users: z.array(GitHubLogin),
   bots: z.array(GitHubLogin),
@@ -153,7 +165,7 @@ export function applySettingsPatch(base: RepoSettings, patch: RepoSettingsPatch)
 
 /** global → project → repo. Throws a ZodError naming the offending field if the result is invalid. */
 export function resolveRepoConfig(global: GlobalFile, project: ProjectFile, repo: RepoFile): RepoConfig {
-  const { repo: slug, ...repoPatch } = repo;
+  const { repo: slug, fork, ...repoPatch } = repo;
   const settings = applySettingsPatch(applySettingsPatch(global.defaults, project.defaults), repoPatch);
-  return RepoConfig.parse({ ...settings, repo: slug, project: project.project, users: project.users, bots: project.bots });
+  return RepoConfig.parse({ ...settings, repo: slug, fork, project: project.project, users: project.users, bots: project.bots });
 }

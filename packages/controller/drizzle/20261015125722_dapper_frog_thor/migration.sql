@@ -1,4 +1,4 @@
-CREATE TYPE "event_status" AS ENUM('pending', 'claimed', 'done', 'dropped');--> statement-breakpoint
+CREATE TYPE "event_status" AS ENUM('pending', 'done', 'dropped');--> statement-breakpoint
 CREATE TYPE "ledger_kind" AS ENUM('run', 'router');--> statement-breakpoint
 CREATE TYPE "run_mode" AS ENUM('triage', 'plan', 'implement', 'address_review', 'reproduce', 'verify', 'retro');--> statement-breakpoint
 CREATE TYPE "run_status" AS ENUM('pending', 'dispatched', 'running', 'completed', 'failed', 'aborted');--> statement-breakpoint
@@ -20,9 +20,7 @@ CREATE TABLE "events" (
 	"kind" text NOT NULL,
 	"url" text NOT NULL,
 	"body" text NOT NULL,
-	"due_at" timestamp with time zone NOT NULL,
 	"status" "event_status" DEFAULT 'pending'::"event_status" NOT NULL,
-	"claimed_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -80,7 +78,7 @@ CREATE TABLE "threads" (
 --> statement-breakpoint
 CREATE UNIQUE INDEX "effects_thread_loop_kind" ON "effects" ("thread_id","loop","kind");--> statement-breakpoint
 CREATE UNIQUE INDEX "events_thread_external" ON "events" ("thread_id","external_id");--> statement-breakpoint
-CREATE INDEX "events_due" ON "events" ("status","due_at");--> statement-breakpoint
+CREATE INDEX "events_thread_status" ON "events" ("thread_id","status");--> statement-breakpoint
 CREATE INDEX "ledger_repo_at" ON "ledger" ("repo","created_at");--> statement-breakpoint
 CREATE INDEX "ledger_project_at" ON "ledger" ("project","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "runs_ticket" ON "runs" ("ticket");--> statement-breakpoint

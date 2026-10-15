@@ -19,7 +19,7 @@ const usdMicros = (name: string) => bigint(name, { mode: "number" });
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
 export const threadKind = pgEnum("thread_kind", ["issue", "pull"]);
-export const eventStatus = pgEnum("event_status", ["pending", "claimed", "done", "dropped"]);
+export const eventStatus = pgEnum("event_status", ["pending", "done", "dropped"]);
 export const runStatus = pgEnum("run_status", ["pending", "dispatched", "running", "completed", "failed", "aborted"]);
 export const runMode = pgEnum("run_mode", ["triage", "plan", "implement", "address_review", "reproduce", "verify", "retro"]);
 export const ledgerKind = pgEnum("ledger_kind", ["run", "router"]);
@@ -57,7 +57,7 @@ export const threads = pgTable(
   ],
 );
 
-/** A trigger waiting for its thread to go quiet (debounce), then claimed by a worker. */
+/** A trigger seen on a thread. Dedupes notifications; pg-boss schedules the thread's processing. */
 export const events = pgTable(
   "events",
   {
@@ -70,14 +70,12 @@ export const events = pgTable(
     kind: text("kind").notNull(),
     url: text("url").notNull(),
     body: text("body").notNull(),
-    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
     status: eventStatus("status").notNull().default("pending"),
-    claimedAt: timestamp("claimed_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (table) => [
     uniqueIndex("events_thread_external").on(table.threadId, table.externalId),
-    index("events_due").on(table.status, table.dueAt),
+    index("events_thread_status").on(table.threadId, table.status),
   ],
 );
 

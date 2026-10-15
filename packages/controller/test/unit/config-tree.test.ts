@@ -53,8 +53,8 @@ describe("loadConfigTree", () => {
   it("reports every problem with its file, not just the first", async () => {
     const found = await problems({
       "projects/a/project.yaml": project("a"),
-      "projects/a/repos/x.yaml": "repo: o/x\nbudgets: { implement: -1 }\n",
-      "projects/a/repos/y.yaml": "repo: o/y\nunknownKey: true\n",
+      "projects/a/repos/x.yaml": "repo: o/x\nfork: abc123-x\nbudgets: { implement: -1 }\n",
+      "projects/a/repos/y.yaml": "repo: o/y\nfork: abc123-y\nunknownKey: true\n",
     });
 
     expect(found).toHaveLength(2);
@@ -65,9 +65,9 @@ describe("loadConfigTree", () => {
   it("rejects a repository configured by two projects, case-insensitively", async () => {
     const found = await problems({
       "projects/a/project.yaml": project("a"),
-      "projects/a/repos/x.yaml": "repo: Org/Repo\n",
+      "projects/a/repos/x.yaml": "repo: Org/Repo\nfork: abc123-repo\n",
       "projects/b/project.yaml": project("b"),
-      "projects/b/repos/x.yaml": "repo: org/repo\n",
+      "projects/b/repos/x.yaml": "repo: org/repo\nfork: abc123-repo\n",
     });
 
     expect(found).toEqual([expect.stringContaining('already configured by project "a"')]);

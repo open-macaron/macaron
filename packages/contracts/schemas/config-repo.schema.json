@@ -179,10 +179,15 @@
     "repo": {
       "type": "string",
       "pattern": "^[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100}$"
+    },
+    "fork": {
+      "type": "string",
+      "pattern": "^[a-z0-9]{6}-[A-Za-z0-9._-]{1,93}$"
     }
   },
   "required": [
-    "repo"
+    "repo",
+    "fork"
   ],
   "additionalProperties": false
 }
