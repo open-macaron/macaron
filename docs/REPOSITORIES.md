@@ -9,9 +9,9 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 ┌───────────────────────────────────────────────────────────────────────────────────────────┐
 │ macaron      controller + contracts + agent-cli + harness adapters + config + deploy + docs │──release──▶ ghcr.io/open-macaron/controller
 │              CI, release.yml (images, agent-cli tarball, attestations)                    │             agent-cli-<v>.tgz (GitHub release)
-│ runner       run.yml + environments/ + env-check.yml — where agents execute                │◀─ dispatch / cancel / artifacts (GH_ORG)
-│ knowledge    knowledge base; humans merge the bot's rolling "knowledge updates" PR         │◀─ PR from macaron-bot/knowledge (GH_ORG)
-│ evidence     releases only: screenshots/videos attached to bot replies (DESIGN.md)        │◀─ release assets (GH_ORG)
+│ runner       run.yml + environments/ + env-check.yml — where agents execute                │◀─ start / cancel runs (GH_ORG), artifacts (GH_INTERACT)
+│ knowledge    knowledge base; humans merge the bot's rolling "knowledge updates" PR         │◀─ PR from macaron-bot/knowledge (GH_INTERACT)
+│ evidence     releases only: screenshots/videos attached to bot replies (DESIGN.md)        │◀─ release assets (milestone 6, see below)
 │ .github      org profile, SECURITY.md, CONTRIBUTING.md, issue templates                   │
 └───────────────────────────────────────────────────────────────────────────────────────────┘
           org webhook (workflow_run, push) ─────────────────────────────▶ VPS controller /webhook
@@ -31,7 +31,7 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 | `open-macaron/macaron` (this repo) | `packages/controller`, `packages/{contracts,agent-cli}`, `harness/`, `config/` (global → project → repo), `deploy/`, `docs/` | Humans via PR | Source of truth for code and trust config. `deploy.sh` on the VPS pulls it |
 | `open-macaron/runner` | `.github/workflows/run.yml` (the only agent workflow), `env-check.yml`, `environments/` (shared + own, CODEOWNERS per folder), plus a `README` describing the contract (SCALING.md §1) | Humans via PR; the bot only *dispatches* | Gives agent runs their own `repository_id` (the OIDC check pins it) and their own public run history. The token that dispatches runs can't trigger `macaron`'s `release.yml` |
 | `open-macaron/knowledge` | `global/`, `repos/<owner>/<repo>/`, `INDEX.md` (DESIGN.md §6) | The bot proposes from its fork; humans merge | High-churn, bot-authored content stays out of the code repo. Knowledge is versioned independently of controller releases |
-| `open-macaron/evidence` | No code; **Releases only**, one per thread, holding screenshots and videos | The controller only (GH_ORG) | Media must be publicly reachable for GitHub to render it, and must never be served by our VPS. Releases avoid repo bloat and allow 2 GB per file |
+| `open-macaron/evidence` | No code; **Releases only**, one per thread, holding screenshots and videos | The controller only. **Open until milestone 6:** keep it here (then `GH_ORG` also needs Contents write on it) or move it to `macaron-bot/evidence` (then `GH_PUSH` covers it) | Media must be publicly reachable for GitHub to render it, and must never be served by our VPS. Releases avoid repo bloat and allow 2 GB per file |
 | `open-macaron/.github` | Org profile, default community health files | Humans | GitHub convention |
 | `macaron-bot/<prefix>-<upstream>` | Forks named with a random 6-character prefix (`sf465s-podman-desktop`), so two upstreams with the same name never collide; branches `macaron/<n>-<slug>` | The controller only (GH_PUSH) | User-owned forks keep **"Allow edits by maintainers"**, which org-owned forks don't support. They also make "all repos of macaron-bot" mean exactly "the forks" |
 
@@ -53,7 +53,7 @@ How `run.yml` gets the agent-cli:
 |---|---|---|---|
 | `GH_INTERACT` | classic PAT of macaron-bot | `public_repo`, `notifications` | Comments, reactions, PRs and notifications on **upstream** repos. The org blocks classic PATs, so this token can't touch `open-macaron/*` |
 | `GH_PUSH` | fine-grained, owner `macaron-bot`, all repositories | Contents: write | `git push` to forks only (macaron-bot owns nothing else). No Workflows or Administration permission |
-| `GH_ORG` | fine-grained, owner `open-macaron`, repos `runner` + `knowledge` + `evidence`, approved by an org owner | `runner`: Actions write; `knowledge`: Pull requests write, Contents read; `evidence`: Contents write (releases; a ruleset allows tags `t/*` only, no branch changes) | Dispatch/cancel runs, download artifacts, open and update the knowledge PR |
+| `GH_ORG` | fine-grained, owner `open-macaron`, repository `runner` only, approved by an org owner | Actions: read and write | Start and cancel runs. Artifacts and the knowledge PR use `GH_INTERACT` (public repos, no write needed). A GitHub App could replace this token later, to avoid manual renewal |
 
 Forking and disabling Actions on forks need Administration permission. That happens only at onboarding (§5), with a short-lived token held by a human, never stored on the VPS.
 

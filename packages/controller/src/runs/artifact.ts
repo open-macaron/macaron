@@ -4,7 +4,7 @@ import { unzipSync } from "fflate";
 import { z } from "zod";
 import { DomainError } from "../common/errors.ts";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
-import { GH_ORG, type GitHub } from "../github/github.ts";
+import { GH_INTERACT, type GitHub } from "../github/github.ts";
 import { repoRef } from "../github/repo-ref.ts";
 
 export class ArtifactInvalid extends DomainError {
@@ -76,11 +76,11 @@ export function readArtifact(zip: Uint8Array, limits: ArtifactLimits = DEFAULT_A
   return { result, changes: json("changes.json", Changes), media };
 }
 
-/** Fetches a run's result artifact from the runner repository with GH_ORG. */
+/** Fetches a run's result artifact from the (public) runner repository: read access is enough. */
 @Injectable()
 export class ArtifactDownloader {
   constructor(
-    @Inject(GH_ORG) private readonly gh: GitHub,
+    @Inject(GH_INTERACT) private readonly gh: GitHub,
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 

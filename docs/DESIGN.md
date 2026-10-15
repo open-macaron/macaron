@@ -231,7 +231,7 @@ The controller has three GitHub tokens, all stored as Podman secrets. Exact scop
 |---|---|---|
 | `GH_PUSH` | fine-grained PAT, owner macaron-bot | Contents write on its repos, which are only forks; no Workflows permission |
 | `GH_INTERACT` | classic `public_repo` PAT | Comments, reactions, PRs, notifications on upstream repos; blocked from `open-macaron` by org policy |
-| `GH_ORG` | fine-grained PAT, owner open-macaron | `runner`: Actions write (dispatch, cancel, artifacts); `knowledge`: open the knowledge PR |
+| `GH_ORG` | fine-grained PAT, owner open-macaron | `runner` only: Actions write (start and cancel runs) |
 
 ### Harness contract (`harness/<name>/run.sh`, `packages/contracts`)
 
