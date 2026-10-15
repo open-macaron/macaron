@@ -44,7 +44,8 @@ export async function mergeApproved(octokit: Octokit, repository: Repository, he
         outcome = { kind: "merged", sha: data.sha };
         merged.push(pull.number);
       } catch (error: unknown) {
-        outcome = { kind: "refused", reason: `HTTP ${String(statusOf(error) ?? "error")}` };
+        outcome = { kind: "refused", reason: describeHttpError(error) };
+        console.error(`merging #${String(pull.number)} failed: ${outcome.reason}`);
       }
     }
     await upsertStatus(octokit, repository, pull.number, renderStatus(decision, outcome, headSha, runUrl));
@@ -100,9 +101,17 @@ export async function checkOwnerLogins(octokit: Octokit, tree: KnowledgeTree): P
   return problems;
 }
 
-const HttpError = z.object({ status: z.number() });
+const HttpError = z.object({ status: z.number(), response: z.object({ data: z.object({ message: z.string() }).optional() }).optional() });
 
 function statusOf(error: unknown): number | undefined {
   const parsed = HttpError.safeParse(error);
   return parsed.success ? parsed.data.status : undefined;
+}
+
+/** "HTTP 403: <GitHub's message>", single line and bounded: it ends up in a PR comment. */
+function describeHttpError(error: unknown): string {
+  const parsed = HttpError.safeParse(error);
+  if (!parsed.success) return "unexpected error";
+  const message = parsed.data.response?.data?.message.replace(/\s+/g, " ").replace(/`/g, "'").slice(0, 300);
+  return message === undefined ? `HTTP ${String(parsed.data.status)}` : `HTTP ${String(parsed.data.status)}: \`${message}\``;
 }
