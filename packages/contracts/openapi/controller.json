@@ -1,0 +1,380 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/v1/bootstrap": {
+      "post": {
+        "operationId": "bootstrap",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ticket": {
+                    "type": "string",
+                    "pattern": "^t_[A-Za-z0-9_-]{32,64}$"
+                  }
+                },
+                "required": [
+                  "ticket"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "openRouterKey": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "harness": {
+                      "type": "string",
+                      "enum": [
+                        "claude",
+                        "codex",
+                        "opencode"
+                      ]
+                    },
+                    "model": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "context": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "triage",
+                            "plan",
+                            "implement",
+                            "address_review",
+                            "reproduce",
+                            "verify",
+                            "retro"
+                          ]
+                        },
+                        "repo": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100}$"
+                        },
+                        "number": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "maximum": 9007199254740991
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "issue",
+                            "pull"
+                          ]
+                        },
+                        "title": {
+                          "type": "string",
+                          "maxLength": 1024
+                        },
+                        "baseSha": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{40}$"
+                        },
+                        "branch": {
+                          "type": "string",
+                          "pattern": "^macaron\\/[0-9]+-[a-z0-9-]{1,48}$"
+                        },
+                        "trigger": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "mention",
+                                "assign",
+                                "review",
+                                "comment"
+                              ]
+                            },
+                            "author": {
+                              "type": "string",
+                              "pattern": "^(?!-)[A-Za-z0-9-]{1,39}(?<!-)(\\[bot\\])?$"
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "instruction": {
+                              "type": "string",
+                              "maxLength": 4096
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "author",
+                            "url",
+                            "instruction"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "thread": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "maximum": 9007199254740991
+                              },
+                              "author": {
+                                "type": "string",
+                                "pattern": "^(?!-)[A-Za-z0-9-]{1,39}(?<!-)(\\[bot\\])?$"
+                              },
+                              "body": {
+                                "type": "string",
+                                "maxLength": 65536
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "author",
+                              "body",
+                              "createdAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "reviewComments": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "maximum": 9007199254740991
+                              },
+                              "author": {
+                                "type": "string",
+                                "pattern": "^(?!-)[A-Za-z0-9-]{1,39}(?<!-)(\\[bot\\])?$"
+                              },
+                              "body": {
+                                "type": "string",
+                                "maxLength": 65536
+                              },
+                              "path": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "line": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "maximum": 9007199254740991
+                              },
+                              "inReplyTo": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "maximum": 9007199254740991
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "author",
+                              "body",
+                              "path",
+                              "line",
+                              "inReplyTo",
+                              "createdAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "priorLoops": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "loop": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "maximum": 9007199254740991
+                              },
+                              "mode": {
+                                "type": "string",
+                                "enum": [
+                                  "triage",
+                                  "plan",
+                                  "implement",
+                                  "address_review",
+                                  "reproduce",
+                                  "verify",
+                                  "retro"
+                                ]
+                              },
+                              "summary": {
+                                "type": "string",
+                                "maxLength": 4096
+                              },
+                              "costUsd": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1000
+                              }
+                            },
+                            "required": [
+                              "loop",
+                              "mode",
+                              "summary",
+                              "costUsd"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "commands": {
+                          "type": "object",
+                          "properties": {
+                            "build": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "test": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "lint": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "attachments": {
+                          "type": "object",
+                          "properties": {
+                            "maxFiles": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 50
+                            },
+                            "maxFileBytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "maximum": 9007199254740991
+                            },
+                            "maxTotalBytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "maxFiles",
+                            "maxFileBytes",
+                            "maxTotalBytes"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "mode",
+                        "repo",
+                        "number",
+                        "kind",
+                        "title",
+                        "baseSha",
+                        "branch",
+                        "trigger",
+                        "thread",
+                        "reviewComments",
+                        "priorLoops",
+                        "commands",
+                        "attachments"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "openRouterKey",
+                    "harness",
+                    "model",
+                    "context"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "OIDC token missing, invalid, or not from the runner workflow"
+          },
+          "403": {
+            "description": "Ticket unknown, or bound to another workflow run"
+          },
+          "409": {
+            "description": "Ticket already redeemed"
+          },
+          "425": {
+            "description": "The dispatch is not recorded yet; retry shortly"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Exchange a GitHub Actions OIDC token and a one-time ticket for the run's key and context",
+        "tags": [
+          "runner"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "macaron-bot controller",
+    "description": "Endpoints reachable from the internet. Everything else stays inside the host.",
+    "version": "1",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http",
+        "description": "GitHub Actions OIDC token, audience = PUBLIC_URL"
+      }
+    },
+    "schemas": {}
+  }
+}

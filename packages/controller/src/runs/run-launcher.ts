@@ -235,6 +235,8 @@ export class RunLauncher {
       "runs-on": config.runsOn,
       "timeout-minutes": String(config.timeoutMinutes),
       "full-environment": String(run.mode !== "triage"),
+      harness: config.harness,
+      "controller-url": this.env.PUBLIC_URL,
     });
     const response = await this.gh.rest.actions.createWorkflowDispatch({
       ...repoRef(this.env.RUNNER_REPO),

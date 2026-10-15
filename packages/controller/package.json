@@ -16,7 +16,8 @@
     "start": "node --enable-source-maps dist/main.js",
     "dev": "pnpm build && node --enable-source-maps --env-file=${MACARON_ENV_FILE:-$HOME/.config/macaron/dev.env} dist/main.js",
     "db:generate": "drizzle-kit generate",
-    "db:check": "drizzle-kit check"
+    "db:check": "drizzle-kit check",
+    "gen": "tsc -p tsconfig.scripts.json && node dist-scripts/scripts/emit-openapi.js"
   },
   "dependencies": {
     "@nestjs/common": "catalog:",

@@ -32,8 +32,12 @@ jobs:
       - run: pnpm lint
       # Unit and integration tests (Testcontainers uses the runner's Docker); live tests skip without credentials.
       - run: pnpm test
-      - name: generated contracts are up to date
-        run: pnpm --filter @open-macaron/contracts gen && git diff --exit-code -- packages/contracts/schemas
+      - name: generated code is up to date (JSON Schemas, OpenAPI document, agent-cli client)
+        run: |
+          pnpm --filter @open-macaron/contracts gen
+          pnpm --filter @open-macaron/controller gen
+          pnpm --filter @open-macaron/agent-cli gen
+          git diff --exit-code -- packages/contracts/schemas packages/contracts/openapi packages/agent-cli/src/generated
       - name: migrations match the schema
         run: pnpm --filter @open-macaron/controller db:check
 

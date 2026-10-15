@@ -1,0 +1,29 @@
+{
+  "name": "@open-macaron/agent-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "macaron-agent: runs inside open-macaron/runner — bootstrap over OIDC, harness, result and changes",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "macaron-agent": "dist/macaron-agent.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "gen": "openapi-ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "node scripts/bundle.ts"
+  },
+  "dependencies": {
+    "@actions/core": "catalog:",
+    "@open-macaron/contracts": "workspace:*",
+    "p-retry": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "catalog:",
+    "esbuild": "catalog:"
+  }
+}

@@ -134,6 +134,10 @@ export const DispatchInputs = z.strictObject({
   "runs-on": z.string().min(1),
   "timeout-minutes": z.string().regex(/^[0-9]{1,3}$/),
   "full-environment": z.enum(["true", "false"]),
+  /** Known before bootstrap so `prepare` can install it while the repository is cloned. */
+  harness: Harness,
+  /** Where the runner exchanges its OIDC token for the key: the controller's PUBLIC_URL. */
+  "controller-url": z.url({ protocol: /^https$/ }),
 });
 export type DispatchInputs = z.infer<typeof DispatchInputs>;
 
