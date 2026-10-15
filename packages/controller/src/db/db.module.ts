@@ -1,10 +1,11 @@
 import { Global, Module } from "@nestjs/common";
 import { DrizzleModule } from "@nestjs/drizzle";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Pool } from "pg";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
 
 /** The application's database handle. Inject with `@InjectDrizzle()`. */
-export type Db = NodePgDatabase;
+export type Db = NodePgDatabase & { readonly $client: Pool };
 
 @Global()
 @Module({

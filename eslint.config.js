@@ -29,6 +29,7 @@ export default tseslint.config(
         { prefer: "type-imports", fixStyle: "inline-type-imports", disallowTypeAnnotations: false },
       ],
       "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "@typescript-eslint/no-extraneous-class": ["error", { allowWithDecorator: true }],
       "no-restricted-syntax": [
         "error",

@@ -4,7 +4,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   // SWC emits decorator metadata, which Nest's dependency injection reads at runtime.
   plugins: [swc.vite({ jsc: { target: "es2023" }, module: { type: "es6" } })],
+  // Workspace packages resolve to their TypeScript sources in tests, no build needed.
   resolve: { conditions: ["@open-macaron/source"] },
+  ssr: { resolve: { conditions: ["@open-macaron/source"] } },
   test: {
     projects: [
       { extends: true, test: { name: "contracts", include: ["packages/contracts/test/**/*.test.ts"] } },
