@@ -481,7 +481,11 @@ PR from a fork
 
 The worst an attacker can do with the triggers is make `merge.yml` evaluate a PR (theirs or another with the same commit) more often: the evaluation is complete, and `concurrency` bounds the cost.
 
-The `main` ruleset requires a PR and blocks force pushes; it requires no native approval (owners' approvals don't count for GitHub) and no status check (a fork can fake a check name). Branch creation is restricted: everyone works from forks.
+The `main` ruleset requires a PR and blocks force pushes; it requires no native approval (owners' approvals don't count for GitHub) and no status check (a fork can fake a check name). Branch creation is restricted: everyone works from forks. Verified live on 2026-10-15:
+
+- **Dismiss stale approvals on push** is on: a push that changes what the PR proposes turns approvals into `DISMISSED` (#4), which `merge` never counts. A push that only brings in `main` (*Update branch*) keeps them, and GitHub moves their `commit_id` to the new head (#1). So `commit_id` alone doesn't prove "approved this exact commit"; the dismissal does the work for content changes.
+- `require_extra_approval_for_unattributed_changes`, which GitHub enables by default on new rulesets, is set to `false`: it demands a native approval, which owners can't give.
+- **No workflow token can merge a branch that is behind `main` on `.github/workflows/`** (HTTP 403, "Resource not accessible by integration"); a PAT without the `workflow` scope can't update such a branch either. `merge` reports these PRs as outdated, and the bot recreates its branches from upstream `main` instead of updating them.
 
 ### 6.5 Read API on GitHub Pages
 
