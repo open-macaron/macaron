@@ -1,38 +1,37 @@
 #!/usr/bin/env bash
 # Prepares a Fedora VPS to run macaron-bot's controller (docs/DEPLOYMENT.md §3).
-# Idempotent: safe to run again. Run as root:  sudo bash bootstrap-host.sh
+# Idempotent: safe to run again. Run ON THE VPS as root:  sudo bash bootstrap-host.sh
 #
 # What it does, in order:
-#   1. packages: firewalld, fail2ban, automatic security updates
-#   2. SSH hardening drop-in (keys only, no root, AllowUsers) — already applied once by hand
+#   1. packages: firewalld, fail2ban, automatic security updates, podman
+#   2. SSH hardening drop-in (keys only, no root, AllowUsers)
 #   3. firewall: inbound SSH (custom port), HTTP, HTTPS only — with a 5-minute automatic rollback
-#   4. systemd-resolved: no LLMNR on public interfaces
+#   4. systemd-resolved: no LLMNR, no mDNS
 #   5. automatic security updates (dnf5-automatic)
 #   6. fail2ban on sshd
-#   7. the `macaron` service user: rootless Podman, lingering, no SSH, no sudo
-#   8. rootless ports 80/443 for Caddy
-#   9. egress filter for the `macaron` user: HTTPS + DNS only
+#   7. the `containers` user: the pool of IDs rootful `UserNS=auto` hands out, one unique range per container
+#   8. egress filter for the macaron-edge bridge: outbound HTTPS only
 set -euo pipefail
 
 SSH_PORT="${SSH_PORT:-50485}"
 ADMIN_USER="${ADMIN_USER:-fedora}"
-SERVICE_USER="macaron"
 
 log() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 [[ $EUID -eq 0 ]] || { echo "run as root (sudo)" >&2; exit 1; }
 grep -q '^ID=fedora' /etc/os-release || { echo "Fedora only" >&2; exit 1; }
+[[ "$(hostname)" == vps-* ]] || { echo "refusing to run outside the VPS (hostname $(hostname))" >&2; exit 1; }
 
 log "1. packages"
 dnf -y -q install firewalld fail2ban dnf5-plugin-automatic podman
 
 log "2. SSH: keys only, no root, only ${ADMIN_USER}"
-install -m 0600 /dev/stdin /etc/ssh/sshd_config.d/00-macaron.conf <<EOF
-# open-macaron hardening — first match wins, so this overrides 50-cloud-init.conf
-PasswordAuthentication no
-KbdInteractiveAuthentication no
-PermitRootLogin no
-AllowUsers ${ADMIN_USER}
-EOF
+printf '%s\n' \
+  "# open-macaron hardening: first match wins, so this overrides 50-cloud-init.conf" \
+  "PasswordAuthentication no" \
+  "KbdInteractiveAuthentication no" \
+  "PermitRootLogin no" \
+  "AllowUsers ${ADMIN_USER}" >/etc/ssh/sshd_config.d/00-macaron.conf
+chmod 0600 /etc/ssh/sshd_config.d/00-macaron.conf
 restorecon /etc/ssh/sshd_config.d/00-macaron.conf
 sshd -t
 systemctl reload sshd
@@ -54,90 +53,66 @@ firewall-cmd -q --reload
 echo "   zone $zone: services=[$(firewall-cmd --zone="$zone" --list-services)] ports=[$(firewall-cmd --zone="$zone" --list-ports)]"
 echo "   >>> open a NEW ssh session now; if it works: systemctl stop macaron-firewall-rollback.timer"
 
-log "4. no LLMNR"
+log "4. no LLMNR, no mDNS"
 install -d /etc/systemd/resolved.conf.d
-install -m 0644 /dev/stdin /etc/systemd/resolved.conf.d/90-macaron.conf <<'EOF'
-[Resolve]
-LLMNR=no
-MulticastDNS=no
-EOF
+printf '%s\n' "[Resolve]" "LLMNR=no" "MulticastDNS=no" >/etc/systemd/resolved.conf.d/90-macaron.conf
 systemctl restart systemd-resolved
 
 log "5. automatic security updates"
-install -d /etc/dnf
-install -m 0644 /dev/stdin /etc/dnf/automatic.conf <<'EOF'
-[commands]
-upgrade_type = security
-apply_updates = yes
-reboot = when-needed
-reboot_command = "shutdown -r +5 'Rebooting after security updates'"
-EOF
+printf '%s\n' \
+  "[commands]" \
+  "upgrade_type = security" \
+  "apply_updates = yes" \
+  "reboot = when-needed" \
+  "reboot_command = \"shutdown -r +5 'Rebooting after security updates'\"" >/etc/dnf/automatic.conf
 systemctl enable --now dnf5-automatic.timer
 
 log "6. fail2ban on sshd"
-install -m 0644 /dev/stdin /etc/fail2ban/jail.d/90-macaron.local <<EOF
-[sshd]
-enabled = true
-port = ${SSH_PORT}
-backend = systemd
-maxretry = 5
-bantime = 1h
-EOF
-systemctl enable --now fail2ban
+printf '%s\n' "[sshd]" "enabled = true" "port = ${SSH_PORT}" "backend = systemd" "maxretry = 5" "bantime = 1h" >/etc/fail2ban/jail.d/90-macaron.local
+systemctl enable fail2ban
 systemctl restart fail2ban
 
-log "7. service user ${SERVICE_USER}"
-if ! id "$SERVICE_USER" >/dev/null 2>&1; then
-  useradd --create-home --shell /bin/bash --comment "macaron-bot controller (rootless podman)" "$SERVICE_USER"
+log "7. ID pool for rootful UserNS=auto"
+# Each container gets its own, never-shared range carved out of this pool (containers-storage).
+if ! id containers >/dev/null 2>&1; then
+  useradd --system --no-create-home --shell /usr/sbin/nologin --comment "subordinate IDs for podman --userns=auto" containers
 fi
-passwd -l "$SERVICE_USER" >/dev/null # no password: reachable only through `sudo -iu macaron`
-grep -q "^${SERVICE_USER}:" /etc/subuid || usermod --add-subuids 200000-265535 "$SERVICE_USER"
-grep -q "^${SERVICE_USER}:" /etc/subgid || usermod --add-subgids 200000-265535 "$SERVICE_USER"
-loginctl enable-linger "$SERVICE_USER"
-install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 "/home/${SERVICE_USER}/.config" "/home/${SERVICE_USER}/.config/macaron" "/home/${SERVICE_USER}/.config/containers/systemd"
+grep -q '^containers:' /etc/subuid || echo 'containers:2147483647:2147483648' >>/etc/subuid
+grep -q '^containers:' /etc/subgid || echo 'containers:2147483647:2147483648' >>/etc/subgid
 
-log "8. rootless Caddy may bind 80/443"
-install -m 0644 /dev/stdin /etc/sysctl.d/90-macaron.conf <<'EOF'
-net.ipv4.ip_unprivileged_port_start = 80
-EOF
-sysctl -q --system
-
-log "9. egress for ${SERVICE_USER}: HTTPS and DNS only"
-# Rootless containers send their traffic as the service user (pasta), so this covers them too.
+log "8. egress for the macaron-edge network: HTTPS only"
+# Containers on macaron-edge (Caddy, controller) may open outbound TCP 443 and nothing else.
+# DNS goes to Podman's resolver on the bridge gateway (input, not forward). macaron-db is an
+# internal network: Postgres has no route out at all.
 install -d /etc/nftables
-install -m 0644 /dev/stdin /etc/nftables/macaron-egress.nft <<EOF
-table inet macaron_egress
-delete table inet macaron_egress
-table inet macaron_egress {
-  chain output {
-    type filter hook output priority filter; policy accept;
-    meta skuid != "${SERVICE_USER}" accept
-    oifname "lo" accept
-    ct state established,related accept
-    tcp dport 443 accept
-    udp dport 53 accept
-    tcp dport 53 accept
-    counter reject with icmpx admin-prohibited
-  }
-}
-EOF
-install -m 0644 /dev/stdin /etc/systemd/system/macaron-egress.service <<'EOF'
-[Unit]
-Description=Egress filter for the macaron service user
-After=nftables.service firewalld.service
-Wants=network-pre.target
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/usr/sbin/nft -f /etc/nftables/macaron-egress.nft
-ExecStop=/usr/sbin/nft delete table inet macaron_egress
-
-[Install]
-WantedBy=multi-user.target
-EOF
+printf '%s\n' \
+  'table inet macaron_egress' \
+  'delete table inet macaron_egress' \
+  'table inet macaron_egress {' \
+  '  chain forward {' \
+  '    type filter hook forward priority filter; policy accept;' \
+  '    iifname != "macaron-edge" accept' \
+  '    ct state established,related accept' \
+  '    oifname "macaron-edge" accept' \
+  '    tcp dport 443 accept' \
+  '    counter reject with icmpx admin-prohibited' \
+  '  }' \
+  '}' >/etc/nftables/macaron-egress.nft
+printf '%s\n' \
+  "[Unit]" \
+  "Description=Egress filter for macaron containers" \
+  "After=nftables.service firewalld.service" \
+  "" \
+  "[Service]" \
+  "Type=oneshot" \
+  "RemainAfterExit=yes" \
+  "ExecStart=/usr/sbin/nft -f /etc/nftables/macaron-egress.nft" \
+  "ExecStop=/usr/sbin/nft delete table inet macaron_egress" \
+  "" \
+  "[Install]" \
+  "WantedBy=multi-user.target" >/etc/systemd/system/macaron-egress.service
 systemctl daemon-reload
-systemctl enable --now macaron-egress.service
+systemctl enable macaron-egress.service
 systemctl restart macaron-egress.service
 
 log "done"
