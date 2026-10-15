@@ -51,4 +51,10 @@ jobs:
         with:
           persist-credentials: false
       - name: build the controller image (not pushed)
-        run: docker build -f packages/controller/Containerfile -t macaron-controller:ci .
+        uses: redhat-actions/buildah-build@719e3c40d8af9790c23eca13f7daa339f2867034 # v3.1.0
+        with:
+          image: macaron-controller
+          tags: ci
+          containerfiles: packages/controller/Containerfile
+          context: .
+          oci: true
