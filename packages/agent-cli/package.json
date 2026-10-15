@@ -2,7 +2,7 @@
   "name": "@open-macaron/agent-cli",
   "version": "0.1.0",
   "private": true,
-  "description": "macaron-agent: runs inside open-macaron/runner — bootstrap over OIDC, harness, result and changes",
+  "description": "macaron-agent: runs inside open-macaron/runner \u2014 bootstrap over OIDC, harness, result and changes",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
@@ -19,6 +19,7 @@
   "dependencies": {
     "@actions/core": "catalog:",
     "@open-macaron/contracts": "workspace:*",
+    "diff": "catalog:",
     "p-retry": "catalog:",
     "zod": "catalog:"
   },

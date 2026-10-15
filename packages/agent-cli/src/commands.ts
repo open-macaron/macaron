@@ -1,13 +1,14 @@
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import * as core from "@actions/core";
-import { Attachment, AttachmentId, RunContext, RunResult } from "@open-macaron/contracts";
+import { Attachment, AttachmentId, ReviewVerdicts, RunContext, RunResult } from "@open-macaron/contracts";
 import { z } from "zod";
 import { bootstrap as requestBootstrap } from "./controller-api.ts";
 import { changesSince, checkout } from "./git.ts";
 import { installHarness, runHarness } from "./harness.ts";
 import { type Inputs, type Paths, paths, readInputs } from "./inputs.ts";
-import { systemPrompt, taskPrompt } from "./prompts.ts";
+import { reviewSystemPrompt, reviewTaskPrompt, systemPrompt, taskPrompt } from "./prompts.ts";
+import { annotateDiff, pullRequestDiff } from "./review-diff.ts";
 
 const BootstrapState = z.object({ harness: z.enum(["claude", "codex", "opencode"]), model: z.string().min(1) });
 
@@ -49,9 +50,10 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
   const p = paths(inputs);
   const context = await readJson(p.contextFile, RunContext);
   const state = await readJson(p.bootstrapFile, BootstrapState);
+  if (context.mode === "review") return review(inputs, context, state);
   const systemPromptFile = join(p.state, "system-prompt.md");
   await writeFile(systemPromptFile, systemPrompt(context, p.out));
-  const code = await runHarness({
+  const { exitCode } = await runHarness({
     harness: state.harness,
     toolsDir: p.tools,
     work: p.work,
@@ -59,9 +61,55 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
     openRouterKey: (await readFile(p.keyFile, "utf8")).trim(),
     systemPromptFile,
     task: taskPrompt(context),
+    access: "write",
   });
   await rm(p.keyFile, { force: true });
-  if (code !== 0) core.warning(`harness exited with ${String(code)}`);
+  if (exitCode !== 0) core.warning(`harness exited with ${String(exitCode)}`);
+  return finish(inputs);
+}
+
+/** Inline diffs beyond this size become a file list: the reviewer reads them with `git diff`. */
+const MAX_INLINE_DIFF_CHARS = 150_000;
+
+/**
+ * A review: one read-only session over every selected rule, with a schema for its answer. This
+ * command writes result.json itself (the session can't write files); the controller verifies
+ * every claimed violation against GitHub's diff before publishing anything.
+ */
+async function review(inputs: Inputs, context: RunContext, state: z.infer<typeof BootstrapState>): Promise<number> {
+  const p = paths(inputs);
+  const pull = context.review;
+  if (pull === undefined) throw new Error("a review run needs its review context");
+  const annotated = annotateDiff(await pullRequestDiff(p.work, pull.baseSha));
+  const systemPromptFile = join(p.state, "system-prompt.md");
+  await writeFile(systemPromptFile, reviewSystemPrompt(context));
+  const { exitCode, output } = await runHarness({
+    harness: state.harness,
+    toolsDir: p.tools,
+    work: p.work,
+    model: state.model,
+    openRouterKey: (await readFile(p.keyFile, "utf8")).trim(),
+    systemPromptFile,
+    task: reviewTaskPrompt(context, annotated.length <= MAX_INLINE_DIFF_CHARS ? annotated : undefined),
+    access: "read-only",
+    outputSchema: z.toJSONSchema(ReviewVerdicts, { target: "draft-2020-12" }),
+  });
+  await rm(p.keyFile, { force: true });
+  if (exitCode !== 0) core.warning(`harness exited with ${String(exitCode)}`);
+  const verdicts = ReviewVerdicts.safeParse(output);
+  if (!verdicts.success) {
+    core.error(`the reviewer returned no valid verdicts${output === undefined ? "" : `:\n${z.prettifyError(verdicts.error)}`}`);
+    return 1;
+  }
+  const checked = verdicts.data.verdicts.length;
+  await writeJson(p.resultFile, {
+    action: "review",
+    review: verdicts.data.verdicts,
+    summary: `Checked ${String(checked)} of ${String(pull.rules.length)} rule${pull.rules.length === 1 ? "" : "s"}.`,
+    replies: [],
+    attachments: [],
+    learnings: [],
+  });
   return finish(inputs);
 }
 

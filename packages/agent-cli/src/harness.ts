@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { Harness } from "@open-macaron/contracts";
+import { z } from "zod";
 import { inheritedEnvironment } from "./inputs.ts";
 
 /** Pinned: the newest release that had matured 3 days when it was chosen (same rule as our dependencies). */
@@ -39,10 +40,23 @@ export interface HarnessRun {
   readonly openRouterKey: string;
   readonly systemPromptFile: string;
   readonly task: string;
+  /**
+   * `write`: every tool, no prompts (implement, address_review…). `read-only`: reading, searching,
+   * git history and subagents only; anything else is refused by the harness itself.
+   */
+  readonly access: "write" | "read-only";
+  /** JSON Schema of the session's final answer; set: the answer is returned as `output`. */
+  readonly outputSchema?: object | undefined;
 }
 
-/** Runs the agent to completion in `work`. Resolves with the harness's exit code. */
-export function runHarness(run: HarnessRun): Promise<number> {
+export interface HarnessOutcome {
+  readonly exitCode: number;
+  /** The structured final answer when an `outputSchema` was given; undefined otherwise or if absent. */
+  readonly output: unknown;
+}
+
+/** Runs the agent to completion in `work`. */
+export function runHarness(run: HarnessRun): Promise<HarnessOutcome> {
   switch (run.harness) {
     case "claude":
       return runClaude(run);
@@ -52,22 +66,38 @@ export function runHarness(run: HarnessRun): Promise<number> {
   }
 }
 
-function runClaude(run: HarnessRun): Promise<number> {
-  const args = [
-    "--print",
-    "--output-format",
-    "text",
-    "--permission-mode",
-    "bypassPermissions",
-    "--model",
-    run.model,
-    "--append-system-prompt-file",
-    run.systemPromptFile,
-    "--no-session-persistence",
-  ];
-  const child = spawn(join(run.toolsDir, "node_modules", ".bin", "claude"), args, {
+/** Read-only sessions: these built-in tools exist, and Bash may only run these commands. */
+const READ_ONLY_TOOLS = "Read,Grep,Glob,Bash,Agent";
+const READ_ONLY_BASH = ["Bash(git log *)", "Bash(git blame *)", "Bash(git show *)", "Bash(git diff *)"];
+
+/** Claude Code's command line for a run (exported for tests). */
+export function claudeArgs(run: Pick<HarnessRun, "model" | "systemPromptFile" | "access" | "outputSchema">): string[] {
+  const common = ["--print", "--model", run.model, "--append-system-prompt-file", run.systemPromptFile, "--no-session-persistence"];
+  const output = run.outputSchema === undefined ? ["--output-format", "text"] : ["--output-format", "json", "--json-schema", JSON.stringify(run.outputSchema)];
+  switch (run.access) {
+    case "write":
+      return [...common, ...output, "--permission-mode", "bypassPermissions"];
+    case "read-only":
+      // dontAsk: whatever isn't allowed below is refused, never prompted.
+      return [...common, ...output, "--permission-mode", "dontAsk", "--tools", READ_ONLY_TOOLS, "--allowedTools", ...READ_ONLY_BASH];
+  }
+}
+
+/** The fields we read from `--output-format json`. */
+const ClaudeJsonResult = z.object({
+  result: z.string().optional(),
+  structured_output: z.unknown().optional(),
+  is_error: z.boolean().optional(),
+  num_turns: z.number().optional(),
+  total_cost_usd: z.number().optional(),
+});
+
+function runClaude(run: HarnessRun): Promise<HarnessOutcome> {
+  const structured = run.outputSchema !== undefined;
+  const child = spawn(join(run.toolsDir, "node_modules", ".bin", "claude"), claudeArgs(run), {
     cwd: run.work,
-    stdio: ["pipe", "inherit", "inherit"],
+    // With a schema, stdout is the JSON result we parse; otherwise the transcript goes to the log.
+    stdio: ["pipe", structured ? "pipe" : "inherit", "inherit"],
     env: {
       ...inheritedEnvironment(),
       // OpenRouter's Anthropic-compatible endpoint, with this run's capped key only.
@@ -84,11 +114,35 @@ function runClaude(run: HarnessRun): Promise<number> {
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
     },
   });
+  const chunks: Buffer[] = [];
+  child.stdout?.on("data", (chunk: Buffer) => chunks.push(chunk));
+  if (child.stdin === null) throw new Error("the harness has no stdin to receive the task");
   child.stdin.end(run.task);
   return new Promise((resolve, reject) => {
     child.on("error", reject);
     child.on("close", (code) => {
-      resolve(code ?? 1);
+      resolve({ exitCode: code ?? 1, output: structured ? structuredOutput(Buffer.concat(chunks).toString("utf8")) : undefined });
     });
   });
+}
+
+/** The schema-validated answer from Claude Code's JSON result, falling back to its final text if it is JSON. */
+export function structuredOutput(stdout: string): unknown {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    return undefined;
+  }
+  const result = ClaudeJsonResult.safeParse(parsed);
+  if (!result.success) return undefined;
+  const { structured_output: output, result: text, num_turns: turns, total_cost_usd: cost } = result.data;
+  process.stderr.write(`harness: ${String(turns ?? "?")} turns, reported cost $${String(cost ?? "?")}${result.data.is_error === true ? ", ended with an error" : ""}\n`);
+  if (output !== undefined) return output;
+  if (text === undefined) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
 }

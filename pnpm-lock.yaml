@@ -388,6 +388,9 @@ importers:
       '@open-macaron/contracts':
         specifier: workspace:*
         version: link:../contracts
+      diff:
+        specifier: 'catalog:'
+        version: 9.0.0
       p-retry:
         specifier: 'catalog:'
         version: 8.0.1
