@@ -33,7 +33,7 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 | `open-macaron/knowledge` | `global/`, `repos/<owner>/<repo>/`, `INDEX.md` (DESIGN.md §6) | The bot proposes from its fork; humans merge | High-churn, bot-authored content stays out of the code repo. Knowledge is versioned independently of controller releases |
 | `open-macaron/evidence` | No code; **Releases only**, one per thread, holding screenshots and videos | The controller only (GH_ORG) | Media must be publicly reachable for GitHub to render it, and must never be served by our VPS. Releases avoid repo bloat and allow 2 GB per file |
 | `open-macaron/.github` | Org profile, default community health files | Humans | GitHub convention |
-| `macaron-bot/<upstream>` | Forks, branches `macaron/<n>-<slug>` | The controller only (GH_PUSH) | User-owned forks keep **"Allow edits by maintainers"**, which org-owned forks don't support. They also make "all repos of macaron-bot" mean exactly "the forks" |
+| `macaron-bot/<prefix>-<upstream>` | Forks named with a random 6-character prefix (`sf465s-podman-desktop`), so two upstreams with the same name never collide; branches `macaron/<n>-<slug>` | The controller only (GH_PUSH) | User-owned forks keep **"Allow edits by maintainers"**, which org-owned forks don't support. They also make "all repos of macaron-bot" mean exactly "the forks" |
 
 The current local `agent-runner` directory becomes `open-macaron/macaron`.
 
@@ -82,13 +82,14 @@ The `macaron-bot` account itself: 2FA on; the profile says it's a bot and links 
 
 ```
  PR to macaron: config/projects/<p>/repos/repo-a.yaml   (project CODEOWNERS; platform team for budget/users)
+                 includes `fork: <6 random chars>-repo-a` (onboard-repo.sh --suggest prints one)
         │ merge
         ▼
  maintainer runs onboard-repo.sh org-x/repo-a   (short-lived fine-grained token: Administration + Contents on macaron-bot)
    ├ check upstream is public                    ← DESIGN.md "Everything is public"
    ├ check contribution rules: DCO? CLA (sign once for macaron-bot)? interaction limits?
-   ├ POST /repos/org-x/repo-a/forks              (owner macaron-bot, default branch only)
-   ├ PUT  /repos/macaron-bot/repo-a/actions/permissions {enabled:false}
+   ├ POST /repos/org-x/repo-a/forks              (owner macaron-bot, name = the `fork:` from config, default branch only)
+   ├ PUT  /repos/macaron-bot/<fork>/actions/permissions {enabled:false}
    ├ disable wiki/issues/projects on the fork
    └ scaffold knowledge/repos/org-x/repo-a/overview.md  → PR to knowledge
         │

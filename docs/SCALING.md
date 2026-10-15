@@ -124,8 +124,10 @@ Before all of these, the agent reads the upstream's own `AGENTS.md` / `CLAUDE.md
 
 An environment rots silently: a toolchain bump, or a host ref that moved. The bot would only find out mid-run, paying for tokens. `runner/.github/workflows/env-check.yml` runs steps 1–3 of `run.yml`, followed by the repo's build and test commands, **with no agent and no key**:
 - **on every PR to `runner`**, for the environments it touches, so a shared environment change is tested against all of its repos;
-- **nightly**, for every active repo; this replaces `warm.yml` and saves the dependency caches that agent runs only restore;
+- **nightly**, for every active repo;
 - **on a config PR** in `macaron`, by dispatch, for the repos it touches.
+
+**Speed first.** The agent job does independent setup work in parallel: `macaron-agent prepare` clones the upstream at the base commit, fetches the fork branch and installs the pinned harness CLI concurrently. Only the environment step, which needs the checkout, waits. Triage runs skip the environment entirely. Dependency caching is a later optimisation: we will add it once we've decided how to keep a run from poisoning the cache that the next run restores.
 
 A red env-check pauses the repo. The controller answers "environment broken, maintainers notified" instead of spending a budget on it.
 

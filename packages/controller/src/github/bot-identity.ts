@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { GH_INTERACT, type GitHub } from "./github.ts";
+import { httpStatus } from "./repo-ref.ts";
 
 export interface Identity {
   readonly login: string;
@@ -24,7 +25,9 @@ export class BotIdentity implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    const { data } = await this.gh.rest.users.getAuthenticated();
+    const { data } = await this.gh.rest.users.getAuthenticated().catch((error: unknown) => {
+      throw new Error(`GH_INTERACT was refused by GitHub (HTTP ${String(httpStatus(error) ?? "n/a")}): invalid, expired or revoked token`, { cause: error });
+    });
     if (data.login.toLowerCase() !== this.env.GITHUB_BOT_LOGIN.toLowerCase()) {
       throw new Error(`GH_INTERACT authenticates as "${data.login}", expected "${this.env.GITHUB_BOT_LOGIN}"`);
     }

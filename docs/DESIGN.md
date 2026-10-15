@@ -24,7 +24,7 @@ flowchart LR
     PR["org-y/repo-b PR #40<br/>review comments"]
   end
   subgraph FORK["macaron-bot (user, forks only)"]
-    BR["macaron-bot/repo-a<br/>branch macaron/12-fix-parser"]
+    BR["macaron-bot/sf465s-repo-a<br/>branch macaron/12-fix-parser"]
   end
   subgraph VPS["VPS: macaron-controller (quadlets)"]
     ING["Ingest<br/>notifications poller<br/>(obeys X-Poll-Interval)<br/>/webhook (only if an upstream admin installs it)<br/>trust + debounce + 👀"]

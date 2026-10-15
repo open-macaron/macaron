@@ -14,7 +14,7 @@ Everything here is public: the repo, the images, and the unit files. So no secre
      ├ git fetch origin main  (fast-forward only)
      ├ for every Image= digest: verify provenance (release.yml on main) ── refuse otherwise
      ├ install deploy/quadlets → ~/.config/containers/systemd/ ; daemon-reload
-     └ restart changed units; migrate runs before the controller; health gate, else roll back
+     └ pg_dump, restart changed units (the controller migrates at startup); health gate, else roll back
    macaron.pod   :80/:443 published, nothing else
      ├ caddy        TLS (ACME), routes /webhook and /bootstrap only → controller:8080
      ├ controller   :8080 app, :9090 health + metrics (pod-local)
@@ -61,8 +61,7 @@ deploy/
 │   ├── macaron.pod                    PublishPort 80, 443 — nothing else leaves the pod
 │   ├── macaron-caddy.container        Caddyfile from deploy/caddy/, certs in macaron-caddy.volume
 │   ├── macaron-postgres.container     quay.io/fedora/postgresql-17@sha256:…, data in macaron-pgdata.volume
-│   ├── macaron-migrate.container      same image as controller, `migrate` command, oneshot
-│   ├── macaron-controller.container   Requires/After migrate + postgres
+│   ├── macaron-controller.container   Requires/After postgres; migrates at startup
 │   ├── macaron-pgdata.volume
 │   └── macaron-caddy.volume
 ├── caddy/Caddyfile                    host, HSTS, path allow-list, request size limit
@@ -74,8 +73,8 @@ Every container gets the same hardening. The controller unit is the reference:
 
 ```ini
 [Unit]
-Requires=macaron-postgres.service macaron-migrate.service
-After=macaron-postgres.service macaron-migrate.service
+Requires=macaron-postgres.service
+After=macaron-postgres.service
 
 [Container]
 Image=ghcr.io/open-macaron/controller@sha256:…        # digest only; Renovate bumps it
@@ -108,8 +107,8 @@ CPUQuota=150%
 WantedBy=default.target
 ```
 
-- **Single node.** A restart causes a few seconds of downtime and no lost work: events are rows in Postgres, the notifications poller resumes from its stored cursor, and `RunLauncher.reconcile()` recovers `workflow_run` webhooks that arrived while it was down.
-- **Migrations** run in `macaron-migrate` before every controller start. They must only add or widen columns, so a rollback to the previous digest keeps working. A destructive change ships in two releases.
+- **Single node.** A restart causes a few seconds of downtime and no lost work: triggers and pg-boss jobs are rows in Postgres, the notifications poller resumes from its stored cursor, and the scheduled `reconcile` job recovers `workflow_run` webhooks that arrived while it was down.
+- **Migrations** run when the controller starts, before it serves anything: Drizzle's migrator inside the database module's factory, under a Postgres advisory lock so two instances never migrate at once. pg-boss migrates its own `pgboss` schema the same way. Migrations must only add or widen columns, so a rollback to the previous digest keeps working. A destructive change ships in two releases.
 - **Rollback:** `deploy.sh` keeps the last good commit. If the controller isn't healthy within 2 minutes, it re-installs that commit's quadlets and restarts.
 
 ## 3. Host (`deploy/scripts/bootstrap-host.sh`, run once as root)

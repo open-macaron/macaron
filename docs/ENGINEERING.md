@@ -9,6 +9,7 @@ How the controller and the agent-side CLI are built. The system design is in [DE
 | Runtime | Node.js 24 LTS | Same major in the container (`ubi10/nodejs-24-minimal`) and in CI |
 | Framework | NestJS 12, **ESM** | All Nest packages ship as ESM |
 | Language | TypeScript 6.0 | The version `nest upgrade` targets. TS 7 (`tsgo`) can be added as a faster `--noEmit` check once Nest's CLI supports it |
+| Queues | pg-boss 12 | Same Postgres, no extra service; LISTEN/NOTIFY for immediate pick-up |
 | Database | PostgreSQL 17 (container in the controller's pod), **Drizzle ORM v1** + `@nestjs/drizzle` + `pg` | Drizzle 1.0 is still `rc`, as used by the Nest docs. Pin the exact version and move to GA when it ships |
 | Validation | Zod 4, through **Nest 12's native Standard Schema support** | `@Body({ schema })` + `StandardSchemaValidationPipe` validate requests; `@nestjs/swagger` 12 builds OpenAPI from the same schemas (`@ApiResponse({ standardSchema })`). There is no `@nestjs/zod` package, and `nestjs-zod` v5 only supports Nest ≤ 11, so we use no third-party bridge. Zod also validates every non-HTTP input: env, webhooks, notifications, OIDC claims, `config/**`, `result.json` |
 | GitHub | `@octokit/rest` + `plugin-throttling` + `plugin-retry`, `@octokit/webhooks-methods` | Octokit is generated from GitHub's own OpenAPI spec. One client per token, see §4 |
@@ -51,7 +52,7 @@ macaron/                                (open-macaron/macaron, public)
 ```
 
 - **Dependencies point one way:** Ingest → Routing → Runs → Publish. Each module exports only its façade service. `dependency-cruiser` enforces the direction in CI.
-- **State lives in Postgres, not in memory.** Debounced events are rows with a `due_at` column. Workers claim them with `FOR UPDATE SKIP LOCKED`, and the poller and sweepers take a Postgres advisory lock. So a restart loses nothing, and a second instance would be safe if we ever need one.
+- **State lives in Postgres, not in memory.** Background work runs on [pg-boss](https://github.com/timgit/pg-boss), on the same database: per-thread debounce (`upsert` on a `stately` queue moves the pending job back), deduplicated `run-completed` jobs, and cron-scheduled `reconcile` and `sweep-keys`. The notifications poller and sweepers take a Postgres advisory lock. So a restart loses nothing, and a second instance would be safe if we ever need one.
 - **Idempotency.** Every external effect (reaction, comment, push, dispatch) is keyed in the database by `(thread, loop, effect)`. A retried job never double-posts.
 
 Drizzle tables (`packages/controller/src/db/schema.ts`):
@@ -65,7 +66,7 @@ export const effects    = pgTable("effects",    { /* threadId, loop, kind, exter
 export type Run = typeof runs.$inferSelect;
 ```
 
-Migrations are generated with `drizzle-kit generate` and committed. They run as a separate release step, never at application start (see DEPLOYMENT.md §3).
+Migrations are generated with `drizzle-kit generate` and committed. They run at application start, before any provider can query: the Drizzle module's factory migrates under a Postgres advisory lock, then hands out the database. Nobody runs a migrate command by hand.
 
 ## 4. Capability-scoped GitHub clients
 
