@@ -49,8 +49,14 @@ export const ReviewContext = z.strictObject({
   pull: z.int().positive(),
   baseSha: CommitSha,
   headSha: CommitSha,
-  rules: z.array(PublishedRule).max(200),
-  skipped: z.array(PublishedRule.pick({ id: true, title: true, severity: true })),
+  /** Rules to check, each with the changed files its globs match (computed by the controller). */
+  rules: z.array(z.strictObject({ rule: PublishedRule, files: z.array(z.string().min(1)).min(1) })).max(200),
+  skipped: z.array(
+    z.strictObject({
+      ...PublishedRule.pick({ id: true, title: true, severity: true }).shape,
+      reason: z.enum(["no_matching_file", "over_limit"]),
+    }),
+  ),
   /** open-macaron/knowledge commit the rules come from; null when no slice exists for the repo. */
   knowledgeCommit: CommitSha.nullable(),
 });

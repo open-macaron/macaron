@@ -46,6 +46,7 @@ catalog:
   markdown-table: 3.0.4
   "@sindresorhus/slugify": 3.0.1
   p-retry: 8.0.1
+  diff: 9.0.0
   "@octokit/webhooks": 14.2.0
   # OpenRouter (official SDK, generated from their OpenAPI spec)
   "@openrouter/sdk": 1.4.25

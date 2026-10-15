@@ -251,6 +251,9 @@ catalogs:
     deepmerge-ts:
       specifier: 8.0.2
       version: 8.0.2
+    diff:
+      specifier: 9.0.0
+      version: 9.0.0
     drizzle-kit:
       specifier: 1.0.0-rc.4
       version: 1.0.0-rc.4
@@ -461,6 +464,9 @@ importers:
       '@sindresorhus/slugify':
         specifier: 'catalog:'
         version: 3.0.1
+      diff:
+        specifier: 'catalog:'
+        version: 9.0.0
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1)(zod@4.6.6)
@@ -497,6 +503,9 @@ importers:
       pg-boss:
         specifier: 'catalog:'
         version: 12.37.1(@opentelemetry/api@1.9.1)
+      picomatch:
+        specifier: 'catalog:'
+        version: 4.0.7
       pino:
         specifier: 'catalog:'
         version: 10.4.0
@@ -534,6 +543,9 @@ importers:
       '@types/pg':
         specifier: 'catalog:'
         version: 8.23.1
+      '@types/picomatch':
+        specifier: 'catalog:'
+        version: 4.0.3
       drizzle-kit:
         specifier: 'catalog:'
         version: 1.0.0-rc.4
@@ -2232,6 +2244,10 @@ packages:
 
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
+
+  diff@9.0.0:
+    resolution: {integrity: sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw==}
+    engines: {node: '>=0.3.1'}
 
   docker-compose@1.5.0:
     resolution: {integrity: sha512-O+eD6c63+BJORUWddXA7uAlI6H1KLDPd/aS14k73nXYpFliM48C3xrrKB3sXsR1Fp/rHUZQe7+fJ+QA7+jepyw==}
@@ -5474,6 +5490,8 @@ snapshots:
   devlop@1.1.0:
     dependencies:
       dequal: 2.0.3
+
+  diff@9.0.0: {}
 
   docker-compose@1.5.0:
     dependencies:

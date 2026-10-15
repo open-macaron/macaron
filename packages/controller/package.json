@@ -37,6 +37,7 @@
     "@secretlint/secretlint-rule-pattern": "catalog:",
     "@secretlint/secretlint-rule-preset-recommend": "catalog:",
     "@sindresorhus/slugify": "catalog:",
+    "diff": "catalog:",
     "drizzle-orm": "catalog:",
     "fflate": "catalog:",
     "file-type": "catalog:",
@@ -49,6 +50,7 @@
     "p-retry": "catalog:",
     "pg": "catalog:",
     "pg-boss": "catalog:",
+    "picomatch": "catalog:",
     "pino": "catalog:",
     "pino-http": "catalog:",
     "reflect-metadata": "catalog:",
@@ -63,6 +65,7 @@
     "@types/express": "catalog:",
     "@types/mdast": "catalog:",
     "@types/pg": "catalog:",
+    "@types/picomatch": "catalog:",
     "drizzle-kit": "catalog:",
     "msw": "catalog:"
   }

@@ -37,6 +37,8 @@ export const Env = z.object({
   RUNNER_OWNER_ID: z.coerce.number().int().positive(),
   RUNNER_WORKFLOW: z.string().regex(/^[a-z0-9-]+\.ya?ml$/).default("run.yml"),
   EVIDENCE_REPO: RepoSlug.default(RepoSlug.parse("open-macaron/evidence")),
+  /** open-macaron/knowledge's read API on GitHub Pages (DESIGN.md §6.5). */
+  KNOWLEDGE_URL: z.url({ protocol: /^https$/ }).default("https://open-macaron.github.io/knowledge/v1"),
 
   OPENROUTER_BASE_URL: z.url().default("https://openrouter.ai/api/v1"),
   /** Workspace (slug) holding every key we create, so its dashboard shows the bot's total spend. */
