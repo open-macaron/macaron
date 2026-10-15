@@ -6,7 +6,7 @@ After=macaron-postgres.service
 [Container]
 ContainerName=macaron-controller
 # Digest only. Bumped by a PR whose CI verified the image's build provenance (release.yml on main).
-Image=ghcr.io/open-macaron/controller@sha256:2e6a8f57e3a66f07b19c3b2f3b8bbe04a8ef00c744f02f2087e8af8f1bfc397b
+Image=ghcr.io/open-macaron/controller@sha256:c453f2815393896b28f682a5619080a4a78be6d0401e74700a422468dcb1ecab
 UserNS=auto
 Network=macaron-edge.network
 Network=macaron-db.network
