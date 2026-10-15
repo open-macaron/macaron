@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDrizzle } from "@nestjs/drizzle";
 import type { Harness, Mode, RunContext, Ticket } from "@open-macaron/contracts";
-import { and, count, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, eq, gte, inArray, isNull, like, sql } from "drizzle-orm";
 import { TicketAlreadyRedeemed, TicketRejected } from "../common/errors.ts";
 import type { UsdMicros } from "../common/money.ts";
 import type { Db } from "../db/db.module.ts";
@@ -237,5 +237,13 @@ export class RunsRepository {
       .from(effects)
       .where(and(eq(effects.threadId, threadId), eq(effects.loop, loop), eq(effects.kind, kind)));
     return row === undefined ? undefined : row.externalId;
+  }
+
+  /** The loop's recorded effects whose kind starts with `prefix` (a fixed string, no wildcards). */
+  async effectsWithPrefix(threadId: string, loop: number, prefix: string): Promise<{ kind: string; externalId: string | null }[]> {
+    return this.db
+      .select({ kind: effects.kind, externalId: effects.externalId })
+      .from(effects)
+      .where(and(eq(effects.threadId, threadId), eq(effects.loop, loop), like(effects.kind, `${prefix}%`)));
   }
 }

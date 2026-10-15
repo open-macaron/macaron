@@ -3,7 +3,9 @@ import type { Mode, RepoConfig } from "@open-macaron/contracts";
 import { RepoConfigService } from "../config/repo-config.service.ts";
 import { BotIdentity } from "../github/bot-identity.ts";
 import { Jobs, Queue, RunCompletedJob, ThreadReadyJob } from "../jobs/jobs.ts";
+import { repoRef } from "../github/repo-ref.ts";
 import { Publisher } from "../publish/publisher.ts";
+import { ReactionTargets } from "../publish/reaction-targets.ts";
 import { type Escalation, type LaunchOutcome, RunLauncher } from "../runs/run-launcher.ts";
 import { ACTIVE_STATUSES, RunsRepository, type ThreadRecord } from "../runs/runs.repository.ts";
 import { ContextBuilder, type Trigger } from "./context-builder.ts";
@@ -31,6 +33,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
     private readonly contexts: ContextBuilder,
     private readonly launcher: RunLauncher,
     private readonly publisher: Publisher,
+    private readonly reactions: ReactionTargets,
     private readonly bot: BotIdentity,
   ) {}
 
@@ -72,6 +75,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
         await this.events.settle(ids, "dropped");
         return this.publisher.reportRefusal(thread, "there is no failed loop to retry");
       }
+      await this.reactions.adopt(thread.id, previous.loop, thread.loops + 1, repoRef(thread.repo));
       request = { mode: previous.mode, trigger: previous.context.trigger };
     } else {
       const last = pending.at(-1);
