@@ -1,0 +1,27 @@
+{
+  "name": "@open-macaron/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Schemas shared across the trust boundary: config, run context, run result, bootstrap",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@open-macaron/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "schemas"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "gen": "node --conditions=@open-macaron/source scripts/emit-json-schemas.ts"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  }
+}

@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "owners": {
+      "type": "string",
+      "pattern": "^@[A-Za-z0-9-]+\\/[A-Za-z0-9-]+$"
+    },
+    "users": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(?!-)[A-Za-z0-9-]{1,39}(?<!-)(\\[bot\\])?$"
+      }
+    },
+    "bots": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(?!-)[A-Za-z0-9-]{1,39}(?<!-)(\\[bot\\])?$"
+      }
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "monthUsd": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "monthUsd"
+      ],
+      "additionalProperties": false
+    },
+    "concurrency": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50
+    },
+    "defaults": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "harness": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex",
+            "opencode"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runsOn": {
+          "type": "string",
+          "minLength": 1
+        },
+        "draftPr": {
+          "type": "boolean"
+        },
+        "timeoutMinutes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 360
+        },
+        "budgets": {
+          "type": "object",
+          "properties": {
+            "triage": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "plan": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "implement": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "address_review": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "reproduce": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "verify": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "retro": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          },
+          "additionalProperties": false
+        },
+        "caps": {
+          "type": "object",
+          "properties": {
+            "perThreadUsd": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "perRepoMonthUsd": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "reviewLoops": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            },
+            "botReviewLoops": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            },
+            "openPrs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          "additionalProperties": false
+        },
+        "environment": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string",
+              "enum": [
+                "shared",
+                "own",
+                "upstream"
+              ]
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+            },
+            "path": {
+              "type": "string",
+              "pattern": "^\\.github\\/macaron\\/[A-Za-z0-9._-]+(\\/[A-Za-z0-9._-]+)*$"
+            },
+            "params": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+              },
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "commands": {
+          "type": "object",
+          "properties": {
+            "build": {
+              "type": "string",
+              "minLength": 1
+            },
+            "test": {
+              "type": "string",
+              "minLength": 1
+            },
+            "lint": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "gui",
+              "video",
+              "container"
+            ]
+          }
+        },
+        "contribution": {
+          "type": "object",
+          "properties": {
+            "dco": {
+              "type": "boolean"
+            },
+            "cla": {
+              "type": "string",
+              "format": "uri"
+            },
+            "fixCi": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "project",
+    "owners",
+    "users",
+    "budget",
+    "concurrency"
+  ],
+  "additionalProperties": false
+}

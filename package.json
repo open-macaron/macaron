@@ -1,0 +1,32 @@
+{
+  "name": "@open-macaron/macaron",
+  "version": "0.0.0",
+  "private": true,
+  "description": "macaron-bot: an AI contributor that works on upstream repositories from forks",
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "pnpm@12.13.0",
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "scripts": {
+    "build": "pnpm --recursive --sort run build",
+    "typecheck": "pnpm --recursive run typecheck",
+    "lint": "eslint --max-warnings 0 .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "gen": "pnpm --recursive run gen",
+    "check": "pnpm typecheck && pnpm lint && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@swc/core": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "unplugin-swc": "catalog:",
+    "vitest": "catalog:"
+  }
+}
