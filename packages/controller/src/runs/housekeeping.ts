@@ -42,7 +42,7 @@ export class Housekeeping implements OnApplicationBootstrap {
   async onApplicationBootstrap(): Promise<void> {
     await this.jobs.work(Queue.reconcile, NoPayload, () => this.reconcile());
     await this.jobs.work(Queue.sweepKeys, NoPayload, () => this.sweepKeys());
-    await this.jobs.work(Queue.settleCost, SettleCostJob, ({ runId }) => this.launcher.settle(runId));
+    await this.jobs.work(Queue.settleCost, SettleCostJob, ({ runId, previousMicros }) => this.launcher.settle(runId, previousMicros));
   }
 
   async reconcile(): Promise<void> {

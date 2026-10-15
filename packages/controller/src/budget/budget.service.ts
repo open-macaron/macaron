@@ -7,14 +7,6 @@ import { OpenRouterKeys, type ProvisionedKey } from "./openrouter-keys.ts";
 /** Prefix of every key we mint; the sweeper only ever touches keys with this prefix. */
 export const RUN_KEY_PREFIX = "macaron-run-";
 
-/**
- * OpenRouter reports a key's usage asynchronously (measured: ~25 s after the call). The final
- * read happens in a background job well after the key is disabled, and still waits for two
- * agreeing reads before trusting the number.
- */
-const SETTLE_MAX_READS = 12;
-const SETTLE_READ_INTERVAL_MS = 10_000;
-
 @Injectable()
 export class BudgetService {
   private readonly logger = new Logger(BudgetService.name);
@@ -40,22 +32,6 @@ export class BudgetService {
   /** Spending stops now: the next request with the key is refused. Idempotent. */
   async freeze(hash: string): Promise<void> {
     await this.keys.disable(hash);
-  }
-
-  /**
-   * The key's final cost, then deletes it. Call once the key is frozen and usage had time to
-   * arrive (the settle-cost job runs ~90 s after the run ends).
-   */
-  async finalUsage(hash: string, signal: AbortSignal): Promise<UsdMicros> {
-    let previous = await this.usage(hash);
-    for (let read = 1; read < SETTLE_MAX_READS; read++) {
-      await this.clock.sleep(SETTLE_READ_INTERVAL_MS, signal);
-      const current = await this.usage(hash);
-      if (current === previous) break;
-      previous = current;
-    }
-    await this.keys.delete(hash);
-    return previous;
   }
 
   /** Best effort, for cleanup paths: never throws (the sweeper is the safety net); a missing key is fine. */

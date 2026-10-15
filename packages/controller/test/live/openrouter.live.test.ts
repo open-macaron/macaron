@@ -28,10 +28,13 @@ describe.skipIf(env === undefined)("OpenRouter key lifecycle (live)", () => {
       });
       expect(response.status).toBe(200);
 
-      // Same sequence as production: freeze at completion, final read later (usage arrives ~25 s late).
+      // Same sequence as production: freeze at completion, read usage once it has arrived.
       await budget.freeze(key.hash);
-      await new Promise((resolve) => setTimeout(resolve, 45_000));
-      const costMicros = await budget.finalUsage(key.hash, AbortSignal.timeout(180_000));
+      let costMicros = 0;
+      for (let attempt = 0; attempt < 12 && costMicros === 0; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 15_000));
+        costMicros = await budget.usage(key.hash);
+      }
       expect(costMicros).toBeGreaterThan(0);
       expect(costMicros).toBeLessThan(10_000);
     } finally {

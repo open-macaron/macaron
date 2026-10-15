@@ -25,7 +25,7 @@ const POLL_KEY = "poll";
 
 export const ThreadReadyJob = z.object({ threadId: z.uuid() });
 export const NoPayload = z.unknown();
-export const SettleCostJob = z.object({ runId: z.uuid() });
+export const SettleCostJob = z.object({ runId: z.uuid(), previousMicros: z.int().nonnegative().optional() });
 export const RunCompletedJob = z.object({ ghRunId: z.int().positive(), conclusion: z.string().nullable() });
 
 /**
@@ -85,8 +85,9 @@ export class Jobs implements OnModuleInit, OnApplicationShutdown {
   }
 
   /** Settles a run's cost after `delayMs`; deduplicated by run id. */
-  async settleCost(runId: string, delayMs: number): Promise<void> {
-    await this.boss.send(Queue.settleCost, { runId }, { singletonKey: runId, startAfter: new Date(Date.now() + delayMs) });
+  async settleCost(runId: string, delayMs: number, previousMicros?: number): Promise<void> {
+    const data = previousMicros === undefined ? { runId } : { runId, previousMicros };
+    await this.boss.send(Queue.settleCost, data, { singletonKey: runId, startAfter: new Date(Date.now() + delayMs) });
   }
 
   /** Registers a handler; the payload is validated with `schema` before `handle` sees it. */

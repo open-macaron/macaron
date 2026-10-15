@@ -10,6 +10,7 @@ import {
 } from "@open-macaron/contracts";
 import { z } from "zod";
 import { BudgetService } from "../budget/budget.service.ts";
+import { decideSettlement, SETTLE_RECHECK_MS } from "../budget/settlement.ts";
 import { Clock } from "../common/clock.ts";
 import { describeError } from "../common/errors.ts";
 import { toMicros, type UsdMicros } from "../common/money.ts";
@@ -184,16 +185,31 @@ export class RunLauncher {
     if (closed) await this.publisher.reportFailure({ run, thread, reason, runUrl: runUrl(this.env, run.ghRunId) });
   }
 
-  /** settle-cost job: the run's final cost into the ledger (once), key deleted, cost table refreshed. */
-  async settle(runId: string): Promise<void> {
+  /**
+   * settle-cost job: reads the frozen key's usage and either records the final cost (ledger, key
+   * deleted, cost table refreshed) or reschedules itself with this reading (see decideSettlement).
+   */
+  async settle(runId: string, previousMicros: UsdMicros | undefined): Promise<void> {
     const run = await this.runs.byId(runId);
     if (run.settledAt !== null) return;
+    const now = this.clock.now();
+    const observedMicros: UsdMicros = run.keyHash === null ? 0 : await this.budget.usage(run.keyHash);
+    const decision = decideSettlement({
+      redeemed: run.redeemedAt !== null,
+      observedMicros,
+      previousMicros,
+      sinceFinishMs: now.getTime() - (run.finishedAt ?? run.createdAt).getTime(),
+    });
+    if (decision.kind === "recheck") {
+      await this.jobs.settleCost(run.id, SETTLE_RECHECK_MS, decision.observedMicros);
+      return;
+    }
     const thread = await this.runs.threadById(run.threadId);
     const config = this.config.repo(thread.repo);
     const attribution = config === undefined ? { repo: thread.repo, project: "unknown" } : this.attribution(config);
-    const costMicros: UsdMicros = run.keyHash === null ? 0 : await this.budget.finalUsage(run.keyHash, AbortSignal.timeout(300_000));
-    if (await this.runs.settle(run.id, costMicros, attribution, this.clock.now())) {
-      this.logger.log(`run ${run.id} cost ${String(costMicros)} µ$`);
+    if (await this.runs.settle(run.id, decision.costMicros, attribution, now)) {
+      this.logger.log(`run ${run.id} cost ${String(decision.costMicros)} µ$`);
+      if (run.keyHash !== null) await this.budget.revoke(run.keyHash);
       await this.publisher.refreshCost(await this.runs.threadById(thread.id));
     }
   }
