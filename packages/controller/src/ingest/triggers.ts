@@ -17,9 +17,10 @@ export function parseSubjectUrl(url: string | null): Subject | undefined {
   return { repo, number: Number(number), kind: type === "pulls" ? "pull" : "issue" };
 }
 
-export type Command = Mode | "stop";
+/** `retry` runs the thread's last failed or stopped loop again, with the same mode and trigger. */
+export type Command = Mode | "stop" | "retry";
 
-const COMMANDS: ReadonlySet<string> = new Set<Command>(["plan", "implement", "reproduce", "verify", "triage", "stop"]);
+const COMMANDS: ReadonlySet<string> = new Set<Command>(["plan", "implement", "reproduce", "verify", "triage", "stop", "retry"]);
 /** Natural phrasings mapped to commands, e.g. "@macaron-bot can you reproduce?". */
 const ALIASES: readonly (readonly [RegExp, Command])[] = [
   [/\breproduc(e|ing)\b/i, "reproduce"],
@@ -27,6 +28,7 @@ const ALIASES: readonly (readonly [RegExp, Command])[] = [
   [/\bplan\b/i, "plan"],
   [/\b(implement|fix it|go ahead)\b/i, "implement"],
   [/\bstop\b|\bcancel\b/i, "stop"],
+  [/\bretry\b|\btry again\b/i, "retry"],
 ];
 
 export interface Mention {

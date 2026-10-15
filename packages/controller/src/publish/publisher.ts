@@ -138,7 +138,8 @@ export class Publisher {
   /** The run failed or was refused: say so briefly in the status comment, react 😕. */
   async reportFailure(input: FailureInput): Promise<void> {
     const upstream = repoRef(input.thread.repo);
-    await this.updateStatus(input.thread, statusTarget(input.thread), input.run, `😕 ${input.reason}`, input.runUrl);
+    const retry = `Comment \`@${this.bot.identity.login} retry\` to run this loop again.`;
+    await this.updateStatus(input.thread, statusTarget(input.thread), input.run, `😕 ${input.reason}\n\n${retry}`, input.runUrl);
     await this.updateCostTable(input.thread);
     await this.reactions.finish(input.thread.id, input.run.loop, upstream, "confused");
   }

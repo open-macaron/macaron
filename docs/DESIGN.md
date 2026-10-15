@@ -162,6 +162,7 @@ Behaviour notes:
   - `reproduce` (on the base commit) and `verify` (on the PR branch): full environment, **no commit**. They reply with evidence such as screenshots and videos (see "Evidence" below). `@macaron-bot can you reproduce?` routes here.
   - A run may return `escalate`, in which case `complete()` launches the next run in the requested mode.
   - Explicit commands (`@macaron-bot implement`, `/plan`, `/stop`) skip the Router.
+  - `@macaron-bot retry` runs the thread's last failed or stopped loop again, with the same mode and trigger. It is refused when the last loop succeeded. Each failure's status comment says so.
 - The Ingest drops events from untrusted repos, untrusted users, and the bot itself. It also caps loops: at most N review loops per PR, and a lower cap when the reviewer is a bot, so two bots can't ping-pong forever.
 - Review *summaries* don't support reactions, so 👀 goes on their first inline comment, or on the PR otherwise.
 
@@ -407,7 +408,7 @@ All `open-macaron` repos, the `runner` Actions logs, the images and the knowledg
 1. **Ingress (decided).** Caddy on the VPS terminates TLS and exposes only `/webhook` and `/bootstrap`.
 2. **Ledger storage (decided).** PostgreSQL in the controller's pod on the VPS, with Drizzle ORM. See DEPLOYMENT.md §2.
 3. **Stack (decided).** NestJS 12 (ESM), TypeScript 6 strict, Drizzle v1 via `@nestjs/drizzle`, Zod, Vitest. See ENGINEERING.md.
-4. **Triggers (decided).** The trigger is a **mention**: `@macaron-bot [plan|implement|reproduce|verify|stop|…]` from a trusted user. The bot never gets access to upstream repos, so no trigger is built on assignment, review requests or labels. GitHub lets a maintainer assign the bot only after it has commented on that issue; that rare case is handled like a bare mention, with the assigner checked against the trusted users.
+4. **Triggers (decided).** The trigger is a **mention**: `@macaron-bot [plan|implement|reproduce|verify|stop|retry|…]` from a trusted user. The bot never gets access to upstream repos, so no trigger is built on assignment, review requests or labels. GitHub lets a maintainer assign the bot only after it has commented on that issue; that rare case is handled like a bare mention, with the assigner checked against the trusted users.
 5. **Private upstreams (decided: no).** Public only, see "Everything is public".
 6. **Hosting (decided 2026-10-15):** a Fedora VPS running rootless Podman quadlets, replacing OpenShift. Still open: see DEPLOYMENT.md §6.
 7. **Organisation (decided 2026-10-15):** `open-macaron` owns `macaron`, `runner`, `knowledge` and `.github`; the user `macaron-bot` owns only forks. See REPOSITORIES.md.

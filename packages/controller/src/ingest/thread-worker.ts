@@ -65,15 +65,28 @@ export class ThreadWorker implements OnApplicationBootstrap {
     const mode = decideMode(pending.map((event) => ({ kind: eventKind(event), command: parseMention(event.body, login)?.command })));
     if (mode === undefined || mode === "stop") return this.events.settle(ids, "done");
 
-    const last = pending.at(-1);
-    if (last === undefined) return;
-    const trigger: Trigger = {
-      kind: eventKind(last),
-      author: last.author,
-      url: last.url,
-      instruction: (parseMention(last.body, login)?.instruction ?? last.body).slice(0, 4_096),
-    };
-    const outcome = await this.start(config, thread, mode, trigger);
+    let request: { readonly mode: Mode; readonly trigger: Trigger };
+    if (mode === "retry") {
+      const previous = loops.at(-1);
+      if (previous === undefined || previous.status === "completed") {
+        await this.events.settle(ids, "dropped");
+        return this.publisher.reportRefusal(thread, "there is no failed loop to retry");
+      }
+      request = { mode: previous.mode, trigger: previous.context.trigger };
+    } else {
+      const last = pending.at(-1);
+      if (last === undefined) return;
+      request = {
+        mode,
+        trigger: {
+          kind: eventKind(last),
+          author: last.author,
+          url: last.url,
+          instruction: (parseMention(last.body, login)?.instruction ?? last.body).slice(0, 4_096),
+        },
+      };
+    }
+    const outcome = await this.start(config, thread, request.mode, request.trigger);
     switch (outcome.kind) {
       case "launched":
         return this.events.settle(ids, "done");
