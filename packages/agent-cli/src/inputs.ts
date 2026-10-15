@@ -38,6 +38,8 @@ export interface Paths {
   readonly work: string;
   /** Private state: key, context. Never uploaded. */
   readonly state: string;
+  /** The harness, installed here at prepare time. */
+  readonly tools: string;
   readonly keyFile: string;
   readonly contextFile: string;
   readonly bootstrapFile: string;
@@ -55,6 +57,7 @@ export function paths(inputs: Pick<Inputs, "RUNNER_TEMP" | "GITHUB_WORKSPACE">):
   return {
     work: join(inputs.GITHUB_WORKSPACE, "upstream"),
     state,
+    tools: join(inputs.RUNNER_TEMP, "macaron-tools"),
     keyFile: join(state, "openrouter.key"),
     contextFile: join(state, "context.json"),
     bootstrapFile: join(state, "bootstrap.json"),

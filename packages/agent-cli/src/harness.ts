@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { execFile } from "node:child_process";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import type { Harness } from "@open-macaron/contracts";
 import { inheritedEnvironment } from "./inputs.ts";
@@ -10,10 +11,14 @@ const OPENROUTER_ANTHROPIC_URL = "https://openrouter.ai/api";
 /** Claude Code's small background model, also routed through OpenRouter. */
 const FAST_MODEL = "anthropic/claude-haiku-5.5";
 
-export async function installHarness(harness: Harness): Promise<void> {
+/**
+ * Installs the harness into the run's private tools directory, not globally: the repository's
+ * environment may switch Node.js versions afterwards, and must not change which harness runs.
+ */
+export async function installHarness(harness: Harness, toolsDir: string): Promise<void> {
   switch (harness) {
     case "claude":
-      await promisify(execFile)("npm", ["install", "--global", "--no-fund", "--no-audit", `@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}`]);
+      await promisify(execFile)("npm", ["install", "--prefix", toolsDir, "--no-fund", "--no-audit", "--no-save", `@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}`]);
       return;
     case "codex":
     case "opencode":
@@ -23,6 +28,7 @@ export async function installHarness(harness: Harness): Promise<void> {
 
 export interface HarnessRun {
   readonly harness: Harness;
+  readonly toolsDir: string;
   readonly work: string;
   readonly model: string;
   readonly openRouterKey: string;
@@ -54,7 +60,7 @@ function runClaude(run: HarnessRun): Promise<number> {
     run.systemPromptFile,
     "--no-session-persistence",
   ];
-  const child = spawn("claude", args, {
+  const child = spawn(join(run.toolsDir, "node_modules", ".bin", "claude"), args, {
     cwd: run.work,
     stdio: ["pipe", "inherit", "inherit"],
     env: {

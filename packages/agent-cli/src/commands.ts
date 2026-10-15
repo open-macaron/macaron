@@ -26,7 +26,7 @@ export async function prepare(inputs: Inputs = readInputs()): Promise<void> {
   const started = Date.now();
   await Promise.all([
     checkout(p.work, inputs.MACARON_REPO, inputs.MACARON_FORK, inputs.MACARON_BRANCH, inputs.MACARON_BASE_SHA),
-    installHarness(inputs.MACARON_HARNESS),
+    mkdir(p.tools, { recursive: true }).then(() => installHarness(inputs.MACARON_HARNESS, p.tools)),
   ]);
   core.info(`prepared in ${String(Math.round((Date.now() - started) / 1000))}s`);
 }
@@ -53,6 +53,7 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
   await writeFile(systemPromptFile, systemPrompt(context, p.out));
   const code = await runHarness({
     harness: state.harness,
+    toolsDir: p.tools,
     work: p.work,
     model: state.model,
     openRouterKey: (await readFile(p.keyFile, "utf8")).trim(),
