@@ -43,8 +43,19 @@ export function resolveAttachments(body: string, urls: ReadonlyMap<string, strin
   return body.replace(/attachment:([a-z0-9][a-z0-9-]{0,62})/g, (match, id: string) => urls.get(id) ?? match);
 }
 
+/** A loop's state as shown in the cost table. */
+export type LoopState = "running" | "completed" | "failed" | "aborted";
+
+const STATE_LABEL: Readonly<Record<LoopState, string>> = {
+  running: "⏳ running",
+  completed: "✅ done",
+  failed: "😕 failed",
+  aborted: "⏹️ stopped",
+};
+
 export interface CostRow {
   readonly loop: number;
+  readonly state: LoopState;
   readonly trigger: string;
   readonly mode: Mode;
   readonly model: string;
@@ -59,18 +70,19 @@ export function renderCostTable(rows: readonly CostRow[], routerMicros: UsdMicro
     String(row.loop),
     escapeCell(row.trigger),
     row.mode,
+    STATE_LABEL[row.state],
     escapeCell(row.model.replace(/^[^/]+\//, "")),
     row.costMicros === null ? SETTLING : formatUsd(row.costMicros),
     row.runUrl === null ? "" : `[run](${row.runUrl})`,
   ]);
   if (routedComments > 0) {
-    body.push(["–", `${String(routedComments)} routed comment${routedComments === 1 ? "" : "s"}`, "router", "", formatUsd(routerMicros), ""]);
+    body.push(["–", `${String(routedComments)} routed comment${routedComments === 1 ? "" : "s"}`, "router", "", "", formatUsd(routerMicros), ""]);
   }
   const total = rows.reduce((sum, row) => sum + (row.costMicros ?? 0), routerMicros);
   const pending = rows.some((row) => row.costMicros === null);
   const totalText = `${formatUsd(total)}${pending ? ` ${SETTLING}` : ""}`;
-  body.push(["**Total**", "", "", "", `**${totalText}**`, ""]);
-  const table = markdownTable([["Loop", "Trigger", "Mode", "Model", "Cost", "Run"], ...body], { alignDelimiters: false });
+  body.push(["**Total**", "", "", "", "", `**${totalText}**`, ""]);
+  const table = markdownTable([["Loop", "Trigger", "Mode", "Status", "Model", "Cost", "Run"], ...body], { alignDelimiters: false });
   // Collapsed: the PR description stays about the change; the total is visible in the summary line.
   const loops = `${String(rows.length)} loop${rows.length === 1 ? "" : "s"}`;
   return [COST_START, "<details>", `<summary>macaron-bot cost: <b>${totalText}</b> (${loops})</summary>`, "", table, "", "</details>", COST_END].join("\n");

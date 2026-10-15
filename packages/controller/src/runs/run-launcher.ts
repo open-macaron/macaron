@@ -95,6 +95,7 @@ export class RunLauncher {
     });
 
     let keyHash: string | undefined;
+    let dispatched: RunRecord;
     try {
       const key = await this.budget.mint(run.id, limitUsd, config.timeoutMinutes + KEY_GRACE_MINUTES);
       keyHash = key.hash;
@@ -102,7 +103,7 @@ export class RunLauncher {
       const ghRunId = await this.dispatch(run, config, context);
       await this.runs.markDispatched(run.id, ghRunId);
       this.logger.log(`run ${run.id} (${thread.repo}#${String(thread.number)} loop ${String(run.loop)} ${mode}) dispatched as ${String(ghRunId)}`);
-      return { kind: "launched", run: { ...run, status: "dispatched", ghRunId, keyHash: key.hash } };
+      dispatched = { ...run, status: "dispatched", ghRunId, keyHash: key.hash };
     } catch (error: unknown) {
       if (keyHash !== undefined) await this.budget.revoke(keyHash);
       // The key never reached a runner: nothing was spent.
@@ -110,6 +111,13 @@ export class RunLauncher {
       await this.runs.settle(run.id, 0, this.attribution(config), this.clock.now());
       throw error;
     }
+    // The run is under way whatever happens to this progress note.
+    try {
+      await this.publisher.reportStarted(thread, dispatched, runUrl(this.env, dispatched.ghRunId));
+    } catch (error: unknown) {
+      this.logger.warn(`reporting the start of run ${run.id} failed: ${describeError(error)}`);
+    }
+    return { kind: "launched", run: dispatched };
   }
 
   /** POST /v1/bootstrap: the only way a key leaves the controller. */

@@ -1,0 +1,1 @@
+ALTER TABLE "threads" ADD COLUMN "pr_status_comment_id" bigint;

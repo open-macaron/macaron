@@ -12,5 +12,5 @@ budget:
 concurrency: 1
 defaults:
   budgets:
-    implement: 1.00
-    address_review: 0.50
+    implement: 2.00
+    address_review: 1.50

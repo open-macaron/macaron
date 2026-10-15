@@ -34,23 +34,24 @@ describe("resolveAttachments", () => {
 describe("cost table", () => {
   const table = renderCostTable(
     [
-      { loop: 1, trigger: "mention by @alice", mode: "implement", model: "anthropic/claude-sonnet-5.5", costMicros: 1_840_000, runUrl: "https://r/1" },
-      { loop: 2, trigger: "review by @bob", mode: "address_review", model: "anthropic/claude-sonnet-5.5", costMicros: 620_000, runUrl: null },
+      { loop: 1, state: "completed", trigger: "mention by @alice", mode: "implement", model: "anthropic/claude-sonnet-5.5", costMicros: 1_840_000, runUrl: "https://r/1" },
+      { loop: 2, state: "failed", trigger: "review by @bob", mode: "address_review", model: "anthropic/claude-sonnet-5.5", costMicros: 620_000, runUrl: null },
     ],
     4_000,
     4,
   );
 
-  it("lists every loop, router spend and the total", () => {
-    expect(table).toContain("| 1 | mention by @alice | implement | claude-sonnet-5.5 | $1.84 | [run](https://r/1) |");
-    expect(table).toContain("| – | 4 routed comments | router | | $0.0040 | |");
-    expect(table).toContain("| **Total** | | | | **$2.46** | |");
+  it("lists every loop with its state, router spend and the total", () => {
+    expect(table).toContain("| 1 | mention by @alice | implement | ✅ done | claude-sonnet-5.5 | $1.84 | [run](https://r/1) |");
+    expect(table).toContain("| 2 | review by @bob | address_review | 😕 failed | claude-sonnet-5.5 | $0.62 | |");
+    expect(table).toContain("| – | 4 routed comments | router | | | $0.0040 | |");
+    expect(table).toContain("| **Total** | | | | | **$2.46** | |");
     expect(table).toContain("<summary>macaron-bot cost: <b>$2.46</b> (2 loops)</summary>");
   });
 
   it("shows ⏳ for loops whose cost isn't settled yet, in the rows and the total", () => {
-    const pending = renderCostTable([{ loop: 1, trigger: "t", mode: "implement", model: "m", costMicros: null, runUrl: null }], 0, 0);
-    expect(pending).toContain("| ⏳ |");
+    const pending = renderCostTable([{ loop: 1, state: "running", trigger: "t", mode: "implement", model: "m", costMicros: null, runUrl: null }], 0, 0);
+    expect(pending).toContain("| ⏳ running | m | ⏳ |");
     expect(pending).toContain("<b>$0.00 ⏳</b>");
   });
 

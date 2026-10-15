@@ -10,7 +10,7 @@ import { RunsRepository } from "../runs/runs.repository.ts";
 import { runUrl } from "../runs/run-url.ts";
 import { ForkCommitter } from "./fork-committer.ts";
 import type { Publishable } from "./gate.ts";
-import { type CostRow, renderCostTable, resolveAttachments, sanitize, upsertCostSection } from "./markdown.ts";
+import { type CostRow, type LoopState, renderCostTable, resolveAttachments, sanitize, upsertCostSection } from "./markdown.ts";
 import { ReactionTargets } from "./reaction-targets.ts";
 import { CannotPost, UpstreamWriter } from "./upstream-writer.ts";
 
@@ -22,6 +22,32 @@ export interface PublishInput {
   readonly runUrl: string;
   /** attachment id → hosted URL (empty until evidence hosting ships). */
   readonly attachmentUrls: ReadonlyMap<string, string>;
+}
+
+/** Where a thread's sticky status comment lives: the issue until the bot's PR exists, then the PR. */
+interface StatusTarget {
+  readonly number: number;
+  readonly commentId: number | null;
+  readonly onPull: boolean;
+}
+
+function statusTarget(thread: ThreadRecord): StatusTarget {
+  return thread.prNumber === null
+    ? { number: thread.number, commentId: thread.statusCommentId, onPull: false }
+    : { number: thread.prNumber, commentId: thread.prStatusCommentId, onPull: true };
+}
+
+function loopState(status: RunRecord["status"]): LoopState {
+  switch (status) {
+    case "pending":
+    case "dispatched":
+    case "running":
+      return "running";
+    case "completed":
+    case "failed":
+    case "aborted":
+      return status;
+  }
 }
 
 export interface FailureInput {
@@ -51,6 +77,8 @@ export class Publisher {
   async publish(input: PublishInput): Promise<void> {
     const { run, config, publishable } = input;
     let thread = input.thread;
+    // The loop that opens the PR reports on the issue it started from; later loops on the PR.
+    const status = statusTarget(input.thread);
     const context = run.context;
     const upstream = repoRef(thread.repo);
     const mentions = participants(context);
@@ -102,7 +130,7 @@ export class Publisher {
       await this.post(() => this.runs.once(thread.id, run.loop, "message", () => this.writer.comment(upstream, target, clean(message))));
     }
 
-    await this.updateStatus(thread, run, `✅ ${clean(result.summary)}`, input.runUrl);
+    await this.updateStatus(thread, status, run, `✅ ${clean(result.summary)}`, input.runUrl);
     await this.updateCostTable(thread);
     await this.reactions.finish(thread.id, run.loop, upstream, "+1");
   }
@@ -110,9 +138,15 @@ export class Publisher {
   /** The run failed or was refused: say so briefly in the status comment, react 😕. */
   async reportFailure(input: FailureInput): Promise<void> {
     const upstream = repoRef(input.thread.repo);
-    await this.updateStatus(input.thread, input.run, `😕 ${input.reason}`, input.runUrl);
+    await this.updateStatus(input.thread, statusTarget(input.thread), input.run, `😕 ${input.reason}`, input.runUrl);
     await this.updateCostTable(input.thread);
     await this.reactions.finish(input.thread.id, input.run.loop, upstream, "confused");
+  }
+
+  /** A run was dispatched: the status comment and the PR's table show it, with its link, right away. */
+  async reportStarted(thread: ThreadRecord, run: RunRecord, runUrl: string | null): Promise<void> {
+    await this.updateStatus(thread, statusTarget(thread), run, "⏳ Working on it.", runUrl);
+    await this.updateCostTable(thread);
   }
 
   /** Called when a loop's cost is settled: the PR's cost table picks up the final number. */
@@ -123,11 +157,7 @@ export class Publisher {
   /** No run happened (caps, pause, missing capability): explain in the status comment, react 😕. */
   async reportRefusal(thread: ThreadRecord, reason: string): Promise<void> {
     const upstream = repoRef(thread.repo);
-    const body = `**macaron-bot** · not started\n\n😕 ${reason}`;
-    await this.post(async () => {
-      const id = await this.writer.upsertComment(upstream, thread.number, thread.statusCommentId, body);
-      if (id !== thread.statusCommentId) await this.runs.updateThread(thread.id, { statusCommentId: id });
-    });
+    await this.upsertStatus(thread, statusTarget(thread), `**macaron-bot** · not started\n\n😕 ${reason}`);
     await this.reactions.finish(thread.id, thread.loops + 1, upstream, "confused");
   }
 
@@ -140,22 +170,27 @@ export class Publisher {
   }
 
   /** One sticky comment per thread, edited in place on every loop. */
-  private async updateStatus(thread: ThreadRecord, run: RunRecord, outcome: string, runUrl: string | null): Promise<void> {
-    const upstream = repoRef(thread.repo);
+  private async updateStatus(thread: ThreadRecord, target: StatusTarget, run: RunRecord, outcome: string, runUrl: string | null): Promise<void> {
     const loops = await this.runs.loops(thread.id);
     const spent = loops.reduce((total, loop) => total + (loop.costMicros ?? 0), 0);
-    const where = thread.prNumber !== null && thread.kind === "issue" ? `\n\nWork continues in #${String(thread.prNumber)}.` : "";
+    const pending = loops.some((loop) => loop.settledAt === null) ? " ⏳" : "";
+    const where = !target.onPull && thread.prNumber !== null && thread.kind === "issue" ? `\n\nWork continues in #${String(thread.prNumber)}.` : "";
     const body = [
       `**macaron-bot** · loop ${String(run.loop)} · \`${run.mode}\`${runUrl === null ? "" : ` · [run](${runUrl})`}`,
       "",
       outcome,
       where,
       "",
-      `<sub>Spent on this thread: ${formatUsd(spent)}.</sub>`,
+      `<sub>Spent on this thread: ${formatUsd(spent)}${pending}.</sub>`,
     ].join("\n");
+    await this.upsertStatus(thread, target, body);
+  }
+
+  private async upsertStatus(thread: ThreadRecord, target: StatusTarget, body: string): Promise<void> {
     await this.post(async () => {
-      const id = await this.writer.upsertComment(upstream, thread.number, thread.statusCommentId, body);
-      if (id !== thread.statusCommentId) await this.runs.updateThread(thread.id, { statusCommentId: id });
+      const id = await this.writer.upsertComment(repoRef(thread.repo), target.number, target.commentId, body);
+      if (id === target.commentId) return;
+      await this.runs.updateThread(thread.id, target.onPull ? { prStatusCommentId: id } : { statusCommentId: id });
     });
   }
 
@@ -163,16 +198,15 @@ export class Publisher {
     if (thread.prNumber === null) return;
     const upstream = repoRef(thread.repo);
     const loops = await this.runs.loops(thread.id);
-    const rows: CostRow[] = loops
-      .filter((loop) => loop.finishedAt !== null)
-      .map((loop) => ({
-        loop: loop.loop,
-        trigger: `${loop.context.trigger.kind} by @${loop.context.trigger.author}`,
-        mode: loop.mode,
-        model: loop.model,
-        costMicros: loop.costMicros,
-        runUrl: runUrl(this.env, loop.ghRunId),
-      }));
+    const rows: CostRow[] = loops.map((loop) => ({
+      loop: loop.loop,
+      state: loopState(loop.status),
+      trigger: `${loop.context.trigger.kind} by @${loop.context.trigger.author}`,
+      mode: loop.mode,
+      model: loop.model,
+      costMicros: loop.costMicros,
+      runUrl: runUrl(this.env, loop.ghRunId),
+    }));
     const prNumber = thread.prNumber;
     await this.post(async () => {
       const body = await this.writer.pullBody(upstream, prNumber);

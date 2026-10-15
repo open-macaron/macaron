@@ -10,6 +10,11 @@ const CLAUDE_CODE_VERSION = "2.1.296";
 const OPENROUTER_ANTHROPIC_URL = "https://openrouter.ai/api";
 /** Claude Code's small background model, also routed through OpenRouter. */
 const FAST_MODEL = "anthropic/claude-haiku-5.5";
+/**
+ * OpenRouter refuses a request (402) when its worst case (max_tokens × output price) exceeds
+ * what's left on the key. Claude Code asks for 64 000 by default, which a $0.50 key can't cover.
+ */
+const MAX_OUTPUT_TOKENS = "16000";
 
 /**
  * Installs the harness into the run's private tools directory, not globally: the repository's
@@ -74,6 +79,7 @@ function runClaude(run: HarnessRun): Promise<number> {
       ANTHROPIC_DEFAULT_SONNET_MODEL: run.model,
       ANTHROPIC_DEFAULT_HAIKU_MODEL: FAST_MODEL,
       CLAUDE_CODE_SUBAGENT_MODEL: run.model,
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: MAX_OUTPUT_TOKENS,
       DISABLE_AUTOUPDATER: "1",
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
     },

@@ -62,7 +62,7 @@ export class RunsRepository {
     return thread;
   }
 
-  async updateThread(id: string, patch: Partial<Pick<ThreadRecord, "branch" | "prNumber" | "statusCommentId">>): Promise<void> {
+  async updateThread(id: string, patch: Partial<Pick<ThreadRecord, "branch" | "prNumber" | "statusCommentId" | "prStatusCommentId">>): Promise<void> {
     await this.db.update(threads).set(patch).where(eq(threads.id, id));
   }
 
