@@ -23,6 +23,7 @@ catalog:
   # Validation and contracts
   zod: 4.6.6
   yaml: 2.9.1
+  fflate: 0.8.3
   # OpenRouter (official SDK, generated from their OpenAPI spec)
   "@openrouter/sdk": 1.4.25
   # GitHub, OIDC

@@ -29,6 +29,7 @@
     "@open-macaron/contracts": "workspace:*",
     "@openrouter/sdk": "catalog:",
     "drizzle-orm": "catalog:",
+    "fflate": "catalog:",
     "jose": "catalog:",
     "nestjs-pino": "catalog:",
     "pg": "catalog:",
