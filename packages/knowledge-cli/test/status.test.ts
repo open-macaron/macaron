@@ -31,5 +31,6 @@ describe("renderStatus", () => {
     const decision = { ready: true, formatValid: true, unownedFiles: 0, folders: [{ folder: "global", state: "approved" as const, by: ["axel7083"] }] };
     expect(renderStatus(decision, { kind: "merged", sha: "d".repeat(40) }, HEAD, RUN)).toContain("✅ Merged as `ddddddd`.");
     expect(renderStatus(decision, { kind: "refused", reason: "HTTP 409" }, HEAD, RUN)).toContain("GitHub refused the merge: HTTP 409");
+    expect(renderStatus(decision, { kind: "outdated" }, HEAD, RUN)).toContain("the branch is behind the default branch, which changed `.github/workflows/`");
   });
 });

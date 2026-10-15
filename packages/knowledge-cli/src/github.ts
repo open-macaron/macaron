@@ -37,7 +37,9 @@ export async function mergeApproved(octokit: Octokit, repository: Repository, he
 
     const decision = decide({ headSha, authorId: pull.user?.id ?? 0, files, reviews, ownersOnMain, formatValid });
     let outcome: MergeOutcome = { kind: "not_ready" };
-    if (decision.ready) {
+    if (decision.ready && (await behindOnWorkflows(octokit, repository, headSha, repo.default_branch))) {
+      outcome = { kind: "outdated" };
+    } else if (decision.ready) {
       try {
         // `sha`: GitHub refuses if the head moved since it was evaluated.
         const { data } = await octokit.rest.pulls.merge({ ...repository, pull_number: pull.number, sha: headSha, merge_method: "squash" });
@@ -51,6 +53,15 @@ export async function mergeApproved(octokit: Octokit, repository: Repository, he
     await upsertStatus(octokit, repository, pull.number, renderStatus(decision, outcome, headSha, runUrl));
   }
   return merged;
+}
+
+/**
+ * Whether the default branch changed workflow files since `headSha` branched off. Merging such a
+ * branch counts as updating workflows, which no workflow token may do (HTTP 403).
+ */
+async function behindOnWorkflows(octokit: Octokit, repository: Repository, headSha: string, defaultBranch: string): Promise<boolean> {
+  const { data } = await octokit.rest.repos.compareCommits({ ...repository, base: headSha, head: defaultBranch });
+  return data.ahead_by > 0 && (data.files ?? []).some((file) => file.filename.startsWith(".github/workflows/") || file.previous_filename?.startsWith(".github/workflows/") === true);
 }
 
 /** `<folder>/OWNERS.yaml` on `ref`, or undefined when it doesn't exist or isn't valid there. */

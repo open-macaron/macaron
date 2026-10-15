@@ -3,7 +3,12 @@ import type { Decision, FolderStatus } from "./approval.ts";
 /** Marks the one comment merge.yml keeps up to date on each PR. */
 export const STATUS_MARKER = "<!-- knowledge-merge-status -->";
 
-export type MergeOutcome = { readonly kind: "merged"; readonly sha: string } | { readonly kind: "refused"; readonly reason: string } | { readonly kind: "not_ready" };
+export type MergeOutcome =
+  | { readonly kind: "merged"; readonly sha: string }
+  | { readonly kind: "refused"; readonly reason: string }
+  /** Approved, but the branch lacks workflow changes made on the default branch: GitHub forbids the merge. */
+  | { readonly kind: "outdated" }
+  | { readonly kind: "not_ready" };
 
 /**
  * The PR's status comment. Only trusted strings reach it: folder paths that exist on the default
@@ -25,10 +30,15 @@ export function renderStatus(decision: Decision, outcome: MergeOutcome, headSha:
     case "refused":
       lines.push(`- ❌ Approved, but GitHub refused the merge: ${outcome.reason}`);
       break;
+    case "outdated":
+      lines.push(
+        "- ⚠️ Approved, but the branch is behind the default branch, which changed `.github/workflows/` since: GitHub doesn't let a workflow merge it. Recreate the branch from the default branch with the same changes (a maintainer can also use *Update branch*); if the content changes, it needs a new approval.",
+      );
+      break;
     case "not_ready":
       break;
   }
-  lines.push("", `<sub>Updated by merge.yml ([run](${runUrl})). Only owners' approvals on the latest commit count; pushing again needs a new approval.</sub>`);
+  lines.push("", `<sub>Updated by merge.yml ([run](${runUrl})). Only owners' approvals count; a push that changes the content dismisses them.</sub>`);
   return lines.join("\n");
 }
 
