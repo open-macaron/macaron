@@ -1,0 +1,28 @@
+# macaron-bot edge. MACARON_HOST comes from /etc/macaron/caddy.env.
+{
+	# The egress filter only allows TCP 443 out, and UDP 443 isn't published: no HTTP/3.
+	servers {
+		protocols h1 h2
+	}
+	admin off
+}
+
+{$MACARON_HOST} {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# The only two routes the internet may reach. Health checks stay inside the host.
+	@api path /v1/bootstrap /v1/webhook
+	handle @api {
+		request_body {
+			max_size 26MB
+		}
+		reverse_proxy macaron-controller:8080
+	}
+
+	handle {
+		respond 404
+	}
+}

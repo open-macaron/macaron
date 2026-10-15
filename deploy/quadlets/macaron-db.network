@@ -1,0 +1,5 @@
+# The controller and Postgres. Internal: no route to the outside world at all.
+[Network]
+NetworkName=macaron-db
+InterfaceName=macaron-db
+Internal=true

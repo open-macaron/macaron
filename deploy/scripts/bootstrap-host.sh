@@ -3,7 +3,7 @@
 # Idempotent: safe to run again. Run ON THE VPS as root:  sudo bash bootstrap-host.sh
 #
 # What it does, in order:
-#   1. packages: firewalld, fail2ban, automatic security updates, podman
+#   1. packages: firewalld, fail2ban, automatic security updates, podman, git
 #   2. SSH hardening drop-in (keys only, no root, AllowUsers)
 #   3. firewall: inbound SSH (custom port), HTTP, HTTPS only — with a 5-minute automatic rollback
 #   4. systemd-resolved: no LLMNR, no mDNS
@@ -22,7 +22,7 @@ grep -q '^ID=fedora' /etc/os-release || { echo "Fedora only" >&2; exit 1; }
 [[ "$(hostname)" == vps-* ]] || { echo "refusing to run outside the VPS (hostname $(hostname))" >&2; exit 1; }
 
 log "1. packages"
-dnf -y -q install firewalld fail2ban dnf5-plugin-automatic podman
+dnf -y -q install firewalld fail2ban dnf5-plugin-automatic podman git-core
 
 log "2. SSH: keys only, no root, only ${ADMIN_USER}"
 printf '%s\n' \

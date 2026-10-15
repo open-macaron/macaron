@@ -1,0 +1,41 @@
+[Unit]
+Description=macaron-bot: controller
+Requires=macaron-postgres.service
+After=macaron-postgres.service
+
+[Container]
+ContainerName=macaron-controller
+# Digest only. Bumped by a PR whose CI verified the image's build provenance (release.yml on main).
+Image=ghcr.io/open-macaron/controller@sha256:0000000000000000000000000000000000000000000000000000000000000000
+UserNS=auto
+Network=macaron-edge.network
+Network=macaron-db.network
+ReadOnly=true
+DropCapability=ALL
+NoNewPrivileges=true
+# Non-secret settings (PUBLIC_URL, ids, kill switch…). Secrets come from Podman secrets below.
+EnvironmentFile=/etc/macaron/controller.env
+Environment=NODE_ENV=production CONFIG_DIR=/opt/macaron/config PORT=8080
+Volume=/opt/macaron/repo/config:/opt/macaron/config:ro,Z
+Secret=macaron-database-url,type=env,target=DATABASE_URL
+Secret=macaron-gh-interact,type=env,target=GH_INTERACT
+Secret=macaron-gh-push,type=env,target=GH_PUSH
+Secret=macaron-gh-org,type=env,target=GH_ORG
+Secret=macaron-or-provisioning,type=env,target=OPENROUTER_PROVISIONING_KEY
+Secret=macaron-or-router,type=env,target=OPENROUTER_ROUTER_KEY
+Secret=macaron-webhook-hmac,type=env,target=WEBHOOK_HMAC
+HealthCmd=node -e "fetch('http://127.0.0.1:8080/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+HealthInterval=15s
+HealthStartPeriod=60s
+Notify=healthy
+LogDriver=journald
+
+[Service]
+Restart=on-failure
+RestartSec=10
+MemoryMax=768M
+# SIGHUP reloads config/ (deploy.sh sends it after pulling new configuration).
+ExecReload=/usr/bin/podman kill --signal HUP macaron-controller
+
+[Install]
+WantedBy=multi-user.target

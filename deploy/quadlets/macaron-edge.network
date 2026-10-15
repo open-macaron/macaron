@@ -1,0 +1,5 @@
+# Caddy and the controller. Outbound traffic from this bridge is limited to TCP 443 by
+# /etc/nftables/macaron-egress.nft (bootstrap-host.sh), which matches the interface name.
+[Network]
+NetworkName=macaron-edge
+InterfaceName=macaron-edge
