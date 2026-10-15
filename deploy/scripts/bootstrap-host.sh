@@ -11,6 +11,7 @@
 #   6. fail2ban on sshd
 #   7. the `containers` user: the pool of IDs rootful `UserNS=auto` hands out, one unique range per container
 #   8. egress filter for the macaron-edge bridge: outbound HTTPS only
+#   9. remote Podman access over ssh for the admin user (the `podman` group owns the API socket)
 set -euo pipefail
 
 SSH_PORT="${SSH_PORT:-50485}"
@@ -114,6 +115,19 @@ printf '%s\n' \
 systemctl daemon-reload
 systemctl enable macaron-egress.service
 systemctl restart macaron-egress.service
+
+log "9. remote podman for ${ADMIN_USER} (podman --connection over ssh)"
+# The rootful API socket is root-only. Members of the `podman` group may use it; that is
+# root-equivalent, like the passwordless sudo ${ADMIN_USER} already has, and nobody else is a member.
+groupadd --system --force podman
+usermod --append --groups podman "$ADMIN_USER"
+install -d /etc/systemd/system/podman.socket.d
+printf '%s\n' "[Socket]" "SocketGroup=podman" "SocketMode=0660" >/etc/systemd/system/podman.socket.d/90-macaron.conf
+printf '%s\n' "d /run/podman 0750 root podman -" >/etc/tmpfiles.d/90-macaron-podman.conf
+systemd-tmpfiles --create /etc/tmpfiles.d/90-macaron-podman.conf
+systemctl daemon-reload
+systemctl enable podman.socket
+systemctl restart podman.socket
 
 log "done"
 echo "Remaining by hand: confirm a fresh SSH login, then stop the firewall rollback timer."
