@@ -462,7 +462,9 @@ PR from a fork
  ├─ review.yml  on: pull_request_review   permissions: {}   no-op; exists to emit workflow_run
  └─ merge.yml   on: workflow_run [review, check] completed  — always the version on main
       concurrency: merge (one run, bursts collapse)
-      job validate  permissions: {}   PR content checked out as data; knowledge-cli from the release pinned on main (sha256)
+      job find      pull-requests: read   open PRs whose head is workflow_run.head_sha
+      job validate  contents: read    PR content checked out as data (allow-unsafe-pr-checkout: no secrets,
+                                      no cache, nothing executed); knowledge-cli pinned by sha256
       job merge     contents: write, pull-requests: write — API only, no PR checkout
       job pages     calls pages.yml (a GITHUB_TOKEN merge triggers no push workflow)
 ```
@@ -487,11 +489,13 @@ The `main` ruleset requires a PR and blocks force pushes; it requires no native 
 
 ```
 https://open-macaron.github.io/knowledge/v1/
-├── index.json                   commit sha; every rule and lesson: id, title, globs, severity
-└── repos/<owner>/<repo>.json    the rules and lessons that apply, global → project → repo merged
+├── index.json                   commit sha; every folder's rules (id, title, severity, globs) and lessons
+├── global.json
+├── projects/<project>.json
+└── repos/<owner>/<repo>.json    each: the folder's overview, rules and lessons, full text
 ```
 
-The controller fetches the repo's file (ETag-cached, versioned by commit) instead of cloning. Everything is public already; anyone can see what the bot enforces on a repository.
+One file per folder, not pre-merged: which project a repository belongs to is macaron's configuration, not the knowledge repository's. The controller fetches `global`, the repo's project and the repo (ETag-cached, versioned by commit) and merges them, instead of cloning. Everything is public already; anyone can see what the bot enforces on a repository. Shapes: `KnowledgeIndex` and `KnowledgeSlice` in `@open-macaron/contracts`.
 
 ### 6.6 Gathering lessons
 
