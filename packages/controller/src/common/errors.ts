@@ -1,3 +1,5 @@
+import { inspect } from "node:util";
+
 /** Base class for failures the controller expects and handles explicitly. */
 export abstract class DomainError extends Error {
   abstract readonly code: string;
@@ -45,8 +47,9 @@ export class UpstreamError extends DomainError {
   }
 }
 
-/** Formats any thrown value for logs without leaking non-Error payloads blindly. */
+/** Formats any thrown value for logs. Non-Error values (some libraries emit plain objects) are inspected. */
 export function describeError(error: unknown): string {
   if (error instanceof Error) return `${error.name}: ${error.message}`;
-  return typeof error === "string" ? error : "non-Error value thrown";
+  if (typeof error === "string") return error;
+  return `non-Error value thrown: ${inspect(error, { depth: 3, breakLength: Number.POSITIVE_INFINITY }).slice(0, 2_000)}`;
 }

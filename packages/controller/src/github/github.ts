@@ -32,6 +32,8 @@ export function createGitHub(name: string, token: string, apiVersion: string): G
         logger.warn(message);
       },
       error: (message: string) => {
+        // Octokit reports every non-2xx response here, including the poller's normal 304s.
+        if (message.includes(" - 304 with id ")) return;
         logger.error(message);
       },
     },
