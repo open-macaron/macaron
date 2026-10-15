@@ -68,6 +68,15 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
   return finish(inputs);
 }
 
+/**
+ * The verdicts' JSON Schema for `--json-schema`: draft 7 and no `$schema` key, because Claude Code's
+ * validator doesn't know the 2020-12 meta-schema (measured: "no schema with key or ref").
+ */
+export function verdictsSchema(): object {
+  const { $schema: _metaSchema, ...schema } = z.toJSONSchema(ReviewVerdicts, { target: "draft-7" });
+  return schema;
+}
+
 /** Inline diffs beyond this size become a file list: the reviewer reads them with `git diff`. */
 const MAX_INLINE_DIFF_CHARS = 150_000;
 
@@ -92,7 +101,7 @@ async function review(inputs: Inputs, context: RunContext, state: z.infer<typeof
     systemPromptFile,
     task: reviewTaskPrompt(context, annotated.length <= MAX_INLINE_DIFF_CHARS ? annotated : undefined),
     access: "read-only",
-    outputSchema: z.toJSONSchema(ReviewVerdicts, { target: "draft-2020-12" }),
+    outputSchema: verdictsSchema(),
   });
   await rm(p.keyFile, { force: true });
   if (exitCode !== 0) core.warning(`harness exited with ${String(exitCode)}`);
