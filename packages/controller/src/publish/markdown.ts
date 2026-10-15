@@ -3,6 +3,9 @@ import { markdownTable } from "markdown-table";
 import { formatUsd, type UsdMicros } from "../common/money.ts";
 import { applyEdits, htmlRanges, proseRanges } from "./markdown-ast.ts";
 
+/** Shown while OpenRouter hasn't reported a loop's final cost yet. */
+const SETTLING = "⏳";
+
 /** GitHub rejects bodies over 65 536 characters; keep room for our own sections. */
 export const MAX_BODY_CHARS = 60_000;
 
@@ -57,7 +60,7 @@ export function renderCostTable(rows: readonly CostRow[], routerMicros: UsdMicro
     escapeCell(row.trigger),
     row.mode,
     escapeCell(row.model.replace(/^[^/]+\//, "")),
-    row.costMicros === null ? "settling…" : formatUsd(row.costMicros),
+    row.costMicros === null ? SETTLING : formatUsd(row.costMicros),
     row.runUrl === null ? "" : `[run](${row.runUrl})`,
   ]);
   if (routedComments > 0) {
@@ -65,9 +68,12 @@ export function renderCostTable(rows: readonly CostRow[], routerMicros: UsdMicro
   }
   const total = rows.reduce((sum, row) => sum + (row.costMicros ?? 0), routerMicros);
   const pending = rows.some((row) => row.costMicros === null);
-  body.push(["**Total**", "", "", "", `**${formatUsd(total)}${pending ? " +" : ""}**`, ""]);
+  const totalText = `${formatUsd(total)}${pending ? ` ${SETTLING}` : ""}`;
+  body.push(["**Total**", "", "", "", `**${totalText}**`, ""]);
   const table = markdownTable([["Loop", "Trigger", "Mode", "Model", "Cost", "Run"], ...body], { alignDelimiters: false });
-  return [COST_START, "### macaron-bot cost", "", table, COST_END].join("\n");
+  // Collapsed: the PR description stays about the change; the total is visible in the summary line.
+  const loops = `${String(rows.length)} loop${rows.length === 1 ? "" : "s"}`;
+  return [COST_START, "<details>", `<summary>macaron-bot cost: <b>${totalText}</b> (${loops})</summary>`, "", table, "", "</details>", COST_END].join("\n");
 }
 
 /** Puts `section` (which carries its own markers) in place of the previous one, or appends it. */

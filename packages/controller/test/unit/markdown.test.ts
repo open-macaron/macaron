@@ -45,6 +45,13 @@ describe("cost table", () => {
     expect(table).toContain("| 1 | mention by @alice | implement | claude-sonnet-5.5 | $1.84 | [run](https://r/1) |");
     expect(table).toContain("| – | 4 routed comments | router | | $0.0040 | |");
     expect(table).toContain("| **Total** | | | | **$2.46** | |");
+    expect(table).toContain("<summary>macaron-bot cost: <b>$2.46</b> (2 loops)</summary>");
+  });
+
+  it("shows ⏳ for loops whose cost isn't settled yet, in the rows and the total", () => {
+    const pending = renderCostTable([{ loop: 1, trigger: "t", mode: "implement", model: "m", costMicros: null, runUrl: null }], 0, 0);
+    expect(pending).toContain("| ⏳ |");
+    expect(pending).toContain("<b>$0.00 ⏳</b>");
   });
 
   it("replaces the previous section in place and keeps the rest of the body", () => {
