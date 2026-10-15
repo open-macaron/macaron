@@ -10,7 +10,7 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 │ macaron      controller + contracts + agent-cli + harness adapters + config + deploy + docs │──release──▶ ghcr.io/open-macaron/controller
 │              CI, release.yml (images, agent-cli tarball, attestations)                    │             agent-cli-<v>.tgz (GitHub release)
 │ runner       run.yml + environments/ + env-check.yml — where agents execute                │◀─ start / cancel runs (GH_ORG), artifacts (GH_INTERACT)
-│ knowledge    knowledge base; humans merge the bot's rolling "knowledge updates" PR         │◀─ PR from macaron-bot/knowledge (GH_INTERACT)
+│ knowledge    rules + lessons; folder owners approve, merge.yml merges; Pages read API      │◀─ PR from macaron-bot/knowledge (GH_INTERACT)
 │ evidence     releases only: screenshots/videos attached to bot replies (DESIGN.md)        │◀─ release assets (milestone 6, see below)
 │ .github      org profile, SECURITY.md, CONTRIBUTING.md, issue templates                   │
 └───────────────────────────────────────────────────────────────────────────────────────────┘
@@ -30,7 +30,7 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 |---|---|---|---|
 | `open-macaron/macaron` (this repo) | `packages/controller`, `packages/{contracts,agent-cli}`, `harness/`, `config/` (global → project → repo), `deploy/`, `docs/` | Humans via PR | Source of truth for code and trust config. `deploy.sh` on the VPS pulls it |
 | `open-macaron/runner` | `.github/workflows/run.yml` (the only agent workflow), `env-check.yml`, `environments/` (shared + own, CODEOWNERS per folder), plus a `README` describing the contract (SCALING.md §1) | Humans via PR; the bot only *dispatches* | Gives agent runs their own `repository_id` (the OIDC check pins it) and their own public run history. The token that dispatches runs can't trigger `macaron`'s `release.yml` |
-| `open-macaron/knowledge` | `global/`, `repos/<owner>/<repo>/`, `INDEX.md` (DESIGN.md §6) | The bot proposes from its fork; humans merge | High-churn, bot-authored content stays out of the code repo. Knowledge is versioned independently of controller releases |
+| `open-macaron/knowledge` | `global/`, `projects/<p>/`, `repos/<owner>/<repo>/`, each with `OWNERS.yaml`, `rules/`, `lessons/` (DESIGN.md §6) | Humans write rules; the bot proposes lessons from its fork. Folder owners approve (no write access needed); `merge.yml` merges | High-churn, bot-authored content stays out of the code repo. Knowledge is versioned independently of controller releases |
 | `open-macaron/evidence` | No code; **Releases only**, one per thread, holding screenshots and videos | The controller only. **Open until milestone 6:** keep it here (then `GH_ORG` also needs Contents write on it) or move it to `macaron-bot/evidence` (then `GH_PUSH` covers it) | Media must be publicly reachable for GitHub to render it, and must never be served by our VPS. Releases avoid repo bloat and allow 2 GB per file |
 | `open-macaron/.github` | Org profile, default community health files | Humans | GitHub convention |
 | `macaron-bot/<prefix>-<upstream>` | Forks named with a random 6-character prefix (`sf465s-podman-desktop`), so two upstreams with the same name never collide; branches `macaron/<n>-<slug>` | The controller only (GH_PUSH) | User-owned forks keep **"Allow edits by maintainers"**, which org-owned forks don't support. They also make "all repos of macaron-bot" mean exactly "the forks" |

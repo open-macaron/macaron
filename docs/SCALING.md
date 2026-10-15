@@ -113,10 +113,12 @@ interface RepoConfig {
 
 ```
 knowledge/
-├── global/                       how macaron works; harness tips
-├── projects/podman-desktop/      shared by every repo in the project: extension API, review culture, release process
-└── repos/<o>/<r>/                repo specifics: build quirks, flaky tests, reviewer preferences
+├── global/                       rules for every repo; how macaron works; harness tips
+├── projects/podman-desktop/      shared by every repo in the project: rules, extension API, review culture
+└── repos/<o>/<r>/                repo specifics: rules, build quirks, flaky tests, reviewer preferences
 ```
+
+Each folder has its own `OWNERS.yaml`: a project's maintainers approve changes to their rules and lessons without write access to the repository (DESIGN.md §6.4).
 
 Before all of these, the agent reads the upstream's own `AGENTS.md` / `CLAUDE.md`, which harnesses load natively. Our knowledge only holds what upstream doesn't say. Lessons that recur across extensions get promoted from `repos/` to `projects/` by the weekly `garden` run, so an extension learns from its siblings.
 

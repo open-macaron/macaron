@@ -358,22 +358,145 @@ The PR body ends with a section that the Publisher regenerates from the ledger o
 <!-- macaron:cost:end -->
 ```
 
-## 6. Learning (`open-macaron/knowledge`)
+## 6. Knowledge and rules (`open-macaron/knowledge`)
 
-```mermaid
-flowchart TD
-  K["knowledge/"] --> IDX["INDEX.md<br/>one line per file, read first"]
-  K --> G["global/<br/>commit style, PR etiquette, harness tips"]
-  K --> P["projects/&lt;project&gt;/<br/>shared by a project's repos: APIs, review culture"]
-  K --> R["repos/&lt;owner&gt;/&lt;repo&gt;/"]
-  R --> OV["overview.md<br/>layout, CI quirks"]
-  R --> RV["reviewers.md<br/>recurring reviewer expectations"]
-  R --> LS["lessons/&lt;topic&gt;.md<br/>frontmatter: sources, last_verified, confidence"]
+The knowledge repository holds two kinds of content, with different authors and uses:
+
+| | **Rules** | **Lessons** |
+|---|---|---|
+| What | What changed code must look like ("use Svelte 5 runes") | Facts learned ("e2e tests need `xvfb-run`", "reviewers prefer small PRs") |
+| Written by | Humans (the folder's owners) | The bot proposes, the folder's owners approve |
+| Used for | Implementing, and the per-rule review (§6.3) | Context for the agent |
+| Loaded | Only rules whose globs match the files in play | Through the index; the agent opens a lesson when it needs it |
+| Identity | Stable id (`sandbox/no-runtime-json-read`), cited by review tables; never reused | File name |
+
+A lesson becomes a rule only when a human promotes it: the bot never writes rules, because the reviewer enforces them. Nothing is read from upstream repositories for now (beyond the harness loading their `AGENTS.md` / `CLAUDE.md` natively).
+
+### 6.1 Layout
+
+```
+knowledge/
+├── README.md                    how to write rules and lessons
+├── .github/workflows/           check.yml, review.yml, merge.yml, pages.yml (platform team only)
+├── global/
+│   ├── OWNERS.yaml              the platform team
+│   ├── rules/<slug>.md          every repo (commit messages, PR etiquette)
+│   └── lessons/<topic>.md       working with macaron, harness tips
+├── projects/<project>/          same names as macaron's config/projects/<project>
+│   ├── OWNERS.yaml
+│   ├── rules/<slug>.md
+│   └── lessons/<topic>.md
+└── repos/<owner>/<repo>/        the upstream slug, not the fork
+    ├── OWNERS.yaml
+    ├── overview.md              layout, build/test quirks; always inlined in the prompt
+    ├── rules/<slug>.md
+    └── lessons/<topic>.md
 ```
 
-- **Consult:** the agent first reads the upstream's own `AGENTS.md` / `CLAUDE.md`. `bootstrap` ships `global/`, the project slice and the repo slice. The prompt inlines only `overview.md` and `INDEX.md`; the agent opens the rest on demand.
-- **Gather:** every run emits `learnings[]`, each with evidence such as a review comment URL. A `retro` run starts when a PR is merged or closed and extracts lessons from the full review thread. Reviewer corrections are the highest-signal input. Trusted users can also write `@macaron-bot remember: …`.
-- **Update:** agent output is untrusted, and a poisoned knowledge base would be a persistent attack. So learnings are never written directly. The Publisher appends them to one rolling "knowledge updates" PR from `macaron-bot/knowledge` to `open-macaron/knowledge`, and a human merges it. A `push` webhook on `knowledge` main refreshes the controller's cache. A weekly `garden` run proposes dedupes and prunes stale entries in the same PR.
+A rule's scope comes from its folder, never from a field its author picks: rules in `projects/a/` only reach project `a`'s repositories. A rule's id is `<scope>/<slug>`, where `<scope>` is `global`, the project name or `<owner>/<repo>`, and `<slug>` is its file name. The index is generated from front matter, never committed.
+
+`OWNERS.yaml` is our format; GitHub doesn't read it, and there is no `CODEOWNERS` for these folders (§6.4). Owners are matched by **numeric user id**: a login can be renamed and re-registered. The login is there for display and mentions; `check.yml` verifies that it still resolves to the id.
+
+```yaml
+owners:
+  - login: axel7083
+    id: 42176370
+```
+
+### 6.2 Rule format
+
+Rules are written to be checked one at a time by a cheap model: one checkable thing per rule, with a narrow yes/no question and examples. The schema (`@open-macaron/contracts`) and `check.yml` enforce the front matter and the four sections.
+
+````markdown
+---
+title: Import package.json instead of reading it at runtime
+severity: error                  # error → ❌ violation, warning → ⚠️ warning
+applies_to: ["src/**/*.ts"]      # globs; files and directories alike. Omitted = every file.
+exclude: ["**/*.spec.ts"]
+sources:                         # where the rule comes from: review comments, docs
+  - https://github.com/axel7083/foobar-tmp-demo/pull/2#discussion_r4285183794
+---
+## Check
+Does the changed code read `package.json` from disk at runtime?
+
+## Violation
+An added or modified line that reads `package.json` with `fs` (`readFile`, `readFileSync`, `require` of a computed path).
+
+## Not a violation
+Tests and build scripts; `import pkg from '../package.json'`.
+
+## Examples
+```ts
+// ✅
+import pkg from '../package.json';
+// ❌
+const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+```
+````
+
+Lessons carry `topic`, optional `applies_to`, `sources`, `last_verified` and `confidence`.
+
+### 6.3 Using rules
+
+- **Selection is deterministic.** The controller merges global → project → repo and keeps the rules whose `applies_to` / `exclude` match the files in play: the PR's diff for a review, the bot's own diff before publishing. For `implement` the files aren't known in advance: the prompt carries the rule index (id, title, globs), and the agent reads the full rules for what it touches.
+- **Review, one rule at a time, by a cheap model, from the controller.** No agent and no runner: one small call per (rule, matching hunks), in parallel, with structured output `{ verdict: pass | violation | not_applicable, evidence: [{ file, line, quote }] }`. The cost goes to the ledger like the Router's.
+- **Evidence is verified deterministically.** A `violation` must quote a line that is added at that position in the diff; otherwise the verdict is discarded and the rule is reported as ignored (unverified). This catches the cheap model's main failure: inventing violations.
+- **The table at the end of the review:**
+
+  | Rule | Severity | Result | Evidence |
+  |---|---|---|---|
+  | `sandbox/no-runtime-json-read` | error | ❌ violation | [`src/extension.ts:12`](…) `readFile(…package.json…)` |
+  | `global/conventional-commits` | warning | ⚠️ warning | commit `8c694b4`: no type prefix |
+  | `sandbox/escape-webview-html` | error | ✅ valid | |
+  | `sandbox/i18n-strings` | warning | ➖ ignored | no matching file changed |
+
+- **The bot reviews its own diff before publishing:** a ❌ sends the agent back to fix it.
+
+### 6.4 Approval and merge, entirely in GitHub (Prow-style)
+
+Folder owners need **no write access and no org membership**: their approval is checked by a workflow, not by GitHub's branch protection. Only the platform team has write access. The repository's own `GITHUB_TOKEN` merges; there is no extra token or service.
+
+```
+PR from a fork
+ ├─ check.yml   on: pull_request          permissions: {}   format feedback for the author; never trusted
+ ├─ review.yml  on: pull_request_review   permissions: {}   no-op; exists to emit workflow_run
+ └─ merge.yml   on: workflow_run [review, check] completed  — always the version on main
+      concurrency: merge (one run, bursts collapse)
+      job validate  permissions: {}   PR content checked out as data; knowledge-cli from the release pinned on main (sha256)
+      job merge     contents: write, pull-requests: write — API only, no PR checkout
+      job pages     calls pages.yml (a GITHUB_TOKEN merge triggers no push workflow)
+```
+
+**`review.yml` and `check.yml` are attacker-controlled.** For a fork PR, GitHub runs the PR's version of them, and `workflow_run` matches workflows by name, so a PR can trigger `merge.yml` at will with a run that ends however it likes. So `merge.yml`:
+
+- takes only `workflow_run.head_sha` from the event, to find which PR to evaluate: open PRs whose `head.sha` equals it (compared as data, passed through `env:`, never interpolated in `run:`). No match → nothing to do. It reads no artifact, output or conclusion from the triggering run, and never the branch name;
+- never treats the trigger as "ready to merge". For each matched PR it re-derives everything from GitHub data:
+  1. **Approvals:** each reviewer's latest review; it counts if it is `APPROVED`, on the current head sha (`commit_id`), and its author's **id** is in the matching `OWNERS.yaml` **on `main`**. The PR author's approval never counts.
+  2. **Coverage:** every touched file is under `global/`, `projects/<p>/` or `repos/<o>/<r>/` whose `OWNERS.yaml` exists on `main`, and each such folder has a valid approval. Anything else (`.github/`, root files, a new folder) is merged by the platform team by hand. Changes to an `OWNERS.yaml` follow the same rule: the current owners approve.
+  3. **Format:** the validate job's verdict, computed with the CLI pinned on `main`.
+  4. **Merge** with `sha = <the head checked above>`, so a push in between makes GitHub refuse.
+- keeps one status comment on the PR saying what is missing ("waiting for an owner of `projects/sandbox/`: @axel7083"); GitHub only allows review requests to collaborators.
+
+The worst an attacker can do with the triggers is make `merge.yml` evaluate a PR (theirs or another with the same commit) more often: the evaluation is complete, and `concurrency` bounds the cost.
+
+The `main` ruleset requires a PR and blocks force pushes; it requires no native approval (owners' approvals don't count for GitHub) and no status check (a fork can fake a check name). Branch creation is restricted: everyone works from forks.
+
+### 6.5 Read API on GitHub Pages
+
+`pages.yml` builds static JSON with the same `knowledge-cli` and publishes it:
+
+```
+https://open-macaron.github.io/knowledge/v1/
+├── index.json                   commit sha; every rule and lesson: id, title, globs, severity
+└── repos/<owner>/<repo>.json    the rules and lessons that apply, global → project → repo merged
+```
+
+The controller fetches the repo's file (ETag-cached, versioned by commit) instead of cloning. Everything is public already; anyone can see what the bot enforces on a repository.
+
+### 6.6 Gathering lessons
+
+- **Gather:** every run emits `learnings[]`, each with evidence such as a review comment URL. A `retro` run starts when a PR is merged or closed and extracts lessons from the full review thread; reviewer corrections are the highest-signal input. Trusted users can also write `@macaron-bot remember: …`.
+- **Propose:** agent output is untrusted, and a poisoned knowledge base would be a persistent attack, so learnings are never written directly. The Publisher appends them to a PR from `macaron-bot/knowledge` per folder, and that folder's owners approve it (§6.4). A weekly `garden` run proposes dedupes, prunes stale lessons and suggests promotions to rules, in the same PRs.
 
 ## 7. Security invariants
 
@@ -412,6 +535,7 @@ All `open-macaron` repos, the `runner` Actions logs, the images and the knowledg
 5. **Private upstreams (decided: no).** Public only, see "Everything is public".
 6. **Hosting (decided 2026-10-15):** a Fedora VPS running rootless Podman quadlets, replacing OpenShift. Still open: see DEPLOYMENT.md §6.
 7. **Organisation (decided 2026-10-15):** `open-macaron` owns `macaron`, `runner`, `knowledge` and `.github`; the user `macaron-bot` owns only forks. See REPOSITORIES.md.
+8. **Knowledge approval (decided 2026-10-15):** Prow-style. Per-folder `OWNERS.yaml` matched by user id; folder owners need no write access; `merge.yml` (on `main`, triggered by reviews, trusting nothing from the triggering run) merges with the repository's own token. No upstream-provided rules for now. See §6.4.
 
 ## 9. Milestones
 
