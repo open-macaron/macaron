@@ -48,7 +48,7 @@ export class IngestService extends NotificationSink {
     const ownPull = subject.kind === "pull" && thread.prNumber === subject.number;
     const since = new Date(notification.updatedAt.getTime() - LOOKBACK_MS);
 
-    const found = [...(await this.issueComments(subject, ownPull, since)), ...(ownPull ? await this.reviewComments(subject, since) : [])];
+    const found = [...(await this.issueComments(subject, ownPull, since)), ...(ownPull ? [...(await this.reviews(subject, since)), ...(await this.reviewComments(subject, since))] : [])];
     let fresh = false;
     for (const candidate of found) {
       const event: NewEvent = { ...candidate.event, threadId: thread.id };
@@ -101,6 +101,26 @@ export class IngestService extends NotificationSink {
       });
     }
     return found;
+  }
+
+  /**
+   * Review summaries (the text submitted with "Comment" / "Request changes"). GitHub has no
+   * reactions on reviews, so 👀 goes on the PR itself.
+   */
+  private async reviews(subject: Subject, since: Date): Promise<{ event: Omit<NewEvent, "threadId">; target: ReactionTarget }[]> {
+    const reviews = await this.gh.paginate(this.gh.rest.pulls.listReviews, { ...repoRef(subject.repo), pull_number: subject.number, per_page: 100 });
+    return reviews
+      .filter((review) => review.body.trim().length > 0 && review.submitted_at !== undefined && new Date(review.submitted_at) >= since)
+      .flatMap((review) => {
+        const author = review.user?.login ?? "";
+        if (author.toLowerCase() === this.bot.identity.login.toLowerCase() || this.trusted(subject.repo, review.user) === undefined) return [];
+        return [
+          {
+            event: { externalId: `review:${String(review.id)}`, author, kind: "review", url: review.html_url, body: review.body },
+            target: { kind: "issue" as const, number: subject.number },
+          },
+        ];
+      });
   }
 
   private async reviewComments(subject: Subject, since: Date): Promise<{ event: Omit<NewEvent, "threadId">; target: ReactionTarget }[]> {

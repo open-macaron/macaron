@@ -57,6 +57,8 @@ export class ContextBuilder {
     }
     conversation.push(...(await this.comments(upstream, thread.number)));
     if (thread.prNumber !== null && thread.prNumber !== thread.number) conversation.push(...(await this.comments(upstream, thread.prNumber)));
+    if (thread.prNumber !== null) conversation.push(...(await this.reviews(upstream, thread.prNumber)));
+    conversation.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
     const reviewComments = thread.prNumber === null ? [] : await this.reviewComments(upstream, thread.prNumber);
     const priorLoops = (await this.runs.loops(thread.id))
       .filter((run) => run.finishedAt !== null)
@@ -82,6 +84,16 @@ export class ContextBuilder {
   private async comments(upstream: { owner: string; repo: string }, number: number): Promise<ThreadComment[]> {
     const all = await this.gh.paginate(this.gh.rest.issues.listComments, { ...upstream, issue_number: number, per_page: 100 });
     return all.map((comment) => ({ id: comment.id, author: loginOf(comment.user?.login ?? "ghost"), body: comment.body ?? "", createdAt: comment.created_at }));
+  }
+
+  /** Review summaries; their inline comments come separately (reviewComments). */
+  private async reviews(upstream: { owner: string; repo: string }, pull: number): Promise<ThreadComment[]> {
+    const all = await this.gh.paginate(this.gh.rest.pulls.listReviews, { ...upstream, pull_number: pull, per_page: 100 });
+    return all.flatMap((review) =>
+      review.body.trim().length === 0 || review.submitted_at === undefined
+        ? []
+        : [{ id: review.id, author: loginOf(review.user?.login ?? "ghost"), body: review.body, createdAt: review.submitted_at }],
+    );
   }
 
   private async reviewComments(upstream: { owner: string; repo: string }, pull: number): Promise<ReviewComment[]> {
