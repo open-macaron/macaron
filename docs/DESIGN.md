@@ -46,7 +46,7 @@ flowchart LR
   RL -- "workflow_dispatch {ticket}" --> RUN
   RUN -- "bootstrap via OIDC" --> RL
   RUN -- "LLM calls (capped key)" --> OR
-  RUN -. "org webhook: workflow_run completed" .-> RL
+  RUN -. "webhook: workflow_run completed" .-> RL
   RL --> PUB
   PUB -- "FF push" --> BR
   PUB -- "PR, replies, cost table" --> UP
@@ -60,7 +60,7 @@ flowchart LR
   - `comment`: follow-ups on threads the bot has already replied in.
 
   `review_requested` can't happen, because a reviewer must have access. `assign` only happens if a maintainer assigns the bot after it has commented on that issue; it's treated like a bare mention. The controller polls notifications with conditional GETs (§4).
-- *Webhooks* are instant. They work for upstream repos whose admins opt in, and for **our own org**, `open-macaron`: an org webhook delivers `workflow_run` events from `runner`, which tell the controller that an agent finished. We own the org, so this always works.
+- *Webhooks* are instant. They work for upstream repos whose admins opt in, and for **our own org**, `open-macaron`: a webhook on the `runner` repository delivers `workflow_run` events from `runner`, which tell the controller that an agent finished. We own the org, so this always works.
 
 **Why a controller of our own.** GitHub holds **no secrets at all**. The prepare, gate and publish jobs leave Actions, which saves about 20–40 s of runner start-up per job and is a real speed gain. The controller can also revoke a key mid-run.
 
@@ -94,7 +94,7 @@ sequenceDiagram
     C->>OR: live usage, wall-clock → abort revokes the key
   end
   J->>J: upload artifact: changes.patch + result.json
-  J-->>C: org webhook: workflow_run completed
+  J-->>C: webhook: workflow_run completed
   C->>OR: disable key now (spending stops); settle-cost job ~90 s later: final usage → ledger → delete key
   C->>C: download artifact → Gate (policy)
   Note over C: Publisher: commit, FF push, replies, cost table, 👀 → 👍/😕

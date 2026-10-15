@@ -14,7 +14,7 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 │ evidence     releases only: screenshots/videos attached to bot replies (DESIGN.md)        │◀─ release assets (milestone 6, see below)
 │ .github      org profile, SECURITY.md, CONTRIBUTING.md, issue templates                   │
 └───────────────────────────────────────────────────────────────────────────────────────────┘
-          org webhook (workflow_run, push) ─────────────────────────────▶ VPS controller /webhook
+          runner repository webhook (workflow_run) ─────────────────────▶ VPS controller /v1/webhook
 
  github.com/macaron-bot  (user, owns forks only)
 ┌──────────────────────────────────────────────┐   PR + replies (GH_INTERACT)   ┌─────────────────────────┐
@@ -72,7 +72,7 @@ Forking and disabling Actions on a fork happen at onboarding (§5). `GH_INTERACT
   - default branch: PR required, 1 approval, CODEOWNERS review, required status checks, linear history, no force-push or deletion;
   - `v*` tags: created only via `release.yml`;
   - `runner`: no ref creation or update for anyone except `maintainers`.
-- **Webhook:** one org webhook to `https://<controller-host>/webhook`, HMAC secret, events `workflow_run` (from `runner`) and `push` (to `knowledge` main, to refresh the knowledge cache).
+- **Webhook:** a repository webhook on `runner` only, to `https://<controller-host>/v1/webhook`, HMAC secret, event `workflow_run`. Narrower than an org webhook. A `push` webhook on `knowledge` comes with the learning milestone.
 - **Packages:** `ghcr.io/open-macaron/controller` is public and linked to `macaron`. Only `release.yml` publishes.
 - **Security:** private vulnerability reporting, Dependabot alerts, secret scanning with push protection on all repos.
 
@@ -102,5 +102,5 @@ The `macaron-bot` account itself: 2FA on; the profile says it's a bot and links 
 1. Org: apply §4 settings, create teams `maintainers` and `bots`, and add `macaron-bot` to `bots`.
 2. Create `macaron` and push these docs. Then create `runner`, `knowledge` and `.github`. Apply the rulesets.
 3. Create the three tokens (§3), approve `GH_ORG` in the org, and store them as Podman secrets on the VPS (DEPLOYMENT.md §4).
-4. Add the org webhook once the VPS has its hostname.
+4. Add the webhook on `open-macaron/runner` (event `workflow_run`, HMAC secret) once the VPS has its hostname. Done 2026-10-15.
 5. Onboard one sandbox upstream repo (§5) for milestone 1.
