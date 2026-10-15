@@ -88,19 +88,31 @@ describe("renderReview", () => {
   );
   const meta = { repo: "axel7083/foobar-tmp-demo", headSha: HEAD, knowledgeCommit: review.knowledgeCommit, runUrl: "https://example.test/run/1", costMicros: null };
 
-  it("summarises, lists every rule most severe first, and links evidence at the reviewed commit", () => {
+  it("stays short: one sentence, then the checks collapsed and grouped, what needs action open", () => {
     const { body } = renderReview(results, meta);
-    expect(body).toContain("**macaron-bot review** of `aaaaaaa` against [open-macaron/knowledge@ccccccc]");
-    expect(body).toContain("❌ 1 · ⚠️ 0 · ✅ 1 · ➖ 2");
-    expect(body.indexOf("sandbox/json")).toBeLessThan(body.indexOf("sandbox/quiet"));
+    const [first] = body.split("\n");
+    expect(first).toBe("**macaron-bot review** of `aaaaaaa`: 1 violation of the knowledge rules, see the inline comments.");
+    expect(body).toContain("<summary><b>Rule checks</b> | ❌ 1 · ✅ 1 · ➖ 2</summary>");
+    expect(body).toContain("<details open>\n<summary>❌ Violations (1)</summary>");
+    expect(body).toContain("<details>\n<summary>✅ Passed (1)</summary>");
+    expect(body).toContain("<details>\n<summary>➖ Ignored (2)</summary>");
+    expect(body.indexOf("Violations")).toBeLessThan(body.indexOf("Passed"));
     expect(body).toContain(`[\`src/extension.ts:11\`](https://github.com/axel7083/foobar-tmp-demo/blob/${HEAD}/src/extension.ts#L11)`);
-    expect(body).toContain("| ➖ ignored | no matching file changed |");
+    expect(body).toContain("| title of sandbox/svelte<br>`sandbox/svelte` | ➖ | no matching file changed |");
+    expect(body).toContain("[open-macaron/knowledge@ccccccc]");
     expect(body).toContain("Cost: ⏳");
+  });
+
+  it("says plainly when everything passes, or nothing could be checked", () => {
+    const passing = verifyReview(review, [verdict({}), verdict({ ruleId: "sandbox/style" }), verdict({ ruleId: "sandbox/quiet" })], diff).results;
+    expect(renderReview(passing, meta).body.split("\n")[0]).toBe("**macaron-bot review** of `aaaaaaa`: all 3 rules that apply pass.");
+    expect(renderReview([], meta).body.split("\n")[0]).toBe("**macaron-bot review** of `aaaaaaa`: no rule could be checked on this change.");
   });
 
   it("defuses mentions in the reviewer's explanations", () => {
     const { body, comments } = renderReview(results, meta);
     expect(body).toContain("ping `@someone`");
+    expect(body).not.toContain("@someone ");
     expect(comments).toEqual([{ path: "src/extension.ts", line: 11, side: "RIGHT", body: "❌ violation **`sandbox/json`**: title of sandbox/json\n\nReads it at runtime, ping `@someone`" }]);
   });
 
