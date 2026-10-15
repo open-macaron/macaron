@@ -4,7 +4,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/coverage/**", "**/src/generated/**", "**/schemas/**", "**/drizzle/**"],
+    ignores: ["**/dist/**", "**/coverage/**", "**/schemas/**", "**/drizzle/**"],
   },
   eslint.configs.recommended,
   tseslint.configs.strictTypeChecked,

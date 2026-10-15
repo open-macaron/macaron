@@ -104,7 +104,7 @@ sequenceDiagram
 - A ticket can be redeemed only once. The legitimate bootstrap step uses it before the agent starts, so an agent that mints its own OIDC token gets nothing. The environment step runs *before* bootstrap. If environment code redeems the ticket first, the real bootstrap gets a 409 and the controller revokes the key at once: at worst a failed run, never a leaked credential.
 - The agent job has no endpoint for submitting results. The controller *pulls* the artifact.
 
-## 4. Components (`apps/controller/`, NestJS — module map in ENGINEERING.md §3)
+## 4. Components (`packages/controller/`, NestJS — module map in ENGINEERING.md §3)
 
 ```ts
 class Ingest {

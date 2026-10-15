@@ -1,5 +1,4 @@
 packages:
-  - apps/*
   - packages/*
 
 # Supply chain: a version must be public for 3 days before we install it.
@@ -24,7 +23,8 @@ catalog:
   # Validation and contracts
   zod: 4.6.6
   yaml: 2.9.1
-  "@hey-api/openapi-ts": 0.99.0
+  # OpenRouter (official SDK, generated from their OpenAPI spec)
+  "@openrouter/sdk": 1.4.25
   # GitHub, OIDC
   "@octokit/core": 7.0.8
   "@octokit/rest": 22.0.1
@@ -47,7 +47,13 @@ catalog:
   unplugin-swc: 2.0.0
   "@swc/core": 1.16.18
   msw: 3.0.3
-  "@testcontainers/postgresql": 12.2.1
+  "@testcontainers/postgresql": 12.2.0
 
 allowBuilds:
+  '@openrouter/sdk': false
+  '@scarf/scarf': false
   '@swc/core': true
+  cpu-features: false
+  esbuild: false
+  protobufjs: false
+  ssh2: false

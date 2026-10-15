@@ -9,12 +9,12 @@ export default defineConfig({
     projects: [
       { extends: true, test: { name: "contracts", include: ["packages/contracts/test/**/*.test.ts"] } },
       { extends: true, test: { name: "agent-cli", include: ["packages/agent-cli/test/**/*.test.ts"] } },
-      { extends: true, test: { name: "controller", include: ["apps/controller/test/unit/**/*.test.ts"] } },
+      { extends: true, test: { name: "controller", include: ["packages/controller/test/unit/**/*.test.ts"] } },
       {
         extends: true,
         test: {
           name: "controller-integration",
-          include: ["apps/controller/test/integration/**/*.test.ts"],
+          include: ["packages/controller/test/integration/**/*.test.ts"],
           testTimeout: 120_000,
           hookTimeout: 180_000,
         },
@@ -22,7 +22,7 @@ export default defineConfig({
     ],
     coverage: {
       provider: "v8",
-      include: ["apps/*/src/**", "packages/*/src/**"],
+      include: ["packages/*/src/**"],
       exclude: ["**/generated/**"],
     },
   },

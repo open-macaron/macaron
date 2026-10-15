@@ -28,7 +28,7 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 
 | Repo | Contents | Who writes | Why separate |
 |---|---|---|---|
-| `open-macaron/macaron` (this repo) | `apps/controller`, `packages/{contracts,agent-cli}`, `harness/`, `config/` (global → project → repo), `deploy/`, `docs/` | Humans via PR | Source of truth for code and trust config. `deploy.sh` on the VPS pulls it |
+| `open-macaron/macaron` (this repo) | `packages/controller`, `packages/{contracts,agent-cli}`, `harness/`, `config/` (global → project → repo), `deploy/`, `docs/` | Humans via PR | Source of truth for code and trust config. `deploy.sh` on the VPS pulls it |
 | `open-macaron/runner` | `.github/workflows/run.yml` (the only agent workflow), `env-check.yml`, `environments/` (shared + own, CODEOWNERS per folder), plus a `README` describing the contract (SCALING.md §1) | Humans via PR; the bot only *dispatches* | Gives agent runs their own `repository_id` (the OIDC check pins it) and their own public run history. The token that dispatches runs can't trigger `macaron`'s `release.yml` |
 | `open-macaron/knowledge` | `global/`, `repos/<owner>/<repo>/`, `INDEX.md` (DESIGN.md §6) | The bot proposes from its fork; humans merge | High-churn, bot-authored content stays out of the code repo. Knowledge is versioned independently of controller releases |
 | `open-macaron/evidence` | No code; **Releases only**, one per thread, holding screenshots and videos | The controller only (GH_ORG) | Media must be publicly reachable for GitHub to render it, and must never be served by our VPS. Releases avoid repo bloat and allow 2 GB per file |
