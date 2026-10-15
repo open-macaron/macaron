@@ -149,6 +149,7 @@ Create each secret with `printf %s "$VALUE" | podman secret create --replace <na
   It also pings a dead-man's switch every minute, so silence is an alert too.
 - **Backups:** the VPS provider backs up the whole machine automatically. Those snapshots are crash-consistent, which Postgres recovers from on start through its WAL. In addition, `deploy.sh` takes a local `pg_dump` before running any migration, so a bad migration can be undone without restoring the whole VPS.
 - **Kill switch:** set `MACARON_ENABLED=false` in `controller.env` and restart. The controller stops ingesting, revokes every open key, and cancels running workflows. `systemctl --user stop macaron-pod` is the hard stop; open keys still expire through the sweeper on the next start.
+- **User allowlist:** `MACARON_ALLOWED_USER_IDS=<id>,<id>` in `controller.env` limits who can trigger the bot to those numeric GitHub user ids, whatever `config/` trusts. Ids rather than logins, because a login can be renamed and re-registered. `provision-secrets.sh` keeps the current value. Restart to apply.
 
 ## 6. Open points
 

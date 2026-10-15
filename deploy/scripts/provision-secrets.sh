@@ -50,9 +50,14 @@ if [[ -z "${MACARON_ENABLED:-}" ]]; then
   MACARON_ENABLED="$(ssh -o BatchMode=yes "$HOST" "sudo sed -n 's/^MACARON_ENABLED=//p' /etc/macaron/controller.env 2>/dev/null" || true)"
   MACARON_ENABLED="${MACARON_ENABLED:-false}"
 fi
+# Same for the operator's user-id allowlist (empty = no restriction beyond config/).
+if [[ -z "${MACARON_ALLOWED_USER_IDS+set}" ]]; then
+  MACARON_ALLOWED_USER_IDS="$(ssh -o BatchMode=yes "$HOST" "sudo sed -n 's/^MACARON_ALLOWED_USER_IDS=//p' /etc/macaron/controller.env 2>/dev/null" || true)"
+fi
 {
   printf 'PUBLIC_URL=%s\n' "$(value PUBLIC_URL)"
   printf 'MACARON_ENABLED=%s\n' "$MACARON_ENABLED"
+  if [[ -n "$MACARON_ALLOWED_USER_IDS" ]]; then printf 'MACARON_ALLOWED_USER_IDS=%s\n' "$MACARON_ALLOWED_USER_IDS"; fi
   printf 'LOG_LEVEL=%s\n' "${LOG_LEVEL:-info}"
   printf 'RUNNER_REPO_ID=%s\n' "$(value RUNNER_REPO_ID)"
   printf 'RUNNER_OWNER_ID=%s\n' "$(value RUNNER_OWNER_ID)"
@@ -62,5 +67,5 @@ host="$(value PUBLIC_URL)"
 host="${host#https://}"
 printf 'MACARON_HOST=%s\nACME_EMAIL=%s\n' "${host%%/*}" "${ACME_EMAIL:-}" |
   ssh -o BatchMode=yes "$HOST" 'sudo tee /etc/macaron/caddy.env >/dev/null && sudo chmod 0640 /etc/macaron/caddy.env'
-echo "   /etc/macaron/controller.env (MACARON_ENABLED=${MACARON_ENABLED}), /etc/macaron/caddy.env"
+echo "   /etc/macaron/controller.env (MACARON_ENABLED=${MACARON_ENABLED}, MACARON_ALLOWED_USER_IDS=${MACARON_ALLOWED_USER_IDS:-unrestricted}), /etc/macaron/caddy.env"
 echo "   restart the controller to apply: ssh $HOST sudo systemctl restart macaron-controller"

@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
+import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { RepoConfigService } from "../config/repo-config.service.ts";
 import { BotIdentity } from "../github/bot-identity.ts";
 import { GH_INTERACT, type GitHub } from "../github/github.ts";
@@ -25,6 +26,7 @@ export class IngestService extends NotificationSink {
   private readonly logger = new Logger(IngestService.name);
 
   constructor(
+    @Inject(APP_ENV) private readonly env: AppEnv,
     @Inject(GH_INTERACT) private readonly gh: GitHub,
     private readonly config: RepoConfigService,
     private readonly runs: RunsRepository,
@@ -76,7 +78,7 @@ export class IngestService extends NotificationSink {
 
     const { data: issue } = await this.gh.rest.issues.get({ ...upstream, issue_number: subject.number });
     const opener = issue.user?.login ?? "";
-    if (new Date(issue.created_at) >= since && this.trusted(subject.repo, opener) === "user" && parseMention(issue.body ?? "", this.bot.identity.login) !== undefined) {
+    if (new Date(issue.created_at) >= since && this.trusted(subject.repo, issue.user) === "user" && parseMention(issue.body ?? "", this.bot.identity.login) !== undefined) {
       found.push({
         event: { externalId: `issue:${String(subject.number)}`, author: opener, kind: "mention", url: issue.html_url, body: issue.body ?? "" },
         target: { kind: "issue", number: subject.number },
@@ -89,7 +91,7 @@ export class IngestService extends NotificationSink {
       const body = comment.body ?? "";
       if (author.toLowerCase() === this.bot.identity.login.toLowerCase()) continue;
       const mention = parseMention(body, this.bot.identity.login) !== undefined;
-      const trust = this.trusted(subject.repo, author);
+      const trust = this.trusted(subject.repo, comment.user);
       // Mentions need a trusted user; plain comments only count on the bot's own PR.
       const kind = mention && trust === "user" ? "mention" : ownPull && trust !== undefined ? "comment" : undefined;
       if (kind === undefined) continue;
@@ -105,14 +107,18 @@ export class IngestService extends NotificationSink {
     const upstream = repoRef(subject.repo);
     const comments = await this.gh.paginate(this.gh.rest.pulls.listReviewComments, { ...upstream, pull_number: subject.number, since: since.toISOString(), per_page: 100 });
     return comments
-      .filter((comment) => this.trusted(subject.repo, comment.user.login) !== undefined)
+      .filter((comment) => this.trusted(subject.repo, comment.user) !== undefined)
       .map((comment) => ({
         event: { externalId: `review-comment:${String(comment.id)}`, author: comment.user.login, kind: "review" as const, url: comment.html_url, body: comment.body },
         target: { kind: "review-comment" as const, id: comment.id },
       }));
   }
 
-  private trusted(repo: string, login: string): "user" | "bot" | undefined {
-    return login === "" ? undefined : this.config.trigger(repo, login);
+  /** The config's trust lists, narrowed by the operator's id allowlist when one is set. */
+  private trusted(repo: string, user: { readonly login: string; readonly id: number } | null | undefined): "user" | "bot" | undefined {
+    if (user === null || user === undefined) return undefined;
+    const allowed = this.env.MACARON_ALLOWED_USER_IDS;
+    if (allowed !== undefined && !allowed.has(user.id)) return undefined;
+    return this.config.trigger(repo, user.login);
   }
 }
