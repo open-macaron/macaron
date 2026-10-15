@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../../packages/contracts/schemas/config-project.schema.json
+#
+# Sandbox project used to exercise the whole loop on a throwaway upstream repository.
+
+project: sandbox
+owners: "@open-macaron/maintainers"
+users:
+  - axel7083
+bots: []
+budget:
+  monthUsd: 20.00
+concurrency: 1
+defaults:
+  budgets:
+    implement: 1.00
+    address_review: 0.50

@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=../packages/contracts/schemas/config-global.schema.json
+#
+# Defaults for every repository. Projects and repos override them (SCALING.md §2).
+# Changes need a review from the platform team (CODEOWNERS).
+
+platformTeam: "@open-macaron/maintainers"
+routerModel: anthropic/claude-haiku-5.5
+
+concurrency:
+  global: 5
+
+defaults:
+  harness: claude
+  model: anthropic/claude-sonnet-5.5
+  runsOn: ubuntu-24.04
+  draftPr: true
+  timeoutMinutes: 60
+  # USD per run, enforced by the run's OpenRouter key.
+  budgets:
+    triage: 0.20
+    plan: 1.00
+    implement: 5.00
+    address_review: 2.00
+    reproduce: 3.00
+    verify: 3.00
+    retro: 0.50
+  caps:
+    perThreadUsd: 20.00
+    perRepoMonthUsd: 150.00
+    reviewLoops: 6
+    botReviewLoops: 2
+    openPrs: 3
+  environment:
+    source: shared
+    name: generic
+    params: {}
+  commands: {}
+  capabilities: []
+  contribution:
+    dco: false
+    fixCi: false

@@ -5,13 +5,14 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { GlobalFile, ProjectFile, RepoFile, RunContext, RunResult } from "../src/index.ts";
+import { Changes, GlobalFile, ProjectFile, RepoFile, RunContext, RunResult } from "../src/index.ts";
 
 const outDir = join(import.meta.dirname, "..", "schemas");
 
 const schemas: Readonly<Record<string, z.ZodType>> = {
   "run-context": RunContext,
   "run-result": RunResult,
+  changes: Changes,
   "config-global": GlobalFile,
   "config-project": ProjectFile,
   "config-repo": RepoFile,

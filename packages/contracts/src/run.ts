@@ -148,3 +148,35 @@ export const BootstrapResponse = z.strictObject({
   context: RunContext,
 });
 export type BootstrapResponse = z.infer<typeof BootstrapResponse>;
+
+/** A repo-relative path: no leading slash, no `.`/`..` segments, no backslashes. */
+export const RepoPath = z
+  .string()
+  .min(1)
+  .max(4_096)
+  .refine((path) => !path.startsWith("/") && !path.includes("\\"), "must be relative, with forward slashes")
+  .refine((path) => path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== ".."), "must not contain empty, '.' or '..' segments");
+
+export const FileChange = z.discriminatedUnion("action", [
+  z.strictObject({
+    action: z.literal("upsert"),
+    path: RepoPath,
+    mode: z.enum(["100644", "100755"]),
+    contentBase64: z.base64(),
+  }),
+  z.strictObject({ action: z.literal("delete"), path: RepoPath }),
+]);
+export type FileChange = z.infer<typeof FileChange>;
+
+/**
+ * `changes.json`: the working-tree diff of a run, as whole files. The controller turns it into
+ * one commit through the Git Data API; the agent never runs git against a remote.
+ */
+export const Changes = z.strictObject({
+  baseSha: CommitSha,
+  files: z.array(FileChange).max(1_000),
+});
+export type Changes = z.infer<typeof Changes>;
+
+/** Name of the workflow artifact the agent job uploads; the controller downloads only this one. */
+export const RESULT_ARTIFACT_NAME = "macaron-result";
