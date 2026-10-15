@@ -51,6 +51,10 @@ for service in $(firewall-cmd --permanent --zone="$zone" --list-services); do
   case "$service" in http | https) ;; *) firewall-cmd -q --permanent --zone="$zone" --remove-service="$service" ;; esac
 done
 firewall-cmd -q --reload
+# A firewalld reload drops the rules netavark set up for container networks (DNS, NAT): this
+# Podman-provided unit puts them back after every reload.
+systemctl enable --now netavark-firewalld-reload.service
+podman network reload --all >/dev/null 2>&1 || true
 echo "   zone $zone: services=[$(firewall-cmd --zone="$zone" --list-services)] ports=[$(firewall-cmd --zone="$zone" --list-ports)]"
 echo "   >>> open a NEW ssh session now; if it works: systemctl stop macaron-firewall-rollback.timer"
 
