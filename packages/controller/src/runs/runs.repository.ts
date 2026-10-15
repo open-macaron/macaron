@@ -75,9 +75,19 @@ export class RunsRepository {
         .where(eq(threads.id, run.threadId))
         .returning({ loops: threads.loops });
       if (thread === undefined) throw new Error(`unknown thread ${run.threadId}`);
+      // Explicit columns: a caller passing a wider object must never write extra fields.
       const [created] = await tx
         .insert(runs)
-        .values({ ...run, loop: thread.loops })
+        .values({
+          threadId: run.threadId,
+          ticket: run.ticket,
+          mode: run.mode,
+          harness: run.harness,
+          model: run.model,
+          context: run.context,
+          limitMicros: run.limitMicros,
+          loop: thread.loops,
+        })
         .returning();
       if (created === undefined) throw new Error("run insert returned nothing");
       return created;
