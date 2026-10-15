@@ -44,9 +44,15 @@ fi
 REMOTE
 
 echo "==> settings on $HOST"
+# The kill switch keeps its current value on the VPS unless MACARON_ENABLED is given explicitly;
+# a fresh host starts disabled.
+if [[ -z "${MACARON_ENABLED:-}" ]]; then
+  MACARON_ENABLED="$(ssh -o BatchMode=yes "$HOST" "sudo sed -n 's/^MACARON_ENABLED=//p' /etc/macaron/controller.env 2>/dev/null" || true)"
+  MACARON_ENABLED="${MACARON_ENABLED:-false}"
+fi
 {
   printf 'PUBLIC_URL=%s\n' "$(value PUBLIC_URL)"
-  printf 'MACARON_ENABLED=%s\n' "${MACARON_ENABLED:-false}"
+  printf 'MACARON_ENABLED=%s\n' "$MACARON_ENABLED"
   printf 'LOG_LEVEL=%s\n' "${LOG_LEVEL:-info}"
   printf 'RUNNER_REPO_ID=%s\n' "$(value RUNNER_REPO_ID)"
   printf 'RUNNER_OWNER_ID=%s\n' "$(value RUNNER_OWNER_ID)"
@@ -56,4 +62,5 @@ host="$(value PUBLIC_URL)"
 host="${host#https://}"
 printf 'MACARON_HOST=%s\nACME_EMAIL=%s\n' "${host%%/*}" "${ACME_EMAIL:-}" |
   ssh -o BatchMode=yes "$HOST" 'sudo tee /etc/macaron/caddy.env >/dev/null && sudo chmod 0640 /etc/macaron/caddy.env'
-echo "   /etc/macaron/controller.env (MACARON_ENABLED=${MACARON_ENABLED:-false}), /etc/macaron/caddy.env"
+echo "   /etc/macaron/controller.env (MACARON_ENABLED=${MACARON_ENABLED}), /etc/macaron/caddy.env"
+echo "   restart the controller to apply: ssh $HOST sudo systemctl restart macaron-controller"
