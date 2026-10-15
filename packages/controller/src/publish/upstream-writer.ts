@@ -53,6 +53,29 @@ export class UpstreamWriter {
     return data.id;
   }
 
+  /** One review (event COMMENT) with its inline comments, on an exact commit. Never approves or requests changes. */
+  async createReview(
+    upstream: RepoRef,
+    pull: number,
+    commitId: string,
+    body: string,
+    comments: readonly { readonly path: string; readonly line: number; readonly side: "RIGHT"; readonly body: string }[],
+  ): Promise<number> {
+    const { data } = await this.posting(() =>
+      this.gh.rest.pulls.createReview({ ...upstream, pull_number: pull, commit_id: commitId, event: "COMMENT", body, comments: comments.map((comment) => ({ ...comment })) }),
+    );
+    return data.id;
+  }
+
+  async reviewBody(upstream: RepoRef, pull: number, reviewId: number): Promise<string> {
+    const { data } = await this.gh.rest.pulls.getReview({ ...upstream, pull_number: pull, review_id: reviewId });
+    return data.body;
+  }
+
+  async updateReview(upstream: RepoRef, pull: number, reviewId: number, body: string): Promise<void> {
+    await this.posting(() => this.gh.rest.pulls.updateReview({ ...upstream, pull_number: pull, review_id: reviewId, body }));
+  }
+
   async comment(upstream: RepoRef, number: number, body: string): Promise<number> {
     const { data } = await this.posting(() => this.gh.rest.issues.createComment({ ...upstream, issue_number: number, body }));
     return data.id;

@@ -4,6 +4,7 @@ import {
   type Mode,
   type RepoConfig,
   type ReviewComment,
+  type ReviewContext,
   RunContext,
   type ThreadComment,
 } from "@open-macaron/contracts";
@@ -12,6 +13,9 @@ import { BotIdentity } from "../github/bot-identity.ts";
 import { repoRef } from "../github/repo-ref.ts";
 import { ForkCommitter } from "../publish/fork-committer.ts";
 import { UpstreamWriter } from "../publish/upstream-writer.ts";
+import { KnowledgeClient } from "../review/knowledge-client.ts";
+import { PullDiffReader } from "../review/pull-diff.ts";
+import { selectRules } from "../review/select-rules.ts";
 import { RunsRepository, type ThreadRecord } from "../runs/runs.repository.ts";
 import { branchFor } from "./triggers.ts";
 
@@ -39,6 +43,8 @@ export class ContextBuilder {
     private readonly committer: ForkCommitter,
     private readonly writer: UpstreamWriter,
     private readonly bot: BotIdentity,
+    private readonly diffs: PullDiffReader,
+    private readonly knowledge: KnowledgeClient,
   ) {}
 
   async build(config: RepoConfig, thread: ThreadRecord, mode: Mode, trigger: Trigger): Promise<RunContext> {
@@ -46,9 +52,11 @@ export class ContextBuilder {
     const { data: issue } = await this.gh.rest.issues.get({ ...upstream, issue_number: thread.number });
     const branch = thread.branch ?? branchFor(thread.number, issue.title);
 
+    // A review checks out the pull request's head; other modes the bot's branch, or upstream's default.
+    const review = mode === "review" ? await this.reviewContext(config, thread) : undefined;
     const fork = { owner: this.bot.identity.login, repo: config.fork };
-    const branchHead = thread.branch === null ? undefined : await this.committer.head(fork, thread.branch);
-    const baseSha = branchHead ?? (await this.writer.defaultBranch(upstream)).sha;
+    const branchHead = review !== undefined || thread.branch === null ? undefined : await this.committer.head(fork, thread.branch);
+    const baseSha = review?.headSha ?? branchHead ?? (await this.writer.defaultBranch(upstream)).sha;
 
     // The issue body comes first, under the issue number as its id (comment ids are far larger).
     const conversation: ThreadComment[] = [];
@@ -78,7 +86,18 @@ export class ContextBuilder {
       priorLoops,
       commands: config.commands,
       attachments: ATTACHMENTS,
+      review,
     });
+  }
+
+  /** The pull request at its current head, and the knowledge rules its changed files call for. */
+  private async reviewContext(config: RepoConfig, thread: ThreadRecord): Promise<ReviewContext> {
+    const pull = reviewedPull(thread);
+    if (pull === undefined) throw new Error(`thread ${thread.id} has no pull request to review`);
+    const { baseSha, headSha } = await this.diffs.head(config.repo, pull);
+    const [diff, knowledge] = await Promise.all([this.diffs.read(config.repo, baseSha, headSha), this.knowledge.rulesFor(config)]);
+    const paths = diff.files.map((file) => file.path);
+    return { pull, baseSha, headSha, ...selectRules(knowledge.rules, paths), knowledgeCommit: knowledge.commit };
   }
 
   private async comments(upstream: { owner: string; repo: string }, number: number): Promise<ThreadComment[]> {
@@ -112,4 +131,9 @@ export class ContextBuilder {
 
 function loginOf(login: string): GitHubLogin {
   return GitHubLogin.parse(login);
+}
+
+/** The pull request a review looks at: the thread itself, or the bot's pull request for an issue. */
+export function reviewedPull(thread: Pick<ThreadRecord, "kind" | "number" | "prNumber">): number | undefined {
+  return thread.kind === "pull" ? thread.number : (thread.prNumber ?? undefined);
 }

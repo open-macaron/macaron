@@ -97,6 +97,6 @@ export function upsertCostSection(body: string, section: string): string {
 }
 
 /** markdown-table doesn't escape cell content: a `|` would split the cell. */
-function escapeCell(text: string): string {
+export function escapeCell(text: string): string {
   return text.replaceAll("|", "\\|").replaceAll("\n", " ");
 }

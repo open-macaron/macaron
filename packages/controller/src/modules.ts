@@ -19,6 +19,8 @@ import { ForkCommitter } from "./publish/fork-committer.ts";
 import { Publisher } from "./publish/publisher.ts";
 import { ReactionTargets } from "./publish/reaction-targets.ts";
 import { UpstreamWriter } from "./publish/upstream-writer.ts";
+import { KnowledgeClient } from "./review/knowledge-client.ts";
+import { PullDiffReader } from "./review/pull-diff.ts";
 import { ArtifactDownloader } from "./runs/artifact.ts";
 import { Housekeeping } from "./runs/housekeeping.ts";
 import { githubJwks, OIDC_KEYS, OidcVerifier } from "./runs/oidc-verifier.ts";
@@ -51,9 +53,13 @@ export class BudgetModule {}
 })
 export class PublishModule {}
 
+/** What reviews read: knowledge rules (Pages read API) and pull request diffs (GitHub). */
+@Module({ providers: [KnowledgeClient, PullDiffReader], exports: [KnowledgeClient, PullDiffReader] })
+export class ReviewModule {}
+
 /** A run's lifecycle: launch, bootstrap, completion, safety nets. */
 @Module({
-  imports: [BudgetModule, PublishModule],
+  imports: [BudgetModule, PublishModule, ReviewModule],
   providers: [{ provide: OIDC_KEYS, useFactory: githubJwks }, OidcVerifier, ArtifactDownloader, RunLauncher, Housekeeping],
   exports: [RunLauncher],
 })
@@ -61,7 +67,7 @@ export class RunsModule {}
 
 /** From GitHub notifications to launched runs. */
 @Module({
-  imports: [RunsModule, PublishModule],
+  imports: [RunsModule, PublishModule, ReviewModule],
   providers: [
     { provide: NotificationsApi, useClass: NotificationsSource },
     { provide: NotificationSink, useClass: IngestService },

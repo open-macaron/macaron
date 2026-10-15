@@ -1,7 +1,8 @@
-import type { Changes } from "@open-macaron/contracts";
+import { type Changes, CommitSha } from "@open-macaron/contracts";
 import { Changes as ChangesSchema } from "@open-macaron/contracts";
 import { describe, expect, it } from "vitest";
 import { gate, type GateInput } from "../../src/publish/gate.ts";
+import { toDiffFile } from "../../src/review/pull-diff.ts";
 import { BASE_SHA, PNG, runContext, runResult, SVG, text, WEBM } from "../support/fixtures.ts";
 
 const changes = (files: readonly unknown[], baseSha = BASE_SHA): Changes => ChangesSchema.parse({ baseSha, files });
@@ -53,6 +54,34 @@ describe("gate", () => {
     const token = `ghp_${"A".repeat(36)}`;
     expect(await check({ changes: changes([upsert("config.ts", `const t = "${token}";`)]) })).toEqual(["config.ts: contains a github secret"]);
     expect(await check({ result: runResult({ summary: `used sk-or-v1-${"0".repeat(64)}` }) })).toEqual(["text contains a OpenRouter API key secret"]);
+  });
+
+  describe("review mode", () => {
+    const head = "c".repeat(40);
+    const rule = { id: "org-x/no-eval", scope: "org-x", title: "No eval", severity: "error", appliesTo: ["src/**"], exclude: [], sources: [], body: "## Check" };
+    const review = { pull: 12, baseSha: BASE_SHA, headSha: head, rules: [{ rule, files: ["src/a.ts"] }], skipped: [], knowledgeCommit: null };
+    const diff = { baseSha: CommitSha.parse(BASE_SHA), headSha: CommitSha.parse(head), files: [toDiffFile("src/a.ts", undefined, "@@ -1 +1,2 @@\n ok();\n+eval(userInput);")] };
+    const verdict = { ruleId: "org-x/no-eval", verdict: "violation", evidence: [{ file: "src/a.ts", line: 2, quote: "eval(userInput);" }], explanation: "eval on input" };
+    const reviewInput = (result: Record<string, unknown>, extra: Partial<GateInput> = {}): GateInput => ({
+      mode: "review",
+      context: runContext({ mode: "review", kind: "pull", review }),
+      result: runResult({ action: "review", commitMessage: undefined, pr: undefined, ...result }),
+      changes: undefined,
+      media: new Map(),
+      diff,
+      ...extra,
+    });
+
+    it("publishes verified rows", async () => {
+      const outcome = await gate(reviewInput({ review: [verdict] }));
+      expect(outcome.ok && outcome.publishable.review?.map((row) => [row.id, row.outcome])).toEqual([["org-x/no-eval", "violation"]]);
+    });
+
+    it("refuses file changes, verdicts for rules that weren't asked, and a missing diff", async () => {
+      expect(await check(reviewInput({ review: [verdict] }, { changes: changes([upsert("src/a.ts", "x")]) }))).toEqual(['changes are only accepted with action "commit", got "review"']);
+      expect(await check(reviewInput({ review: [{ ...verdict, ruleId: "global/invented" }] }))).toEqual(["verdict for a rule that wasn't asked: global/invented"]);
+      expect(await check(reviewInput({ review: [verdict] }, { diff: undefined }))).toEqual(["a review run needs the pull request's diff"]);
+    });
   });
 
   it("refuses replies to comments the agent was never shown", async () => {

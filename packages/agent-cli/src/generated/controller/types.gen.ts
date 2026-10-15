@@ -38,7 +38,7 @@ export type BootstrapResponses = {
         harness: 'claude' | 'codex' | 'opencode';
         model: string;
         context: {
-            mode: 'triage' | 'plan' | 'implement' | 'address_review' | 'reproduce' | 'verify' | 'retro';
+            mode: 'triage' | 'plan' | 'implement' | 'address_review' | 'reproduce' | 'verify' | 'retro' | 'review';
             repo: string;
             number: number;
             kind: 'issue' | 'pull';
@@ -68,7 +68,7 @@ export type BootstrapResponses = {
             }>;
             priorLoops: Array<{
                 loop: number;
-                mode: 'triage' | 'plan' | 'implement' | 'address_review' | 'reproduce' | 'verify' | 'retro';
+                mode: 'triage' | 'plan' | 'implement' | 'address_review' | 'reproduce' | 'verify' | 'retro' | 'review';
                 summary: string;
                 costUsd: number;
             }>;
@@ -81,6 +81,31 @@ export type BootstrapResponses = {
                 maxFiles: number;
                 maxFileBytes: number;
                 maxTotalBytes: number;
+            };
+            review?: {
+                pull: number;
+                baseSha: string;
+                headSha: string;
+                rules: Array<{
+                    rule: {
+                        id: string;
+                        scope: string;
+                        title: string;
+                        severity: 'error' | 'warning';
+                        appliesTo: Array<string> | null;
+                        exclude: Array<string>;
+                        sources: Array<string>;
+                        body: string;
+                    };
+                    files: Array<string>;
+                }>;
+                skipped: Array<{
+                    id: string;
+                    title: string;
+                    severity: 'error' | 'warning';
+                    reason: 'no_matching_file' | 'over_limit';
+                }>;
+                knowledgeCommit: string | null;
             };
         };
     };

@@ -22,7 +22,8 @@ export const zBootstrapResponse = z.object({
             'address_review',
             'reproduce',
             'verify',
-            'retro'
+            'retro',
+            'review'
         ]),
         repo: z.string().regex(/^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}$/),
         number: z.int().gt(0).lte(9007199254740991),
@@ -65,7 +66,8 @@ export const zBootstrapResponse = z.object({
                 'address_review',
                 'reproduce',
                 'verify',
-                'retro'
+                'retro',
+                'review'
             ]),
             summary: z.string().max(4096),
             costUsd: z.number().gte(0).lte(1000)
@@ -79,6 +81,31 @@ export const zBootstrapResponse = z.object({
             maxFiles: z.int().gte(0).lte(50),
             maxFileBytes: z.int().gt(0).lte(9007199254740991),
             maxTotalBytes: z.int().gt(0).lte(9007199254740991)
-        })
+        }),
+        review: z.object({
+            pull: z.int().gt(0).lte(9007199254740991),
+            baseSha: z.string().regex(/^[0-9a-f]{40}$/),
+            headSha: z.string().regex(/^[0-9a-f]{40}$/),
+            rules: z.array(z.object({
+                rule: z.object({
+                    id: z.string().min(1),
+                    scope: z.string().regex(/^(global|[a-z0-9]+(-[a-z0-9]+)*|[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100})$/),
+                    title: z.string(),
+                    severity: z.enum(['error', 'warning']),
+                    appliesTo: z.array(z.string().min(1).max(200)).nullable(),
+                    exclude: z.array(z.string().min(1).max(200)),
+                    sources: z.array(z.url()),
+                    body: z.string()
+                }),
+                files: z.array(z.string().min(1)).min(1)
+            })).max(200),
+            skipped: z.array(z.object({
+                id: z.string().min(1),
+                title: z.string(),
+                severity: z.enum(['error', 'warning']),
+                reason: z.enum(['no_matching_file', 'over_limit'])
+            })),
+            knowledgeCommit: z.string().regex(/^[0-9a-f]{40}$/).nullable()
+        }).optional()
     })
 });

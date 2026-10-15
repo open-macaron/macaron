@@ -21,6 +21,7 @@ describe("parseMention", () => {
     ["@macaron-bot please try the fix", "verify"],
     ["@macaron-bot stop", "stop"],
     ["@macaron-bot retry", "retry"],
+    ["@macaron-bot review", "review"],
     ["@macaron-bot could you try again?", "retry"],
   ])("reads %j as %s", (body, command) => {
     expect(parseMention(body, "macaron-bot")?.command).toBe(command);

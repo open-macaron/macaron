@@ -47,11 +47,21 @@ export class PullDiffReader {
   }
 }
 
-/** Added lines of one file's patch (GitHub sends hunks without file headers; jsdiff parses them as is). */
+/**
+ * Added lines of one file's patch (GitHub sends hunks without file headers; jsdiff parses them as
+ * is). A patch jsdiff can't parse makes the file unreadable: its evidence can't be verified.
+ */
 export function toDiffFile(path: string, previousPath: string | undefined, patch: string | undefined): DiffFile {
-  if (patch === undefined) return { path, previousPath, added: new Map(), readable: false };
+  const unreadable = { path, previousPath, added: new Map<number, string>(), readable: false };
+  if (patch === undefined) return unreadable;
+  let hunks;
+  try {
+    hunks = parsePatch(patch).flatMap((parsed) => parsed.hunks);
+  } catch {
+    return unreadable;
+  }
   const added = new Map<number, string>();
-  for (const hunk of parsePatch(patch).flatMap((parsed) => parsed.hunks)) {
+  for (const hunk of hunks) {
     let line = hunk.newStart;
     for (const text of hunk.lines) {
       if (text.startsWith("+")) added.set(line++, text.slice(1));

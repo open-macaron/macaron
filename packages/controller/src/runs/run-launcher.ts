@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import {
   type BootstrapResponse,
   DispatchInputs,
+  fullEnvironmentModes,
   type Mode,
   type RepoConfig,
   type RunContext,
@@ -21,6 +22,7 @@ import { Jobs } from "../jobs/jobs.ts";
 import { repoRef } from "../github/repo-ref.ts";
 import { gate } from "../publish/gate.ts";
 import { Publisher } from "../publish/publisher.ts";
+import { PullDiffReader } from "../review/pull-diff.ts";
 import { ArtifactDownloader, ArtifactInvalid, readArtifact } from "./artifact.ts";
 import { OidcVerifier } from "./oidc-verifier.ts";
 import { runUrl } from "./run-url.ts";
@@ -74,6 +76,7 @@ export class RunLauncher {
     private readonly oidc: OidcVerifier,
     private readonly artifacts: ArtifactDownloader,
     private readonly publisher: Publisher,
+    private readonly diffs: PullDiffReader,
     private readonly jobs: Jobs,
     private readonly clock: Clock,
   ) {}
@@ -89,7 +92,7 @@ export class RunLauncher {
       ticket: Ticket.parse(`t_${randomBytes(32).toString("base64url")}`),
       mode,
       harness: config.harness,
-      model: config.model,
+      model: config.models[mode] ?? config.model,
       context,
       limitMicros: toMicros(limitUsd),
     });
@@ -159,7 +162,10 @@ export class RunLauncher {
       throw error;
     }
 
-    const verdict = await gate({ mode: run.mode, context: run.context, result: artifact.result, changes: artifact.changes, media: artifact.media });
+    // Reviews: the diff comes from GitHub at the reviewed commit, never from the run.
+    const review = run.mode === "review" ? run.context.review : undefined;
+    const diff = review === undefined ? undefined : await this.diffs.read(run.context.repo, review.baseSha, review.headSha);
+    const verdict = await gate({ mode: run.mode, context: run.context, result: artifact.result, changes: artifact.changes, media: artifact.media, diff });
     if (!verdict.ok) {
       this.logger.warn(`run ${run.id} refused by the Gate: ${verdict.violations.join("; ")}`);
       return fail(`the result was refused by policy (${verdict.violations.slice(0, 3).join("; ")})`);
@@ -219,7 +225,9 @@ export class RunLauncher {
     if (await this.runs.settle(run.id, decision.costMicros, attribution, now)) {
       this.logger.log(`run ${run.id} cost ${String(decision.costMicros)} µ$`);
       if (run.keyHash !== null) await this.budget.revoke(run.keyHash);
-      await this.publisher.refreshCost(await this.runs.threadById(thread.id));
+      const current = await this.runs.threadById(thread.id);
+      await this.publisher.refreshCost(current);
+      if (run.mode === "review") await this.publisher.refreshReviewCost(current, run, decision.costMicros);
     }
   }
 
@@ -259,7 +267,7 @@ export class RunLauncher {
       "env-json": JSON.stringify(config.environment),
       "runs-on": config.runsOn,
       "timeout-minutes": String(config.timeoutMinutes),
-      "full-environment": String(run.mode !== "triage"),
+      "full-environment": String(fullEnvironmentModes.has(run.mode)),
       harness: config.harness,
       "controller-url": this.env.PUBLIC_URL,
     });

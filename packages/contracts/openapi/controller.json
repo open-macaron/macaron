@@ -61,7 +61,8 @@
                             "address_review",
                             "reproduce",
                             "verify",
-                            "retro"
+                            "retro",
+                            "review"
                           ]
                         },
                         "repo": {
@@ -235,7 +236,8 @@
                                   "address_review",
                                   "reproduce",
                                   "verify",
-                                  "retro"
+                                  "retro",
+                                  "review"
                                 ]
                               },
                               "summary": {
@@ -300,6 +302,158 @@
                             "maxFiles",
                             "maxFileBytes",
                             "maxTotalBytes"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "review": {
+                          "type": "object",
+                          "properties": {
+                            "pull": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "maximum": 9007199254740991
+                            },
+                            "baseSha": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{40}$"
+                            },
+                            "headSha": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{40}$"
+                            },
+                            "rules": {
+                              "maxItems": 200,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "rule": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "scope": {
+                                        "type": "string",
+                                        "pattern": "^(global|[a-z0-9]+(-[a-z0-9]+)*|[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100})$"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "severity": {
+                                        "type": "string",
+                                        "enum": [
+                                          "error",
+                                          "warning"
+                                        ]
+                                      },
+                                      "appliesTo": {
+                                        "nullable": true,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        }
+                                      },
+                                      "exclude": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        }
+                                      },
+                                      "sources": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "format": "uri"
+                                        }
+                                      },
+                                      "body": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "scope",
+                                      "title",
+                                      "severity",
+                                      "appliesTo",
+                                      "exclude",
+                                      "sources",
+                                      "body"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "files": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "rule",
+                                  "files"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "skipped": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "severity": {
+                                    "type": "string",
+                                    "enum": [
+                                      "error",
+                                      "warning"
+                                    ]
+                                  },
+                                  "reason": {
+                                    "type": "string",
+                                    "enum": [
+                                      "no_matching_file",
+                                      "over_limit"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "title",
+                                  "severity",
+                                  "reason"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "knowledgeCommit": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{40}$"
+                            }
+                          },
+                          "required": [
+                            "pull",
+                            "baseSha",
+                            "headSha",
+                            "rules",
+                            "skipped",
+                            "knowledgeCommit"
                           ],
                           "additionalProperties": false
                         }

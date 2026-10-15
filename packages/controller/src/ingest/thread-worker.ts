@@ -8,7 +8,7 @@ import { Publisher } from "../publish/publisher.ts";
 import { ReactionTargets } from "../publish/reaction-targets.ts";
 import { type Escalation, type LaunchOutcome, RunLauncher } from "../runs/run-launcher.ts";
 import { ACTIVE_STATUSES, RunsRepository, type ThreadRecord } from "../runs/runs.repository.ts";
-import { ContextBuilder, type Trigger } from "./context-builder.ts";
+import { ContextBuilder, reviewedPull, type Trigger } from "./context-builder.ts";
 import { type EventRecord, EventsRepository, QUIET_PERIOD_MS } from "./events.repository.ts";
 import { decideMode, parseMention } from "./triggers.ts";
 
@@ -114,7 +114,14 @@ export class ThreadWorker implements OnApplicationBootstrap {
     if (NEEDS_GUI.has(mode) && !config.capabilities.includes("gui")) {
       return { kind: "refused", reason: `this repository's environment can't run the application yet, so \`${mode}\` isn't available` };
     }
+    if (mode === "review" && reviewedPull(thread) === undefined) {
+      return { kind: "refused", reason: "`review` works on pull requests: comment on the pull request itself" };
+    }
     const context = await this.contexts.build(config, thread, mode, trigger);
+    // Nothing to check: no runner, no cost.
+    if (context.review?.rules.length === 0) {
+      return { kind: "refused", reason: "no rule from open-macaron/knowledge applies to the files this pull request changes" };
+    }
     return this.launcher.launch({ config, thread, mode, context });
   }
 }

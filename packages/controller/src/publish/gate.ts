@@ -1,4 +1,6 @@
 import { type Attachment, allowedActions, type Changes, type FileChange, type Mode, type RunContext, type RunResult } from "@open-macaron/contracts";
+import type { PullDiff } from "../review/pull-diff.ts";
+import { type RuleResult, verifyReview } from "../review/verify.ts";
 import { type DetectedMedia, detectMedia } from "./media-type.ts";
 import { findSecrets } from "./secrets.ts";
 
@@ -21,6 +23,8 @@ export interface GateInput {
   readonly changes: Changes | undefined;
   /** `media/<file>` → bytes, as found in the artifact. */
   readonly media: ReadonlyMap<string, Uint8Array>;
+  /** Review runs: the pull request's diff at the reviewed head, read by the controller, never by the run. */
+  readonly diff?: PullDiff | undefined;
   readonly limits?: GateLimits;
 }
 
@@ -36,6 +40,8 @@ export interface Publishable {
   readonly result: RunResult;
   readonly changes: Changes | undefined;
   readonly attachments: readonly VettedAttachment[];
+  /** Review runs: one verified row per rule. */
+  readonly review: readonly RuleResult[] | undefined;
 }
 
 export type Verdict = { readonly ok: true; readonly publishable: Publishable } | { readonly ok: false; readonly violations: readonly string[] };
@@ -72,8 +78,28 @@ export async function gate(input: GateInput): Promise<Verdict> {
     if (!known.has(reply.inReplyTo)) violations.push(`reply targets unknown comment ${String(reply.inReplyTo)}`);
   }
 
+  // Reviews: every violation is checked against the diff; what can't be verified is published as ignored.
+  let review: readonly RuleResult[] | undefined;
+  if (mode === "review") {
+    if (context.review === undefined) violations.push("a review run has no review context");
+    else if (input.diff === undefined) violations.push("a review run needs the pull request's diff");
+    else if (result.review !== undefined) {
+      const verification = verifyReview(context.review, result.review, input.diff);
+      violations.push(...verification.problems);
+      review = verification.results;
+    }
+  }
+
   // Texts must not leak credentials.
-  const texts = [result.message, result.summary, result.commitMessage, result.pr?.title, result.pr?.body, ...result.replies.map((reply) => reply.body)];
+  const texts = [
+    result.message,
+    result.summary,
+    result.commitMessage,
+    result.pr?.title,
+    result.pr?.body,
+    ...result.replies.map((reply) => reply.body),
+    ...(result.review ?? []).map((verdict) => verdict.explanation),
+  ];
   for (const text of texts) {
     if (text !== undefined) for (const secret of await findSecrets(text)) violations.push(`text contains a ${secret} secret`);
   }
@@ -82,7 +108,7 @@ export async function gate(input: GateInput): Promise<Verdict> {
   const { attachments, problems } = await checkAttachments(result, input.media, context);
   violations.push(...problems);
 
-  return violations.length > 0 ? { ok: false, violations } : { ok: true, publishable: { result, changes: input.changes, attachments } };
+  return violations.length > 0 ? { ok: false, violations } : { ok: true, publishable: { result, changes: input.changes, attachments, review } };
 }
 
 async function checkChanges(changes: Changes, context: RunContext, limits: GateLimits): Promise<string[]> {

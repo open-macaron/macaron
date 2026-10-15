@@ -1,13 +1,16 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { RepoConfig, RunContext } from "@open-macaron/contracts";
+import { z } from "zod";
 import { describeError } from "../common/errors.ts";
-import { formatUsd } from "../common/money.ts";
+import { formatUsd, type UsdMicros } from "../common/money.ts";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { BotIdentity } from "../github/bot-identity.ts";
 import { repoRef, type RepoRef } from "../github/repo-ref.ts";
 import type { RunRecord, ThreadRecord } from "../runs/runs.repository.ts";
 import { RunsRepository } from "../runs/runs.repository.ts";
 import { runUrl } from "../runs/run-url.ts";
+import { renderReview, withReviewCost } from "../review/render.ts";
+import type { RuleResult } from "../review/verify.ts";
 import { ForkCommitter } from "./fork-committer.ts";
 import type { Publishable } from "./gate.ts";
 import { type CostRow, type LoopState, renderCostTable, resolveAttachments, sanitize, upsertCostSection } from "./markdown.ts";
@@ -23,6 +26,9 @@ export interface PublishInput {
   /** attachment id → hosted URL (empty until evidence hosting ships). */
   readonly attachmentUrls: ReadonlyMap<string, string>;
 }
+
+/** The review id stored as the `review` effect's external id. */
+const ReviewId = z.coerce.number().int().positive();
 
 /** Where a thread's sticky status comment lives: the issue until the bot's PR exists, then the PR. */
 interface StatusTarget {
@@ -75,6 +81,7 @@ export class Publisher {
   ) {}
 
   async publish(input: PublishInput): Promise<void> {
+    if (input.publishable.review !== undefined) return this.publishReview(input, input.publishable.review);
     const { run, config, publishable } = input;
     let thread = input.thread;
     // The loop that opens the PR reports on the issue it started from; later loops on the PR.
@@ -153,6 +160,51 @@ export class Publisher {
   /** Called when a loop's cost is settled: the PR's cost table picks up the final number. */
   async refreshCost(thread: ThreadRecord): Promise<void> {
     await this.updateCostTable(thread);
+  }
+
+  /** A review run's cost is settled: its review shows the amount instead of ⏳. */
+  async refreshReviewCost(thread: ThreadRecord, run: RunRecord, costMicros: UsdMicros): Promise<void> {
+    const review = run.context.review;
+    const reviewId = ReviewId.safeParse(await this.runs.effect(thread.id, run.loop, "review"));
+    if (review === undefined || !reviewId.success) return;
+    const upstream = repoRef(thread.repo);
+    const body = await this.writer.reviewBody(upstream, review.pull, reviewId.data);
+    const updated = withReviewCost(body, costMicros);
+    if (updated !== undefined && updated !== body) await this.post(() => this.writer.updateReview(upstream, review.pull, reviewId.data, updated));
+  }
+
+  /**
+   * A review run: one GitHub review (table + inline comments) on the commit that was checked, once.
+   * If GitHub refuses an inline comment (a line outside its diff view), the review is posted
+   * without them: the table carries the same evidence.
+   */
+  private async publishReview(input: PublishInput, results: readonly RuleResult[]): Promise<void> {
+    const { run, thread } = input;
+    const review = run.context.review;
+    if (review === undefined) throw new Error(`run ${run.id} has review results but no review context`);
+    const upstream = repoRef(thread.repo);
+    const { body, comments } = renderReview(results, {
+      repo: thread.repo,
+      headSha: review.headSha,
+      knowledgeCommit: review.knowledgeCommit,
+      runUrl: input.runUrl,
+      costMicros: null,
+    });
+    await this.post(() =>
+      this.runs.once(thread.id, run.loop, "review", async () => {
+        try {
+          return await this.writer.createReview(upstream, review.pull, review.headSha, body, comments);
+        } catch (error: unknown) {
+          if (!(error instanceof CannotPost) || error.status !== 422 || comments.length === 0) throw error;
+          this.logger.warn(`review on ${thread.repo}#${String(review.pull)}: inline comments refused, posting the table alone`);
+          return this.writer.createReview(upstream, review.pull, review.headSha, body, []);
+        }
+      }),
+    );
+    const count = (outcome: RuleResult["outcome"]) => String(results.filter((result) => result.outcome === outcome).length);
+    await this.updateStatus(thread, statusTarget(thread), run, `✅ Review posted: ❌ ${count("violation")} · ⚠️ ${count("warning")} · ✅ ${count("valid")} · ➖ ${count("ignored")}.`, input.runUrl);
+    await this.updateCostTable(thread);
+    await this.reactions.finish(thread.id, run.loop, upstream, "+1");
   }
 
   /** No run happened (caps, pause, missing capability): explain in the status comment, react 😕. */

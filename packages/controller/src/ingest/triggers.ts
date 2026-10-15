@@ -17,10 +17,13 @@ export function parseSubjectUrl(url: string | null): Subject | undefined {
   return { repo, number: Number(number), kind: type === "pulls" ? "pull" : "issue" };
 }
 
-/** `retry` runs the thread's last failed or stopped loop again, with the same mode and trigger. */
+/**
+ * `retry` runs the thread's last failed or stopped loop again, with the same mode and trigger.
+ * `review` checks a pull request against the knowledge rules (explicit command only, no alias).
+ */
 export type Command = Mode | "stop" | "retry";
 
-const COMMANDS: ReadonlySet<string> = new Set<Command>(["plan", "implement", "reproduce", "verify", "triage", "stop", "retry"]);
+const COMMANDS: ReadonlySet<string> = new Set<Command>(["plan", "implement", "reproduce", "verify", "triage", "stop", "retry", "review"]);
 /** Natural phrasings mapped to commands, e.g. "@macaron-bot can you reproduce?". */
 const ALIASES: readonly (readonly [RegExp, Command])[] = [
   [/\breproduc(e|ing)\b/i, "reproduce"],

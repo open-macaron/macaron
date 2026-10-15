@@ -119,7 +119,8 @@ describe("toDiffFile", () => {
     expect(file.readable).toBe(true);
   });
 
-  it("marks files without a patch as unreadable", () => {
+  it("marks files without a patch, or with an inconsistent one, as unreadable", () => {
     expect(toDiffFile("icon.png", undefined, undefined)).toMatchObject({ readable: false, added: new Map() });
+    expect(toDiffFile("a.ts", undefined, "@@ -1,1 +1,5 @@\n+only one")).toMatchObject({ readable: false });
   });
 });
