@@ -1,0 +1,35 @@
+{
+  "name": "@open-macaron/knowledge-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "knowledge-cli: validates open-macaron/knowledge, decides owner-approved merges, builds the Pages read API",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "knowledge-cli": "dist/knowledge-cli.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "node scripts/bundle.ts"
+  },
+  "dependencies": {
+    "@actions/core": "catalog:",
+    "@octokit/rest": "catalog:",
+    "@open-macaron/contracts": "workspace:*",
+    "mdast-util-from-markdown": "catalog:",
+    "mdast-util-frontmatter": "catalog:",
+    "mdast-util-to-string": "catalog:",
+    "micromark-extension-frontmatter": "catalog:",
+    "picomatch": "catalog:",
+    "yaml": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/mdast": "catalog:",
+    "@types/picomatch": "catalog:",
+    "esbuild": "catalog:"
+  }
+}

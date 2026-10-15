@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "owners": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "login": {
+            "type": "string",
+            "pattern": "^(?!-)[A-Za-z0-9-]{1,39}(?<!-)(\\[bot\\])?$"
+          },
+          "id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "login",
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "owners"
+  ],
+  "additionalProperties": false
+}

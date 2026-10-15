@@ -11,6 +11,7 @@ export default defineConfig({
     projects: [
       { extends: true, test: { name: "contracts", include: ["packages/contracts/test/**/*.test.ts"] } },
       { extends: true, test: { name: "agent-cli", include: ["packages/agent-cli/test/**/*.test.ts"] } },
+      { extends: true, test: { name: "knowledge-cli", include: ["packages/knowledge-cli/test/**/*.test.ts"] } },
       { extends: true, test: { name: "controller", include: ["packages/controller/test/unit/**/*.test.ts"] } },
       {
         extends: true,

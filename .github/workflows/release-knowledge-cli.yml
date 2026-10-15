@@ -1,0 +1,56 @@
+name: release-knowledge-cli
+
+# Publishes knowledge-cli as a single bundled file on a GitHub release, with a signed build
+# provenance attestation. open-macaron/knowledge pins the asset URL and its sha256 in its
+# workflows; the PR that bumps the pin verifies the attestation.
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/knowledge-cli/**
+      - packages/contracts/**
+      - pnpm-lock.yaml
+      - .github/workflows/release-knowledge-cli.yml
+
+permissions: {}
+
+concurrency:
+  group: release-knowledge-cli
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @open-macaron/knowledge-cli...
+      - run: pnpm --filter @open-macaron/knowledge-cli build
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: packages/knowledge-cli/dist/knowledge-cli.mjs
+      - name: publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: knowledge-cli-${{ github.sha }}
+        run: |
+          sha256="$(sha256sum packages/knowledge-cli/dist/knowledge-cli.mjs | cut -d' ' -f1)"
+          gh release create "$TAG" packages/knowledge-cli/dist/knowledge-cli.mjs \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest=false \
+            --title "knowledge-cli ${GITHUB_SHA:0:7}" \
+            --notes "sha256: \`${sha256}\`"
+          {
+            echo "URL: https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/knowledge-cli.mjs"
+            echo "sha256: \`${sha256}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

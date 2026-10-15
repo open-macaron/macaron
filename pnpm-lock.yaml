@@ -242,6 +242,9 @@ catalogs:
     '@types/pg':
       specifier: 8.23.1
       version: 8.23.1
+    '@types/picomatch':
+      specifier: 4.0.3
+      version: 4.0.3
     '@vitest/coverage-v8':
       specifier: 5.0.4
       version: 5.0.4
@@ -275,9 +278,18 @@ catalogs:
     mdast-util-from-markdown:
       specifier: 2.1.0
       version: 2.1.0
+    mdast-util-frontmatter:
+      specifier: 2.0.1
+      version: 2.0.1
     mdast-util-gfm:
       specifier: 3.1.0
       version: 3.1.0
+    mdast-util-to-string:
+      specifier: 4.0.0
+      version: 4.0.0
+    micromark-extension-frontmatter:
+      specifier: 2.0.0
+      version: 2.0.0
     micromark-extension-gfm:
       specifier: 3.0.0
       version: 3.0.0
@@ -296,6 +308,9 @@ catalogs:
     pg-boss:
       specifier: 12.37.1
       version: 12.37.1
+    picomatch:
+      specifier: 4.0.7
+      version: 4.0.7
     pino:
       specifier: 10.4.0
       version: 10.4.0
@@ -525,6 +540,49 @@ importers:
       msw:
         specifier: 'catalog:'
         version: 3.0.3(@types/node@24.19.2)(typescript@6.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+
+  packages/knowledge-cli:
+    dependencies:
+      '@actions/core':
+        specifier: 'catalog:'
+        version: 3.0.1
+      '@octokit/rest':
+        specifier: 'catalog:'
+        version: 22.0.1
+      '@open-macaron/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      mdast-util-from-markdown:
+        specifier: 'catalog:'
+        version: 2.1.0
+      mdast-util-frontmatter:
+        specifier: 'catalog:'
+        version: 2.0.1
+      mdast-util-to-string:
+        specifier: 'catalog:'
+        version: 4.0.0
+      micromark-extension-frontmatter:
+        specifier: 'catalog:'
+        version: 2.0.0
+      picomatch:
+        specifier: 'catalog:'
+        version: 4.0.7
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.1
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.6
+    devDependencies:
+      '@types/mdast':
+        specifier: 'catalog:'
+        version: 4.0.4
+      '@types/picomatch':
+        specifier: 'catalog:'
+        version: 4.0.3
+      esbuild:
+        specifier: 'catalog:'
+        version: 0.28.2
 
 packages:
 
@@ -1677,6 +1735,9 @@ packages:
   '@types/pg@8.23.1':
     resolution: {integrity: sha512-fKVHpikPdg4GKks3JuLEhvwSyvwzF23hnabPy6DD8ljVbC7+6J5dQzdv4arV6jqq57djnMgs1HKBxX4P8aBI3A==}
 
+  '@types/picomatch@4.0.3':
+    resolution: {integrity: sha512-iG0T6+nYJ9FAPmx9SsUlnwcq1ZVRuCXcVEvWnntoPlrOpwtSTKNDC9uVAxTsC3PUvJ+99n4RpAcNgBbHX3JSnQ==}
+
   '@types/qs@6.15.1':
     resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
 
@@ -2512,6 +2573,9 @@ packages:
   fast-wrap-ansi@0.2.2:
     resolution: {integrity: sha512-7F2Fl+TjRSenLqlU3UjSH0iyqopqoZIu7eZVpEirP2g1GtWa2G/ecEmBdgz31+Mxr+ELclgg6sokpSFIQiZ02Q==}
 
+  fault@2.0.1:
+    resolution: {integrity: sha512-WtySTkS4OKev5JtpHXnib4Gxiurzh5NCGvWrFaZ34m6JehfTUhKZvn9njTfw48t6JumVQOmrKqpmGcdwxnhqBQ==}
+
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
     engines: {node: '>=12.0.0'}
@@ -2552,6 +2616,10 @@ packages:
   foreground-child@3.3.1:
     resolution: {integrity: sha512-gIXjKqtFuWEgzFRJA9WCQeSJLZDjgJUOMCMzxtvFq/37KojM1BFGufqsCy0r4qSQmYLsZYMeyRqzIWOMup03sw==}
     engines: {node: '>=14'}
+
+  format@0.2.2:
+    resolution: {integrity: sha512-wzsgA6WOq+09wrU1tsJ09udeR/YZRaeArL9e1wPbFg3GG2yDnC2ldKpxs4xunpFF9DgqCqOIra3bc1HWrJ37Ww==}
+    engines: {node: '>=0.4.x'}
 
   forwarded@0.2.0:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
@@ -2920,6 +2988,9 @@ packages:
   mdast-util-from-markdown@2.1.0:
     resolution: {integrity: sha512-KRLgmPaP2H1ul2bpoJkOS+9pAcDAAj9Nu1mqLnh8NLeJG5tlvj42TH80PIGBpROWlRXLk0lDrWNuZCFy/tsB4A==}
 
+  mdast-util-frontmatter@2.0.1:
+    resolution: {integrity: sha512-LRqI9+wdgC25P0URIJY9vwocIzCcksduHQ9OF2joxQoyTNVduwLAFUzjoopuRJbJAReaKrNQKAZKL3uCMugWJA==}
+
   mdast-util-gfm-autolink-literal@2.0.1:
     resolution: {integrity: sha512-5HVP2MKaP6L+G6YaxPNjuL0BPrq9orG3TsrZ9YXbA3vDw/ACI4MEsnoDpn6ZNm7GnZgtAcONJyPhOP8tNJQavQ==}
 
@@ -2961,6 +3032,9 @@ packages:
 
   micromark-core-commonmark@2.0.4:
     resolution: {integrity: sha512-wxEeE8v8XVvOrxn1TZj74qYhAtTQsSqufHVS3uNVyT1MupXxhyaHk8/9xDNPh9BmL77QNDgWTkZ3RsYHB2ry7w==}
+
+  micromark-extension-frontmatter@2.0.0:
+    resolution: {integrity: sha512-C4AkuM3dA58cgZha7zVnuVxBhDsbttIMiytjgsM2XbHAB2faRVaHRle40558FBN+DJcrLNCoqG5mlrpdU4cRtg==}
 
   micromark-extension-gfm-autolink-literal@2.1.0:
     resolution: {integrity: sha512-oOg7knzhicgQ3t4QCjCWgTmfNhvQbDDnJeVu9v81r7NltNCVmhPy1fJRX27pISafdjL+SVc4d3l48Gb6pbRypw==}
@@ -4887,6 +4961,8 @@ snapshots:
       pg-protocol: 1.16.1
       pg-types: 2.2.0
 
+  '@types/picomatch@4.0.3': {}
+
   '@types/qs@6.15.1': {}
 
   '@types/range-parser@1.2.7': {}
@@ -5687,6 +5763,10 @@ snapshots:
     dependencies:
       fast-string-width: 3.0.2
 
+  fault@2.0.1:
+    dependencies:
+      format: 0.2.2
+
   fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
       picomatch: 4.0.7
@@ -5738,6 +5818,8 @@ snapshots:
     dependencies:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
+
+  format@0.2.2: {}
 
   forwarded@0.2.0: {}
 
@@ -6048,6 +6130,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  mdast-util-frontmatter@2.0.1:
+    dependencies:
+      '@types/mdast': 4.0.4
+      devlop: 1.1.0
+      escape-string-regexp: 5.0.0
+      mdast-util-from-markdown: 2.1.0
+      mdast-util-to-markdown: 2.2.0
+      micromark-extension-frontmatter: 2.0.0
+    transitivePeerDependencies:
+      - supports-color
+
   mdast-util-gfm-autolink-literal@2.0.1:
     dependencies:
       '@types/mdast': 4.0.4
@@ -6151,6 +6244,13 @@ snapshots:
       micromark-util-normalize-identifier: 2.0.1
       micromark-util-resolve-all: 2.0.1
       micromark-util-subtokenize: 2.1.0
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.3
+
+  micromark-extension-frontmatter@2.0.0:
+    dependencies:
+      fault: 2.0.1
+      micromark-util-character: 2.1.1
       micromark-util-symbol: 2.0.1
       micromark-util-types: 2.0.3
 

@@ -5,7 +5,19 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { Changes, GlobalFile, ProjectFile, RepoFile, RunContext, RunResult } from "../src/index.ts";
+import {
+  Changes,
+  GlobalFile,
+  KnowledgeIndex,
+  KnowledgeSlice,
+  LessonFrontMatter,
+  OwnersFile,
+  ProjectFile,
+  RepoFile,
+  RuleFrontMatter,
+  RunContext,
+  RunResult,
+} from "../src/index.ts";
 
 const outDir = join(import.meta.dirname, "..", "schemas");
 
@@ -16,6 +28,11 @@ const schemas: Readonly<Record<string, z.ZodType>> = {
   "config-global": GlobalFile,
   "config-project": ProjectFile,
   "config-repo": RepoFile,
+  "knowledge-owners": OwnersFile,
+  "knowledge-rule": RuleFrontMatter,
+  "knowledge-lesson": LessonFrontMatter,
+  "knowledge-slice": KnowledgeSlice,
+  "knowledge-index": KnowledgeIndex,
 };
 
 await mkdir(outDir, { recursive: true });

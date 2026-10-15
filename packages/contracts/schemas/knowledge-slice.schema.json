@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "scope": {
+      "type": "string",
+      "pattern": "^(global|[a-z0-9]+(-[a-z0-9]+)*|[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100})$"
+    },
+    "overview": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "type": "string",
+            "pattern": "^(global|[a-z0-9]+(-[a-z0-9]+)*|[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100})$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning"
+            ]
+          },
+          "appliesTo": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exclude": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "title",
+          "severity",
+          "appliesTo",
+          "exclude",
+          "sources",
+          "body"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "lessons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "type": "string",
+            "pattern": "^(global|[a-z0-9]+(-[a-z0-9]+)*|[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100})$"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "appliesTo": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "lastVerified": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "topic",
+          "appliesTo",
+          "sources",
+          "lastVerified",
+          "confidence",
+          "body"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "version",
+    "commit",
+    "scope",
+    "overview",
+    "rules",
+    "lessons"
+  ],
+  "additionalProperties": false
+}
