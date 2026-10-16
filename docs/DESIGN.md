@@ -456,6 +456,14 @@ Lessons carry `topic`, optional `applies_to`, `sources`, `last_verified` and `co
   | `sandbox/i18n-strings` | warning | ➖ ignored | no matching file changed |
 
 - **The bot reviews its own diff before publishing:** a ❌ sends the agent back to fix it.
+- **The same review, locally:** `npx @open-macaron/review --project <p>` ([packages/review](../packages/review/README.md)). The engine is a package shared by the bot and the CLI. It covers:
+  - rule selection;
+  - the prompts;
+  - the read-only session and its flags;
+  - the verdict schema;
+  - the verification.
+
+  On the bot, agent-cli runs it on the pull request's base, with the rules the controller selected, and the controller verifies again on GitHub's diff. Locally, the CLI computes the scope with git (net changes from the merge base, or `--committed` / `--uncommitted`), fetches the rules from the read API, and judges with the developer's own Claude Code. `--agent` emits NDJSON for coding agents (review, fix, review once more). The developer's agent pays, and there's nothing to trust: a local review publishes nothing.
 
 ### 6.4 Approval and merge, entirely in GitHub (Prow-style)
 

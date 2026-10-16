@@ -22,7 +22,7 @@ Only trusted users of trusted repositories (`config/`) can trigger it. Anyone el
 
 **On its own pull requests,** no mention is needed: reviews from trusted users are addressed (code changes, a new commit, an answer in each review thread), and other comments are triaged.
 
-**Reviews check one thing per rule.** A violation is only reported with a quote of a line the pull request adds; the reviewer reads code and history but can't change or run anything.
+**Reviews check one thing per rule.** A violation is only reported with a quote of a line the pull request adds; the reviewer reads code and history but can't change or run anything. The same review runs locally, before you push, with your own agent: `npx @open-macaron/review --project <project>` ([packages/review](packages/review/README.md)).
 
 **Cost.** Every run has its own OpenRouter key, capped at the mode's budget. The cost of each loop is reported: in a table at the end of the bot's pull requests, and in each review. Per-thread, per-repository and per-project monthly caps stop the bot before it spends more.
 
@@ -41,6 +41,7 @@ Read [docs/DESIGN.md](docs/DESIGN.md) first; [docs/SCALING.md](docs/SCALING.md),
 | `packages/contracts` | Zod schemas shared by the controller and the agent side (config, run context, run result, knowledge), emitted as JSON Schema |
 | `packages/controller` | The NestJS controller |
 | `packages/agent-cli` | `macaron-agent`, run on the runners: bootstrap, harness, result |
+| `packages/review` | The review engine of `@macaron-bot review`, also the `macaron-review` CLI to run the same review locally ([README](packages/review/README.md)) |
 | `packages/knowledge-cli` | Validation, owner-approved merges and the read API of open-macaron/knowledge |
 | `config/` | Trusted projects, repositories, users and budgets |
 | `docs/` | Design documents |

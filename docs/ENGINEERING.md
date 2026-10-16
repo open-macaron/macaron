@@ -27,7 +27,8 @@ macaron/                                (open-macaron/macaron, public)
 ├── packages/
 │   ├── controller/                     NestJS service, see §3
 │   ├── contracts/                      Zod schemas: RunContext, RunResult, TrustConfig → also emitted as JSON Schema
-│   └── agent-cli/                      `macaron-agent` used inside runner's `run.yml`: bootstrap (OIDC) → harness → validate → upload
+│   ├── agent-cli/                      `macaron-agent` used inside runner's `run.yml`: bootstrap (OIDC) → harness → validate → upload
+│   └── review/                         review engine shared by controller and agent-cli; `macaron-review` CLI on npm
 ├── harness/{claude,codex,opencode}/    thin shell adapters invoked by agent-cli
 ├── config/                             global → projects/<p> → repos/<r>; schema in packages/contracts
 ├── deploy/                             quadlets + deploy script, see DEPLOYMENT.md
@@ -35,7 +36,7 @@ macaron/                                (open-macaron/macaron, public)
 └── docs/
 ```
 
-`packages/contracts` is the only code shared by both sides of the trust boundary. The controller never imports `agent-cli`, and `agent-cli` never imports the controller.
+`packages/contracts` and `packages/review` are the only code shared by both sides of the trust boundary; `review` holds pure functions, git and the read-only harness session, no credential. The controller never imports `agent-cli`, and `agent-cli` never imports the controller.
 
 ## 3. Controller modules
 

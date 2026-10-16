@@ -11,6 +11,7 @@ Read first: [README.md](README.md) (what the bot does), [docs/DESIGN.md](docs/DE
 | `packages/contracts` | Zod schemas shared across the trust boundary (config, run context/result, knowledge). Emits `schemas/*.json` and `openapi/controller.json` |
 | `packages/controller` | NestJS 12 controller (runs on the VPS, holds every credential) |
 | `packages/agent-cli` | `macaron-agent`, run on GitHub Actions runners (no GitHub token, one capped OpenRouter key) |
+| `packages/review` | The review engine (rule selection, read-only judge session, evidence verification, rendering), shared by the controller and agent-cli, and the `macaron-review` CLI published to npm as `@open-macaron/review` |
 | `packages/knowledge-cli` | Validation, owner-approved merges and the Pages read API of open-macaron/knowledge |
 | `config/` | Trusted projects, repositories, users, budgets (`global.yaml` → `projects/<p>/project.yaml` → `repos/<r>.yaml`) |
 | `deploy/` | Quadlets, Caddy, `deploy.sh` (runs **on** the VPS) |
@@ -23,7 +24,7 @@ Related repositories: [open-macaron/runner](https://github.com/open-macaron/runn
 ```sh
 pnpm install
 pnpm check                      # typecheck + lint + all tests
-pnpm exec vitest run --project controller        # unit tests of one package (contracts, agent-cli, controller, knowledge-cli)
+pnpm exec vitest run --project controller        # unit tests of one package (contracts, review, agent-cli, controller, knowledge-cli)
 pnpm test:live                  # live tests against OpenRouter/GitHub (~/.config/macaron/dev.env; skipped without it)
 pnpm --filter @open-macaron/controller db:generate   # after changing src/db/schema.ts
 pnpm --filter @open-macaron/controller db:check
@@ -57,14 +58,14 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 - **Runners never hold a GitHub token.** Everything public (comments, PRs, reviews, media uploads) is written by the controller, after the **Gate**.
 - **The bot never has write access upstream:** it works from its forks. Uploads that need write access target the fork.
 - **Agent output is untrusted:** results are schema-validated and gated; review violations stand only with a quote of an added line; mentions are defused (`sanitize()`).
-- **Read-only sessions** (reviews) get `--permission-mode dontAsk`, a short tool list, and never MCP servers.
+- **Read-only sessions** (reviews) get `--permission-mode dontAsk`, a short tool list, and never MCP servers. They're defined once, in `packages/review` (`claudeReviewArgs`), for the bot and the local CLI alike.
 - **Secrets are never printed, logged or committed.** Scripts read them from `~/.config/macaron/dev.env` without echoing; the VPS gets them through `deploy/scripts/provision-secrets.sh` over ssh stdin.
 - **Nothing from a pull request's checkout is executed in a privileged context** (open-macaron/knowledge `merge.yml`; environments that run code only on trusted branches).
 
 ## Release and deploy
 
 1. Push to `main` (small semantic commits). CI (`ci.yml`) must be green; a network flake pulling base images is retried, not ignored.
-2. `release.yml` builds the controller image; `release-agent-cli.yml` and `release-knowledge-cli.yml` publish the CLI bundles. Each has a build provenance attestation.
+2. `release.yml` builds the controller image; `release-agent-cli.yml` and `release-knowledge-cli.yml` publish the CLI bundles. Each has a build provenance attestation. `release-review.yml` publishes `@open-macaron/review` to npm (trusted publishing) when `packages/review`'s version changes, once the repository variable `NPM_PUBLISH` is `true`.
 3. **Verify before pinning:** `gh attestation verify` on the image digest / bundle (signer workflow on `refs/heads/main`, source digest = the commit).
 4. Pin: the image digest in `deploy/quadlets/macaron-controller.container`; the agent-cli URL and sha256 in open-macaron/runner `run.yml`; the knowledge-cli URL and sha256 in open-macaron/knowledge workflows (a platform PR there: `.github/` is never auto-merged).
 5. Deploy **only over ssh**: `ssh open-macaron-vps 'sudo bash /opt/macaron/repo/deploy/scripts/deploy.sh'`. Never run host operations locally. If ssh says `Permission denied (publickey)` with `SSH_AUTH_SOCK` unset, the key is in the desktop agent: `export SSH_AUTH_SOCK=/run/user/$(id -u)/gcr/ssh`.
