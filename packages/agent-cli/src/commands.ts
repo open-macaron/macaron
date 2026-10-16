@@ -52,7 +52,8 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
   const state = await readJson(p.bootstrapFile, BootstrapState);
   if (context.mode === "review") return review(inputs, context, state);
   const systemPromptFile = join(p.state, "system-prompt.md");
-  await writeFile(systemPromptFile, systemPrompt(context, p.out));
+  const environment = await environmentExtras(p.environment);
+  await writeFile(systemPromptFile, [systemPrompt(context, p.out), environment.notes].filter((part) => part !== undefined).join("\n\n"));
   const { exitCode } = await runHarness({
     harness: state.harness,
     toolsDir: p.tools,
@@ -62,6 +63,7 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
     systemPromptFile,
     task: taskPrompt(context),
     access: "write",
+    mcpConfigFile: environment.mcpConfigFile,
   });
   await rm(p.keyFile, { force: true });
   if (exitCode !== 0) core.warning(`harness exited with ${String(exitCode)}`);
@@ -75,6 +77,16 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
 export function verdictsSchema(): object {
   const { $schema: _metaSchema, ...schema } = z.toJSONSchema(ReviewVerdicts, { target: "draft-7" });
   return schema;
+}
+
+/**
+ * What the repository's environment prepared for the agent (environments/<name> in open-macaron/runner):
+ * MCP servers (`mcp.json`) and instructions (`AGENTS.md`), e.g. a running Podman Desktop to drive.
+ */
+export async function environmentExtras(dir: string): Promise<{ readonly notes: string | undefined; readonly mcpConfigFile: string | undefined }> {
+  const read = async (file: string) => readFile(join(dir, file), "utf8").catch(() => undefined);
+  const mcpConfigFile = join(dir, "mcp.json");
+  return { notes: (await read("AGENTS.md"))?.trim(), mcpConfigFile: (await read("mcp.json")) === undefined ? undefined : mcpConfigFile };
 }
 
 /** Inline diffs beyond this size become a file list: the reviewer reads them with `git diff`. */

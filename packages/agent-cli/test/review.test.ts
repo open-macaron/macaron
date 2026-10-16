@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { CommitSha, RepoSlug, RunContext, RunResult, Ticket } from "@open-macaron/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { run, verdictsSchema } from "../src/commands.ts";
+import { environmentExtras, run, verdictsSchema } from "../src/commands.ts";
 import { claudeArgs, structuredOutput } from "../src/harness.ts";
 import { type Inputs, paths } from "../src/inputs.ts";
 import { reviewSystemPrompt, reviewTaskPrompt } from "../src/prompts.ts";
@@ -30,6 +30,31 @@ describe("claudeArgs", () => {
     expect(args.slice(args.indexOf("--tools"), args.indexOf("--tools") + 2)).toEqual(["--tools", "Read,Grep,Glob,Bash,Agent"]);
     expect(args.slice(args.indexOf("--allowedTools"))).toEqual(["--allowedTools", "Bash(git log *)", "Bash(git blame *)", "Bash(git show *)", "Bash(git diff *)"]);
     expect(args.slice(args.indexOf("--output-format"), args.indexOf("--output-format") + 4)).toEqual(["--output-format", "json", "--json-schema", '{"type":"object"}']);
+  });
+});
+
+describe("environment MCP servers", () => {
+  const base = { model: "anthropic/claude-sonnet-5.5", systemPromptFile: "/tmp/p.md", mcpConfigFile: "/tmp/env/mcp.json" };
+
+  it("gives write sessions only the environment's servers", () => {
+    const args = claudeArgs({ ...base, access: "write" });
+    expect(args.slice(args.indexOf("--mcp-config"))).toEqual(["--mcp-config", "/tmp/env/mcp.json", "--strict-mcp-config"]);
+  });
+
+  it("never gives them to read-only sessions (reviews)", () => {
+    expect(claudeArgs({ ...base, access: "read-only", outputSchema: {} })).not.toContain("--mcp-config");
+  });
+
+  it("reads the environment's instructions and MCP config when present", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "macaron-env-"));
+    try {
+      expect(await environmentExtras(dir)).toEqual({ notes: undefined, mcpConfigFile: undefined });
+      await writeFile(join(dir, "AGENTS.md"), "## Environment: Podman Desktop is running\n");
+      await writeFile(join(dir, "mcp.json"), "{}");
+      expect(await environmentExtras(dir)).toEqual({ notes: "## Environment: Podman Desktop is running", mcpConfigFile: join(dir, "mcp.json") });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

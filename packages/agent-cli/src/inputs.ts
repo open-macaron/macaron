@@ -43,6 +43,8 @@ export interface Paths {
   readonly keyFile: string;
   readonly contextFile: string;
   readonly bootstrapFile: string;
+  /** What the repository's environment leaves for the agent: optional `mcp.json` and `AGENTS.md`. */
+  readonly environment: string;
   /** What gets uploaded as the `macaron-result` artifact. */
   readonly out: string;
   readonly media: string;
@@ -61,6 +63,7 @@ export function paths(inputs: Pick<Inputs, "RUNNER_TEMP" | "GITHUB_WORKSPACE">):
     keyFile: join(state, "openrouter.key"),
     contextFile: join(state, "context.json"),
     bootstrapFile: join(state, "bootstrap.json"),
+    environment: join(inputs.RUNNER_TEMP, "macaron-env"),
     out,
     media: join(out, "media"),
     resultFile: join(out, "result.json"),

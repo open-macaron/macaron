@@ -47,6 +47,8 @@ export interface HarnessRun {
   readonly access: "write" | "read-only";
   /** JSON Schema of the session's final answer; set: the answer is returned as `output`. */
   readonly outputSchema?: object | undefined;
+  /** MCP servers the environment provides (e.g. to drive Podman Desktop). Only write sessions get them. */
+  readonly mcpConfigFile?: string | undefined;
 }
 
 export interface HarnessOutcome {
@@ -71,12 +73,15 @@ const READ_ONLY_TOOLS = "Read,Grep,Glob,Bash,Agent";
 const READ_ONLY_BASH = ["Bash(git log *)", "Bash(git blame *)", "Bash(git show *)", "Bash(git diff *)"];
 
 /** Claude Code's command line for a run (exported for tests). */
-export function claudeArgs(run: Pick<HarnessRun, "model" | "systemPromptFile" | "access" | "outputSchema">): string[] {
+export function claudeArgs(run: Pick<HarnessRun, "model" | "systemPromptFile" | "access" | "outputSchema" | "mcpConfigFile">): string[] {
   const common = ["--print", "--model", run.model, "--append-system-prompt-file", run.systemPromptFile, "--no-session-persistence"];
   const output = run.outputSchema === undefined ? ["--output-format", "text"] : ["--output-format", "json", "--json-schema", JSON.stringify(run.outputSchema)];
   switch (run.access) {
-    case "write":
-      return [...common, ...output, "--permission-mode", "bypassPermissions"];
+    case "write": {
+      // --strict-mcp-config: only the environment's servers, never a configuration from the checkout.
+      const mcp = run.mcpConfigFile === undefined ? [] : ["--mcp-config", run.mcpConfigFile, "--strict-mcp-config"];
+      return [...common, ...output, "--permission-mode", "bypassPermissions", ...mcp];
+    }
     case "read-only":
       // dontAsk: whatever isn't allowed below is refused, never prompted.
       return [...common, ...output, "--permission-mode", "dontAsk", "--tools", READ_ONLY_TOOLS, "--allowedTools", ...READ_ONLY_BASH];
