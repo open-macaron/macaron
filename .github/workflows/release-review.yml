@@ -12,6 +12,8 @@ on:
       - packages/contracts/**
       - pnpm-lock.yaml
       - .github/workflows/release-review.yml
+  # By hand: publish the current version if it isn't on npm yet (still gated on NPM_PUBLISH).
+  workflow_dispatch:
 
 permissions: {}
 
