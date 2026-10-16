@@ -11,6 +11,7 @@ import { RunsRepository } from "../runs/runs.repository.ts";
 import { runUrl } from "../runs/run-url.ts";
 import { renderReview, withReviewCost } from "../review/render.ts";
 import type { RuleResult } from "../review/verify.ts";
+import { EvidenceHost } from "./evidence-host.ts";
 import { ForkCommitter } from "./fork-committer.ts";
 import type { Publishable } from "./gate.ts";
 import { type CostRow, type LoopState, renderCostTable, resolveAttachments, sanitize, upsertCostSection } from "./markdown.ts";
@@ -23,8 +24,6 @@ export interface PublishInput {
   readonly config: RepoConfig;
   readonly publishable: Publishable;
   readonly runUrl: string;
-  /** attachment id → hosted URL (empty until evidence hosting ships). */
-  readonly attachmentUrls: ReadonlyMap<string, string>;
 }
 
 /** The review id stored as the `review` effect's external id. */
@@ -78,6 +77,7 @@ export class Publisher {
     private readonly writer: UpstreamWriter,
     private readonly bot: BotIdentity,
     private readonly reactions: ReactionTargets,
+    private readonly evidence: EvidenceHost,
   ) {}
 
   async publish(input: PublishInput): Promise<void> {
@@ -89,7 +89,9 @@ export class Publisher {
     const context = run.context;
     const upstream = repoRef(thread.repo);
     const mentions = participants(context);
-    const clean = (body: string) => sanitize(resolveAttachments(body, input.attachmentUrls), mentions);
+    // Media first: the texts below reference them by URL (posting those texts makes them public).
+    const attachmentUrls = await this.evidence.publish({ owner: this.bot.identity.login, repo: config.fork }, thread, run, publishable.attachments);
+    const clean = (body: string) => sanitize(resolveAttachments(body, attachmentUrls), mentions);
     const result = publishable.result;
 
     if (result.action === "commit" && publishable.changes !== undefined) {

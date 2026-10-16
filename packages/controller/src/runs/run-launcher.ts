@@ -174,7 +174,7 @@ export class RunLauncher {
     const closed = await this.runs.finish(run.id, { status: "completed", failure: null }, this.clock.now());
     if (!closed) return undefined;
     try {
-      await this.publisher.publish({ run, thread, config, publishable: verdict.publishable, runUrl: url ?? "", attachmentUrls: new Map() });
+      await this.publisher.publish({ run, thread, config, publishable: verdict.publishable, runUrl: url ?? "" });
     } catch (error: unknown) {
       this.logger.error(`publishing run ${run.id} failed: ${describeError(error)}`);
       await this.publisher.reportFailure({ run, thread, reason: "publishing the result failed; maintainers have been notified", runUrl: url });

@@ -15,6 +15,7 @@ import { NotificationsApi, NotificationsSource } from "./ingest/notifications-so
 import { DrizzlePollStateStore, PollStateStore } from "./ingest/poll-state.store.ts";
 import { ThreadWorker } from "./ingest/thread-worker.ts";
 import { Jobs } from "./jobs/jobs.ts";
+import { EvidenceHost } from "./publish/evidence-host.ts";
 import { ForkCommitter } from "./publish/fork-committer.ts";
 import { Publisher } from "./publish/publisher.ts";
 import { ReactionTargets } from "./publish/reaction-targets.ts";
@@ -48,7 +49,7 @@ export class BudgetModule {}
 
 /** Everything that writes to GitHub. */
 @Module({
-  providers: [ForkCommitter, UpstreamWriter, ReactionTargets, Publisher],
+  providers: [ForkCommitter, UpstreamWriter, ReactionTargets, EvidenceHost, Publisher],
   exports: [ForkCommitter, UpstreamWriter, ReactionTargets, Publisher],
 })
 export class PublishModule {}
