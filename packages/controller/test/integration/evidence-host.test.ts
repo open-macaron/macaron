@@ -20,10 +20,11 @@ let runs: RunsRepository;
 const server = setupServer();
 
 beforeAll(async () => {
-  server.listen({ onUnhandledFrame: "error" });
   container = await startPostgres();
   db = await connectAndMigrate(container.getConnectionUri());
   runs = new RunsRepository(db);
+  // After the container: Testcontainers talks HTTP to the container runtime, which must not be intercepted.
+  server.listen({ onUnhandledFrame: "bypass" });
 });
 afterEach(() => {
   server.resetHandlers();
