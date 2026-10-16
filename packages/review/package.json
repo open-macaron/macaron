@@ -17,6 +17,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "bundle": "node scripts/bundle.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

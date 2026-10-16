@@ -13,3 +13,4 @@ coverage/
 # local one-off probes
 *-probe.mjs
 *-probe.ts
+dist-cli/
