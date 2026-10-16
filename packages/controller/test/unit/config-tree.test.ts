@@ -11,6 +11,13 @@ describe("the committed config/ tree", () => {
     const snapshot = await loadConfigTree(repoConfigDir);
 
     expect(snapshot.repos.get("axel7083/foobar-tmp-demo")?.budgets.implement).toBe(2);
+    expect(snapshot.repos.get("axel7083/extension-podman-quadlet")).toMatchObject({
+      project: "podman-desktop-extensions",
+      runsOn: "ubuntu-26.04",
+      capabilities: ["gui"],
+      environment: { source: "shared", name: "podman-desktop-extensions" },
+      models: { review: "anthropic/claude-haiku-5.5" },
+    });
   });
 });
 

@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../../packages/contracts/schemas/config-project.schema.json
+#
+# Podman Desktop extensions. For now only a test fork, to exercise the GUI environment
+# (podman-desktop-extensions in open-macaron/runner): no upstream repository is enrolled yet.
+
+project: podman-desktop-extensions
+owners: "@open-macaron/maintainers"
+users:
+  - axel7083
+bots: []
+budget:
+  monthUsd: 30.00
+concurrency: 1
+defaults:
+  runsOn: ubuntu-26.04
+  timeoutMinutes: 45
+  environment:
+    source: shared
+    name: podman-desktop-extensions
+    params: {}
+  capabilities: [gui]
+  budgets:
+    implement: 5.00
+    reproduce: 3.00
+    verify: 3.00
+    address_review: 2.00
+    review: 0.50
