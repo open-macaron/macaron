@@ -9,6 +9,7 @@ on:
     paths:
       - packages/contracts/**
       - packages/controller/**
+      - packages/review/**
       - pnpm-lock.yaml
       - .github/workflows/release.yml
 

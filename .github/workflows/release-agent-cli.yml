@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - packages/agent-cli/**
+      - packages/review/**
       - packages/contracts/**
       - pnpm-lock.yaml
       - .github/workflows/release-agent-cli.yml
