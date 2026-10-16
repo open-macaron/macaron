@@ -15,7 +15,7 @@ import { ForkCommitter } from "../publish/fork-committer.ts";
 import { UpstreamWriter } from "../publish/upstream-writer.ts";
 import { KnowledgeClient } from "../review/knowledge-client.ts";
 import { PullDiffReader } from "../review/pull-diff.ts";
-import { selectRules } from "../review/select-rules.ts";
+import { selectRules } from "@open-macaron/review";
 import { RunsRepository, type ThreadRecord } from "../runs/runs.repository.ts";
 import { branchFor } from "./triggers.ts";
 

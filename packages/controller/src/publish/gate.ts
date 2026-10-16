@@ -1,6 +1,5 @@
 import { type Attachment, allowedActions, type Changes, type FileChange, type Mode, type RunContext, type RunResult } from "@open-macaron/contracts";
-import type { PullDiff } from "../review/pull-diff.ts";
-import { type RuleResult, verifyReview } from "../review/verify.ts";
+import { type PullDiff, type RuleResult, verifyReview } from "@open-macaron/review";
 import { type DetectedMedia, detectMedia } from "./media-type.ts";
 import { findSecrets } from "./secrets.ts";
 

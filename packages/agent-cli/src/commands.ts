@@ -1,14 +1,15 @@
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import * as core from "@actions/core";
-import { Attachment, AttachmentId, ReviewVerdicts, RunContext, RunResult } from "@open-macaron/contracts";
+import { Attachment, AttachmentId, RunContext, RunResult } from "@open-macaron/contracts";
+import { judge, localScope } from "@open-macaron/review";
 import { z } from "zod";
 import { bootstrap as requestBootstrap } from "./controller-api.ts";
 import { changesSince, checkout } from "./git.ts";
-import { installHarness, runHarness } from "./harness.ts";
+import { claudeBinary, claudeEnvironment, installHarness, runHarness } from "./harness.ts";
 import { type Inputs, type Paths, paths, readInputs } from "./inputs.ts";
-import { reviewSystemPrompt, reviewTaskPrompt, systemPrompt, taskPrompt } from "./prompts.ts";
-import { annotateDiff, pullRequestDiff } from "./review-diff.ts";
+import { systemPrompt, taskPrompt } from "./prompts.ts";
+import { fetchPullBase } from "./review-diff.ts";
 
 const BootstrapState = z.object({ harness: z.enum(["claude", "codex", "opencode"]), model: z.string().min(1) });
 
@@ -54,7 +55,7 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
   const systemPromptFile = join(p.state, "system-prompt.md");
   const environment = await environmentExtras(p.environment);
   await writeFile(systemPromptFile, [systemPrompt(context, p.out), environment.notes].filter((part) => part !== undefined).join("\n\n"));
-  const { exitCode } = await runHarness({
+  const exitCode = await runHarness({
     harness: state.harness,
     toolsDir: p.tools,
     work: p.work,
@@ -62,21 +63,11 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
     openRouterKey: (await readFile(p.keyFile, "utf8")).trim(),
     systemPromptFile,
     task: taskPrompt(context),
-    access: "write",
     mcpConfigFile: environment.mcpConfigFile,
   });
   await rm(p.keyFile, { force: true });
   if (exitCode !== 0) core.warning(`harness exited with ${String(exitCode)}`);
   return finish(inputs);
-}
-
-/**
- * The verdicts' JSON Schema for `--json-schema`: draft 7 and no `$schema` key, because Claude Code's
- * validator doesn't know the 2020-12 meta-schema (measured: "no schema with key or ref").
- */
-export function verdictsSchema(): object {
-  const { $schema: _metaSchema, ...schema } = z.toJSONSchema(ReviewVerdicts, { target: "draft-7" });
-  return schema;
 }
 
 /**
@@ -93,40 +84,42 @@ export async function environmentExtras(dir: string): Promise<{ readonly notes: 
 const MAX_INLINE_DIFF_CHARS = 150_000;
 
 /**
- * A review: one read-only session over every selected rule, with a schema for its answer. This
- * command writes result.json itself (the session can't write files); the controller verifies
- * every claimed violation against GitHub's diff before publishing anything.
+ * A review: the same engine as a local `macaron-review` (@open-macaron/review): the diff from the
+ * merge base, the prompts, one read-only session over every selected rule. The rules are the ones
+ * the controller selected on GitHub's diff; it verifies every claimed violation again before
+ * publishing anything. This command writes result.json itself (the session can't write files).
  */
 async function review(inputs: Inputs, context: RunContext, state: z.infer<typeof BootstrapState>): Promise<number> {
   const p = paths(inputs);
   const pull = context.review;
   if (pull === undefined) throw new Error("a review run needs its review context");
-  const annotated = annotateDiff(await pullRequestDiff(p.work, pull.baseSha));
-  const systemPromptFile = join(p.state, "system-prompt.md");
-  await writeFile(systemPromptFile, reviewSystemPrompt(context));
-  const { exitCode, output } = await runHarness({
-    harness: state.harness,
-    toolsDir: p.tools,
-    work: p.work,
+  await fetchPullBase(p.work, pull.baseSha);
+  const scope = await localScope({ dir: p.work, base: pull.baseSha, mode: "committed", includeUntracked: false });
+  const judgement = await judge({
+    command: claudeBinary(p.tools),
+    cwd: p.work,
+    env: claudeEnvironment((await readFile(p.keyFile, "utf8")).trim(), state.model),
     model: state.model,
-    openRouterKey: (await readFile(p.keyFile, "utf8")).trim(),
-    systemPromptFile,
-    task: reviewTaskPrompt(context, annotated.length <= MAX_INLINE_DIFF_CHARS ? annotated : undefined),
-    access: "read-only",
-    outputSchema: verdictsSchema(),
+    subject: {
+      what: `pull request ${context.repo}#${String(context.number)}`,
+      title: context.title,
+      head: pull.headSha,
+      diffCommand: scope.diffCommand,
+      request: context.trigger,
+      rules: pull.rules,
+    },
+    annotatedDiff: scope.annotated.length <= MAX_INLINE_DIFF_CHARS ? scope.annotated : undefined,
   });
   await rm(p.keyFile, { force: true });
-  if (exitCode !== 0) core.warning(`harness exited with ${String(exitCode)}`);
-  const verdicts = ReviewVerdicts.safeParse(output);
-  if (!verdicts.success) {
-    core.error(`the reviewer returned no valid verdicts${output === undefined ? "" : `:\n${z.prettifyError(verdicts.error)}`}`);
+  if (judgement.exitCode !== 0) core.warning(`harness exited with ${String(judgement.exitCode)}`);
+  if (judgement.verdicts === undefined) {
+    core.error(`the reviewer returned no valid verdicts: ${judgement.problem ?? "no answer"}`);
     return 1;
   }
-  const checked = verdicts.data.verdicts.length;
   await writeJson(p.resultFile, {
     action: "review",
-    review: verdicts.data.verdicts,
-    summary: `Checked ${String(checked)} of ${String(pull.rules.length)} rule${pull.rules.length === 1 ? "" : "s"}.`,
+    review: judgement.verdicts,
+    summary: `Checked ${String(judgement.verdicts.length)} of ${String(pull.rules.length)} rule${pull.rules.length === 1 ? "" : "s"}.`,
     replies: [],
     attachments: [],
     learnings: [],

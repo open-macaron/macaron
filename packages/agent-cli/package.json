@@ -19,7 +19,7 @@
   "dependencies": {
     "@actions/core": "catalog:",
     "@open-macaron/contracts": "workspace:*",
-    "diff": "catalog:",
+    "@open-macaron/review": "workspace:*",
     "p-retry": "catalog:",
     "zod": "catalog:"
   },

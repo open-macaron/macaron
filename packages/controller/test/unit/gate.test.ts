@@ -2,7 +2,7 @@ import { type Changes, CommitSha } from "@open-macaron/contracts";
 import { Changes as ChangesSchema } from "@open-macaron/contracts";
 import { describe, expect, it } from "vitest";
 import { gate, type GateInput } from "../../src/publish/gate.ts";
-import { toDiffFile } from "../../src/review/pull-diff.ts";
+import { diffFileFromPatch as toDiffFile } from "@open-macaron/review";
 import { BASE_SHA, PNG, runContext, runResult, SVG, text, WEBM } from "../support/fixtures.ts";
 
 const changes = (files: readonly unknown[], baseSha = BASE_SHA): Changes => ChangesSchema.parse({ baseSha, files });

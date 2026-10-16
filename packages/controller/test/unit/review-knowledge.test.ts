@@ -4,8 +4,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { UpstreamError } from "../../src/common/errors.ts";
 import { KnowledgeClient } from "../../src/review/knowledge-client.ts";
-import { selectRules } from "../../src/review/select-rules.ts";
-import { toDiffFile } from "../../src/review/pull-diff.ts";
+import { diffFileFromPatch as toDiffFile, selectRules } from "@open-macaron/review";
 import { testEnv } from "../support/env.ts";
 
 const BASE = "https://knowledge.example.test/v1";

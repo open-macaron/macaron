@@ -1,0 +1,34 @@
+{
+  "name": "@open-macaron/review",
+  "version": "0.1.0",
+  "private": true,
+  "description": "macaron-bot's review engine: open-macaron/knowledge rules selected by changed files, checked by an agent in a read-only session, evidence verified. Used by the bot and, as the macaron-review CLI, locally.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@open-macaron/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@open-macaron/contracts": "workspace:*",
+    "diff": "catalog:",
+    "markdown-table": "catalog:",
+    "picomatch": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/picomatch": "catalog:",
+    "esbuild": "catalog:",
+    "msw": "catalog:"
+  }
+}

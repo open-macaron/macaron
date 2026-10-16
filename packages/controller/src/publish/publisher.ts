@@ -10,7 +10,7 @@ import type { RunRecord, ThreadRecord } from "../runs/runs.repository.ts";
 import { RunsRepository } from "../runs/runs.repository.ts";
 import { runUrl } from "../runs/run-url.ts";
 import { renderReview, withReviewCost } from "../review/render.ts";
-import type { RuleResult } from "../review/verify.ts";
+import type { RuleResult } from "@open-macaron/review";
 import { EvidenceHost } from "./evidence-host.ts";
 import { ForkCommitter } from "./fork-committer.ts";
 import type { Publishable } from "./gate.ts";

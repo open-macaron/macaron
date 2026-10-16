@@ -1,5 +1,5 @@
 import type { ReviewContext, RuleSeverity, RuleVerdict } from "@open-macaron/contracts";
-import type { PullDiff } from "./pull-diff.ts";
+import type { DiffFile } from "./diff.ts";
 
 export type RuleOutcome = "valid" | "warning" | "violation" | "ignored";
 
@@ -43,7 +43,7 @@ const SKIP_REASON: Readonly<Record<ReviewContext["skipped"][number]["reason"], s
  * line the pull request adds, at that number, in a file the rule applies to. A violation without
  * such evidence, or a rule left without a verdict, is published as ignored, never as a pass.
  */
-export function verifyReview(review: ReviewContext, verdicts: readonly RuleVerdict[], diff: PullDiff): ReviewVerification {
+export function verifyReview(review: Pick<ReviewContext, "rules" | "skipped">, verdicts: readonly RuleVerdict[], diff: { readonly files: readonly DiffFile[] }): ReviewVerification {
   const problems: string[] = [];
   const selected = new Map(review.rules.map((entry) => [entry.rule.id, entry]));
   const byRule = new Map<string, RuleVerdict>();

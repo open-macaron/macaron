@@ -5,31 +5,19 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { CommitSha, RepoSlug, RunContext, RunResult, Ticket } from "@open-macaron/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { environmentExtras, run, verdictsSchema } from "../src/commands.ts";
-import { claudeArgs, structuredOutput } from "../src/harness.ts";
+import { claudeReviewArgs } from "@open-macaron/review";
+import { environmentExtras, run } from "../src/commands.ts";
+import { claudeArgs } from "../src/harness.ts";
 import { type Inputs, paths } from "../src/inputs.ts";
-import { reviewSystemPrompt, reviewTaskPrompt } from "../src/prompts.ts";
-import { annotateDiff } from "../src/review-diff.ts";
 
 const git = (cwd: string, ...args: string[]) => promisify(execFile)("git", args, { cwd });
 
 describe("claudeArgs", () => {
-  const base = { model: "anthropic/claude-haiku-5.5", systemPromptFile: "/tmp/p.md" };
-
-  it("keeps write sessions as they were", () => {
-    expect(claudeArgs({ ...base, access: "write" })).toEqual([
-      "--print", "--model", "anthropic/claude-haiku-5.5", "--append-system-prompt-file", "/tmp/p.md", "--no-session-persistence",
+  it("runs write sessions with every tool and no prompts", () => {
+    expect(claudeArgs({ model: "anthropic/claude-sonnet-5.5", systemPromptFile: "/tmp/p.md" })).toEqual([
+      "--print", "--model", "anthropic/claude-sonnet-5.5", "--append-system-prompt-file", "/tmp/p.md", "--no-session-persistence",
       "--output-format", "text", "--permission-mode", "bypassPermissions",
     ]);
-  });
-
-  it("limits read-only sessions to reading tools and git history, refusing anything else, with a schema-bound answer", () => {
-    const args = claudeArgs({ ...base, access: "read-only", outputSchema: { type: "object" } });
-    expect(args).toContain("dontAsk");
-    expect(args).not.toContain("bypassPermissions");
-    expect(args.slice(args.indexOf("--tools"), args.indexOf("--tools") + 2)).toEqual(["--tools", "Read,Grep,Glob,Bash,Agent"]);
-    expect(args.slice(args.indexOf("--allowedTools"))).toEqual(["--allowedTools", "Bash(git log *)", "Bash(git blame *)", "Bash(git show *)", "Bash(git diff *)"]);
-    expect(args.slice(args.indexOf("--output-format"), args.indexOf("--output-format") + 4)).toEqual(["--output-format", "json", "--json-schema", '{"type":"object"}']);
   });
 });
 
@@ -37,12 +25,12 @@ describe("environment MCP servers", () => {
   const base = { model: "anthropic/claude-sonnet-5.5", systemPromptFile: "/tmp/p.md", mcpConfigFile: "/tmp/env/mcp.json" };
 
   it("gives write sessions only the environment's servers", () => {
-    const args = claudeArgs({ ...base, access: "write" });
+    const args = claudeArgs(base);
     expect(args.slice(args.indexOf("--mcp-config"))).toEqual(["--mcp-config", "/tmp/env/mcp.json", "--strict-mcp-config"]);
   });
 
-  it("never gives them to read-only sessions (reviews)", () => {
-    expect(claudeArgs({ ...base, access: "read-only", outputSchema: {} })).not.toContain("--mcp-config");
+  it("never gives them to review sessions", () => {
+    expect(claudeReviewArgs({ model: base.model, systemPromptFile: base.systemPromptFile })).not.toContain("--mcp-config");
   });
 
   it("reads the environment's instructions and MCP config when present", async () => {
@@ -55,30 +43,6 @@ describe("environment MCP servers", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
-  });
-});
-
-describe("verdictsSchema", () => {
-  it("names no meta-schema (Claude Code's validator only knows draft 7)", () => {
-    const schema = verdictsSchema();
-    expect(schema).not.toHaveProperty("$schema");
-    expect(JSON.stringify(schema)).toContain('"verdicts"');
-  });
-});
-
-describe("structuredOutput", () => {
-  it("reads structured_output, else JSON final text, else nothing", () => {
-    expect(structuredOutput(JSON.stringify({ structured_output: { verdicts: [] }, result: "done" }))).toEqual({ verdicts: [] });
-    expect(structuredOutput(JSON.stringify({ result: '{"verdicts":[]}' }))).toEqual({ verdicts: [] });
-    expect(structuredOutput(JSON.stringify({ result: "I could not finish." }))).toBeUndefined();
-    expect(structuredOutput("not json")).toBeUndefined();
-  });
-});
-
-describe("annotateDiff", () => {
-  it("numbers lines in the pull request's version, as the controller verifies them", () => {
-    const raw = "diff --git a/src/a.ts b/src/a.ts\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -10,2 +10,3 @@\n context();\n-old();\n+eval(input);\n+done();\n";
-    expect(annotateDiff(raw)).toBe("### src/a.ts\n@@\n     10 | context();\n-       | old();\n+    11 | eval(input);\n+    12 | done();");
   });
 });
 
@@ -167,31 +131,5 @@ describe("review run", () => {
   it("fails without valid verdicts, so the run can be retried", async () => {
     await fakeClaude({ result: "I ran out of budget." });
     expect(await run(inputs)).toBe(1);
-  });
-});
-
-describe("review prompts", () => {
-  it("asks for subagents only when there are many rules", () => {
-    const rule = { id: "x/r", scope: "x", title: "R", severity: "warning", appliesTo: null, exclude: [], sources: [], body: "## Check" };
-    const context = (count: number) =>
-      RunContext.parse({
-        mode: "review",
-        repo: "org-x/repo-a",
-        number: 7,
-        kind: "pull",
-        title: "T",
-        baseSha: "a".repeat(40),
-        branch: "macaron/7-t",
-        trigger: { kind: "mention", author: "alice", url: "https://github.com/org-x/repo-a/pull/7", instruction: "review" },
-        thread: [],
-        reviewComments: [],
-        priorLoops: [],
-        commands: {},
-        attachments: { maxFiles: 1, maxFileBytes: 1, maxTotalBytes: 1 },
-        review: { pull: 7, baseSha: "b".repeat(40), headSha: "a".repeat(40), rules: Array.from({ length: count }, (_, i) => ({ rule: { ...rule, id: `x/r${String(i)}` }, files: ["f"] })), skipped: [], knowledgeCommit: null },
-      });
-    expect(reviewSystemPrompt(context(2))).not.toContain("subagent");
-    expect(reviewSystemPrompt(context(6))).toContain("subagent");
-    expect(reviewTaskPrompt(context(1), undefined)).toContain(`git diff ${"b".repeat(40)}...HEAD -- <path>`);
   });
 });

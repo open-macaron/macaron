@@ -388,9 +388,9 @@ importers:
       '@open-macaron/contracts':
         specifier: workspace:*
         version: link:../contracts
-      diff:
-        specifier: 'catalog:'
-        version: 9.0.0
+      '@open-macaron/review':
+        specifier: workspace:*
+        version: link:../review
       p-retry:
         specifier: 'catalog:'
         version: 8.0.1
@@ -452,6 +452,9 @@ importers:
       '@open-macaron/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@open-macaron/review':
+        specifier: workspace:*
+        version: link:../review
       '@openrouter/sdk':
         specifier: 'catalog:'
         version: 1.4.25
@@ -467,9 +470,6 @@ importers:
       '@sindresorhus/slugify':
         specifier: 'catalog:'
         version: 3.0.1
-      diff:
-        specifier: 'catalog:'
-        version: 9.0.0
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1)(zod@4.6.6)
@@ -506,9 +506,6 @@ importers:
       pg-boss:
         specifier: 'catalog:'
         version: 12.37.1(@opentelemetry/api@1.9.1)
-      picomatch:
-        specifier: 'catalog:'
-        version: 4.0.7
       pino:
         specifier: 'catalog:'
         version: 10.4.0
@@ -546,9 +543,6 @@ importers:
       '@types/pg':
         specifier: 'catalog:'
         version: 8.23.1
-      '@types/picomatch':
-        specifier: 'catalog:'
-        version: 4.0.3
       drizzle-kit:
         specifier: 'catalog:'
         version: 1.0.0-rc.4
@@ -598,6 +592,34 @@ importers:
       esbuild:
         specifier: 'catalog:'
         version: 0.28.2
+
+  packages/review:
+    dependencies:
+      '@open-macaron/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      diff:
+        specifier: 'catalog:'
+        version: 9.0.0
+      markdown-table:
+        specifier: 'catalog:'
+        version: 3.0.4
+      picomatch:
+        specifier: 'catalog:'
+        version: 4.0.7
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.6
+    devDependencies:
+      '@types/picomatch':
+        specifier: 'catalog:'
+        version: 4.0.3
+      esbuild:
+        specifier: 'catalog:'
+        version: 0.28.2
+      msw:
+        specifier: 'catalog:'
+        version: 3.0.3(@types/node@24.19.2)(typescript@6.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
 
 packages:
 

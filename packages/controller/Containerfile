@@ -9,9 +9,11 @@ WORKDIR /src
 # Dependencies first, for layer caching: only manifests and the lockfile.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/contracts/package.json packages/contracts/
+COPY packages/review/package.json packages/review/
 COPY packages/controller/package.json packages/controller/
 RUN pnpm install --frozen-lockfile --filter @open-macaron/controller...
 COPY packages/contracts packages/contracts
+COPY packages/review packages/review
 COPY packages/controller packages/controller
 RUN pnpm --filter @open-macaron/controller... run build \
  && pnpm --filter @open-macaron/controller deploy --prod --legacy /opt/app

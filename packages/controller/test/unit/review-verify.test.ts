@@ -1,8 +1,7 @@
 import { CommitSha, type PublishedRule, type ReviewContext, type RuleVerdict } from "@open-macaron/contracts";
 import { describe, expect, it } from "vitest";
-import { toDiffFile, type PullDiff } from "../../src/review/pull-diff.ts";
+import { diffFileFromPatch as toDiffFile, type PullDiff, verifyReview } from "@open-macaron/review";
 import { renderReview, withReviewCost } from "../../src/review/render.ts";
-import { verifyReview } from "../../src/review/verify.ts";
 
 const HEAD = CommitSha.parse("a".repeat(40));
 const BASE = CommitSha.parse("b".repeat(40));
