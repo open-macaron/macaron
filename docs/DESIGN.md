@@ -276,34 +276,37 @@ Configuration is a hierarchy, `config/global.yaml` → `projects/<p>/project.yam
 
 ### Evidence: screenshots and videos
 
-**We never produce media ourselves; the repo's own tooling does.** For Podman Desktop, that means its Playwright setup: its environment provides Xvfb and Podman, and its `AGENTS.md` or knowledge explains how to launch the app and record. Our side defines only **where the agent drops files, how it references them, and what we do with them**.
+**The repo's tooling shows the app; the environment gives the agent the means; the controller publishes.** For Podman Desktop extensions, the `podman-desktop-extensions` environment (open-macaron/runner) starts Podman Desktop with the extension on a virtual display, with CDP on port 9222. The agent drives it through Podman Desktop's own `mcp-testing` skill (its MCP server, prompt and selectors), saves screenshots with the environment's `tools/screenshot.mjs`, and rebuilds and restarts with `podman-desktop.sh` after changing code. The environment tells the agent all this through `$RUNNER_TEMP/macaron-env/AGENTS.md`, and gives the harness `mcp.json`.
 
 ```mermaid
 flowchart LR
-  subgraph JOB["Agent job (untrusted)"]
-    A["Agent runs repo tooling<br/>e.g. Playwright: screenshot, video"] --> CLI["macaron-agent attach &lt;file&gt; --caption …<br/>→ returns id, copies to $MACARON_OUT/media/"]
-    CLI --> RES["$MACARON_OUT/result.json<br/>reply body: ![Repro](attachment:repro-1)"]
-    RES --> VAL["macaron-agent finish<br/>validates against the JSON Schema,<br/>builds GIF previews for videos"]
+  subgraph JOB["Agent job (untrusted, no GitHub token)"]
+    A["Agent drives the app<br/>(MCP) and saves a screenshot"] --> CLI["macaron-agent attach &lt;file&gt; --kind image --caption …<br/>→ ![caption](attachment:id), file in media/"]
+    CLI --> RES["result.json references attachment:id"]
   end
-  VAL -- "artifact" --> GATE
+  RES -- "artifact" --> GATE
   subgraph CTRL["Controller (trusted)"]
-    GATE["Gate: magic-byte type check, size/count limits,<br/>paths inside media/, every id referenced"] --> UP["Upload to open-macaron/evidence<br/>release per thread, asset per file"]
-    UP --> REW["Rewrite attachment:&lt;id&gt; → asset URLs"]
-    REW --> POST["Threaded reply / sticky comment"]
+    GATE["Gate: magic-byte type check, size/count limits,<br/>paths inside media/, every id referenced"] --> UP["EvidenceHost: GitHub user-attachments,<br/>uploaded against the bot's fork"]
+    UP --> REW["Rewrite attachment:id → github.com/user-attachments/assets/…"]
+    REW --> POST["Comment, PR body or reply (publishing makes the assets public)"]
   end
 ```
 
-- **The agent never writes the JSON by hand.** `macaron-agent` (agent-cli) gives it commands: `attach`, `reply`, `ask`, `finish`. They produce a valid `result.json`, and `finish` fails with a readable error the agent can fix within the same run.
-- **Rendering on GitHub:**
-  - images are embedded inline;
-  - GitHub only plays videos uploaded through its own UI, which has no API. So a video is posted as its GIF preview, linked to the full `.webm`/`.mp4` release asset.
-- **Hosting** is GitHub Releases in a dedicated public repo, `open-macaron/evidence`: one release per thread (tag `t/org-x.repo-a.12`), one asset per file. That gives no git-history bloat and up to 2 GB per file. Releases of closed threads are pruned after 180 days.
+- **Hosting: GitHub user-attachments,** the files GitHub serves for media pasted into issues. Images render inline, and so do videos, with a player. No dedicated repository and no git history.
+- **How it's uploaded:**
+  - the same request as `gh issue comment --attach` (GitHub CLI ≥ 2.99): `POST https://uploads.github.com/user-attachments/assets?name&content_type&repository_id`, through our Octokit client, with `GH_PUSH`;
+  - GitHub documents the CLI flag, not the endpoint. So the answer is validated with Zod, and a live test (`evidence.live.test.ts`) catches changes.
+- **The bot's fork as `repository_id`:**
+  - the endpoint requires write access to that repository and answers 404 otherwise; the bot only writes to its forks;
+  - an asset stays private to the bot until a saved comment references it, then becomes public (measured: about 20 s, on a repository other than the fork).
+- **Each file is uploaded once per loop** (effects), so a retried publish reuses it.
 - **Limits:**
   - allowed types: png, jpeg, webp, gif, webm, mp4;
   - at most 10 files and 50 MB per run.
 
   The controller only checks magic bytes and sizes. It never decodes or transcodes media, so it doesn't parse untrusted files.
-- **Capability-gated.** A repo's config declares `capabilities: [gui, video]`, and env-check proves them nightly. Without them, the Router doesn't pick `reproduce`/`verify`; the bot answers that the environment can't run the app yet.
+- **Videos (later):** `ffmpeg -f x11grab` on the virtual display, uploaded the same way.
+- **Capability-gated.** A repo's config declares `capabilities: [gui]`. Without it, `reproduce` and `verify` are refused: the environment can't run the app yet.
 
 ### Operating as an outside contributor
 
@@ -555,7 +558,7 @@ All `open-macaron` repos, the `runner` Actions logs, the images and the knowledg
 3. Caps, watchdog, `/stop`, loop caps, key sweeper.
 4. Knowledge: consult, then gather → knowledge PR, then retro/garden.
 5. codex and opencode adapters; upstream webhooks where an upstream admin offers one.
-6. `reproduce` / `verify` with evidence: `macaron-agent attach`, Gate media checks, `evidence` releases, GIF previews. Pilot: Podman Desktop with Playwright.
+6. `reproduce` / `verify` with evidence: `macaron-agent attach`, Gate media checks, GitHub user-attachments uploaded against the bot's fork. Pilot: Podman Desktop extensions (`podman-desktop-extensions` environment, Podman Desktop's `mcp-testing` skill).
 
 ## 10. Verification
 
