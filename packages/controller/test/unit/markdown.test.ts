@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderCostTable, resolveAttachments, sanitize, upsertCostSection } from "../../src/publish/markdown.ts";
+import { renderCostTable, resolveAttachments, sanitize, spentLine, upsertCostSection, withSpentLine } from "../../src/publish/markdown.ts";
 
 describe("sanitize", () => {
   it("keeps mentions of thread participants and defangs everyone else", () => {
@@ -63,5 +63,19 @@ describe("cost table", () => {
     expect(second.match(/macaron:cost:start/g)).toHaveLength(1);
     expect(second).toContain("$9.99");
     expect(second.endsWith("footer")).toBe(true);
+  });
+});
+
+describe("spent line", () => {
+  const status = ["**macaron-bot** · loop 1 · `plan`", "", "✅ Plan posted.", "", "<sub>Spent on this thread: $0.00 ⏳.</sub>"].join("\n");
+
+  it("shows the thread's cost, with ⏳ while a loop is settling", () => {
+    expect(spentLine(258_972, false)).toBe("<sub>Spent on this thread: $0.26.</sub>");
+    expect(spentLine(0, true)).toBe("<sub>Spent on this thread: $0.00 ⏳.</sub>");
+  });
+
+  it("replaces only the spent line of a status comment", () => {
+    expect(withSpentLine(status, spentLine(258_972, false))).toBe(status.replace("$0.00 ⏳", "$0.26"));
+    expect(withSpentLine("edited by a maintainer", spentLine(1, false))).toBe("edited by a maintainer");
   });
 });

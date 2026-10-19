@@ -100,3 +100,13 @@ export function upsertCostSection(body: string, section: string): string {
 export function escapeCell(text: string): string {
   return text.replaceAll("|", "\\|").replaceAll("\n", " ");
 }
+
+/** The status comment's last line: what the thread has cost so far, ⏳ while a loop is still settling. */
+export function spentLine(spentMicros: UsdMicros, settling: boolean): string {
+  return `<sub>Spent on this thread: ${formatUsd(spentMicros)}${settling ? " ⏳" : ""}.</sub>`;
+}
+
+/** A status comment with its spent line replaced (unchanged if it has none, e.g. edited by hand). */
+export function withSpentLine(body: string, line: string): string {
+  return body.replace(/<sub>Spent on this thread: [^<]*<\/sub>/, line);
+}

@@ -240,7 +240,7 @@ export class RunLauncher {
       this.logger.log(`run ${run.id} cost ${String(decision.costMicros)} µ$`);
       if (key !== undefined) await this.budget.revoke(key);
       const current = await this.runs.threadById(thread.id);
-      await this.publisher.refreshCost(current);
+      await this.publisher.refreshCost(current, run);
       if (run.mode === "review") await this.publisher.refreshReviewCost(current, run, decision.costMicros);
     }
   }
