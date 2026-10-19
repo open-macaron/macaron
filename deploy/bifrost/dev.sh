@@ -44,7 +44,7 @@ secret_from_env macaron-dev-llm-upstream-key LLM_UPSTREAM_KEY
 secret_from_env macaron-dev-bifrost-admin BIFROST_ADMIN_PASSWORD
 openssl rand -hex 24 | tr -d '\n' | podman secret create --replace macaron-dev-bifrost-db - >/dev/null
 RENDERED="${XDG_RUNTIME_DIR:-/tmp}/macaron-bifrost-dev"
-mkdir -p -m 0700 "$RENDERED"
+mkdir -p "$RENDERED" && chmod 0700 "$RENDERED"
 value LLM_UPSTREAM_URL | "$HERE/render-config.sh" "$RENDERED/config.json"
 
 podman pod create --name "$POD" --publish 127.0.0.1:18080:8080 --publish 127.0.0.1:18443:443 \

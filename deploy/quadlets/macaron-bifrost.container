@@ -35,6 +35,8 @@ Notify=healthy
 LogDriver=journald
 
 [Service]
+# Its first boot runs ~70 s of database migrations before it reports healthy (measured 2026-10-19).
+TimeoutStartSec=300
 Restart=on-failure
 RestartSec=10
 MemoryMax=512M

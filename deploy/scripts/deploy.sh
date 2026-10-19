@@ -2,6 +2,10 @@
 # Deploys open-macaron/macaron@main on the VPS (docs/DEPLOYMENT.md). Run ON THE VPS as root:
 #   sudo bash /opt/macaron/repo/deploy/scripts/deploy.sh
 # Pull-based: the VPS fetches the public repository; GitHub never holds a credential to this host.
+#
+# Everything runs inside main(), which bash parses whole before running: checking out main replaces
+# this file, and bash would otherwise read the rest of the new file from the old one's offset. After
+# the checkout the script re-executes itself, so the deployed commit's own deploy logic runs.
 set -euo pipefail
 
 REPO_URL="https://github.com/open-macaron/macaron.git"
@@ -9,46 +13,14 @@ REPO_DIR="/opt/macaron/repo"
 QUADLET_DIR="/etc/containers/systemd"
 ETC_DIR="/etc/macaron"
 BACKUP_DIR="/var/backups/macaron"
+# The last commit whose deploy passed the health gate: what "changed" compares against, so a deploy
+# that failed half-way still restarts everything that changed since.
+DEPLOYED_FILE="$ETC_DIR/deployed-commit"
 SECRETS=(macaron-pg-password macaron-database-url macaron-gh-interact macaron-gh-push macaron-gh-org macaron-or-provisioning macaron-or-router macaron-webhook-hmac
   macaron-bifrost-admin macaron-bifrost-db-password macaron-bifrost-encryption-key)
 
 log() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 die() { echo "error: $*" >&2; exit 1; }
-[[ $EUID -eq 0 ]] || die "run as root (sudo)"
-[[ "$(hostname)" == vps-* ]] || die "refusing to run outside the VPS (hostname $(hostname))"
-command -v git >/dev/null || die "git is missing (bootstrap-host.sh installs it)"
-
-log "prerequisites"
-[[ -f "$ETC_DIR/controller.env" ]] || die "$ETC_DIR/controller.env is missing (see provision-secrets.sh)"
-[[ -f "$ETC_DIR/caddy.env" ]] || die "$ETC_DIR/caddy.env is missing (see provision-secrets.sh)"
-for secret in "${SECRETS[@]}"; do
-  podman secret exists "$secret" || die "podman secret $secret is missing (see provision-secrets.sh)"
-done
-# Bifrost runs only once the upstream LLM key is provisioned.
-if podman secret exists macaron-llm-upstream-key && podman secret exists macaron-llm-upstream-url; then
-  BIFROST=true
-  UNITS=(macaron-postgres macaron-bifrost macaron-controller macaron-caddy)
-else
-  BIFROST=false
-  UNITS=(macaron-postgres macaron-controller macaron-caddy)
-fi
-echo "   Bifrost: $BIFROST"
-
-log "fetch main"
-if [[ ! -d "$REPO_DIR/.git" ]]; then
-  install -d -m 0755 "$(dirname "$REPO_DIR")"
-  git clone --quiet "$REPO_URL" "$REPO_DIR"
-fi
-previous="$(git -C "$REPO_DIR" rev-parse HEAD)"
-git -C "$REPO_DIR" fetch --quiet origin main
-git -C "$REPO_DIR" merge-base --is-ancestor "$previous" origin/main || die "origin/main is not a fast-forward of the deployed commit"
-git -C "$REPO_DIR" checkout --quiet --detach origin/main
-current="$(git -C "$REPO_DIR" rev-parse HEAD)"
-echo "   ${previous:0:7} → ${current:0:7}"
-
-image="$(sed -n 's/^Image=//p' "$REPO_DIR/deploy/quadlets/macaron-controller.container")"
-[[ "$image" =~ @sha256:[0-9a-f]{64}$ ]] || die "controller image is not pinned by digest: $image"
-[[ "$image" != *@sha256:0000000000000000000000000000000000000000000000000000000000000000 ]] || die "controller image digest is still the placeholder"
 
 install_quadlets() {
   install -d -m 0755 "$QUADLET_DIR"
@@ -99,53 +71,122 @@ unsettled_runs() {
   podman exec macaron-postgres psql -tA -U macaron -d macaron -c "SELECT count(*) FROM runs WHERE settled_at IS NULL"
 }
 
-if systemctl is-active --quiet macaron-postgres && changed deploy/quadlets packages; then
-  log "database dump before changing the controller"
-  install -d -m 0700 "$BACKUP_DIR"
-  podman exec macaron-postgres pg_dump -U macaron -d macaron | gzip >"$BACKUP_DIR/pre-deploy-$(date -u +%Y%m%dT%H%M%SZ)-${previous:0:7}.sql.gz"
-  find "$BACKUP_DIR" -name 'pre-deploy-*.sql.gz' -mtime +30 -delete
-fi
-
-log "install quadlets"
-install_quadlets
-
-log "start or restart"
-for unit in "${UNITS[@]}"; do
-  config_changed=false
-  if [[ "$unit" == macaron-bifrost ]]; then
-    ensure_bifrost_database
-    if render_bifrost_config; then config_changed=true; fi
-  fi
-  # shellcheck disable=SC2046 # unit_files prints zero or one path
-  if ! systemctl is-active --quiet "$unit"; then
-    systemctl start "$unit"
-  elif [[ "$config_changed" == true ]] || changed "deploy/quadlets/$unit.container" $(unit_files "$unit"); then
+# Starts what isn't running, restarts what changed. Returns 1 as soon as a unit fails to (re)start.
+start_units() {
+  local unit config_changed unsettled
+  for unit in "${UNITS[@]}"; do
+    config_changed=false
     if [[ "$unit" == macaron-bifrost ]]; then
-      unsettled="$(unsettled_runs)" || die "could not count unsettled runs"
-      [[ "$unsettled" =~ ^[0-9]+$ ]] || die "could not count unsettled runs (got: $unsettled)"
+      ensure_bifrost_database
+      if render_bifrost_config; then config_changed=true; fi
     fi
-    if [[ "$unit" == macaron-bifrost && "$unsettled" != 0 ]]; then
-      echo "   macaron-bifrost changed but runs are unsettled: not restarted, deploy again once they are" >&2
-      continue
+    # shellcheck disable=SC2046 # unit_files prints zero or one path
+    if ! systemctl is-active --quiet "$unit"; then
+      systemctl start "$unit" || return 1
+    elif [[ "$config_changed" == true ]] || changed "deploy/quadlets/$unit.container" $(unit_files "$unit"); then
+      if [[ "$unit" == macaron-bifrost ]]; then
+        unsettled="$(unsettled_runs)" || die "could not count unsettled runs"
+        [[ "$unsettled" =~ ^[0-9]+$ ]] || die "could not count unsettled runs (got: $unsettled)"
+        if [[ "$unsettled" != 0 ]]; then
+          echo "   macaron-bifrost changed but runs are unsettled: not restarted, deploy again once they are" >&2
+          continue
+        fi
+      fi
+      systemctl restart "$unit" || return 1
     fi
-    systemctl restart "$unit"
+  done
+  if changed config && ! changed deploy/quadlets/macaron-controller.container; then
+    systemctl reload macaron-controller || return 1
   fi
-done
-if changed config && ! changed deploy/quadlets/macaron-controller.container; then
-  systemctl reload macaron-controller
-fi
+}
 
-log "health gate"
-for _ in $(seq 1 24); do
-  if systemctl is-active --quiet macaron-controller; then
-    echo "   controller healthy on ${current:0:7}"
-    exit 0
+healthy() {
+  local unit
+  for unit in "${UNITS[@]}"; do systemctl is-active --quiet "$unit" || return 1; done
+}
+
+rollback() {
+  echo "$1: rolling back to ${previous:0:7}" >&2
+  git -C "$REPO_DIR" checkout --quiet --detach "$previous"
+  install_quadlets
+  systemctl restart macaron-controller macaron-caddy
+  exit 1
+}
+
+main() {
+  [[ $EUID -eq 0 ]] || die "run as root (sudo)"
+  [[ "$(hostname)" == vps-* ]] || die "refusing to run outside the VPS (hostname $(hostname))"
+  command -v git >/dev/null || die "git is missing (bootstrap-host.sh installs it)"
+
+  log "prerequisites"
+  [[ -f "$ETC_DIR/controller.env" ]] || die "$ETC_DIR/controller.env is missing (see provision-secrets.sh)"
+  [[ -f "$ETC_DIR/caddy.env" ]] || die "$ETC_DIR/caddy.env is missing (see provision-secrets.sh)"
+  local secret
+  for secret in "${SECRETS[@]}"; do
+    podman secret exists "$secret" || die "podman secret $secret is missing (see provision-secrets.sh)"
+  done
+  # Bifrost runs only once the upstream LLM key is provisioned.
+  if podman secret exists macaron-llm-upstream-key && podman secret exists macaron-llm-upstream-url; then
+    BIFROST=true
+    UNITS=(macaron-postgres macaron-bifrost macaron-controller macaron-caddy)
+  else
+    BIFROST=false
+    UNITS=(macaron-postgres macaron-controller macaron-caddy)
   fi
-  sleep 5
-done
+  echo "   Bifrost: $BIFROST"
 
-echo "controller not healthy after 2 minutes: rolling back to ${previous:0:7}" >&2
-git -C "$REPO_DIR" checkout --quiet --detach "$previous"
-install_quadlets
-systemctl restart macaron-controller macaron-caddy
-exit 1
+  log "fetch main"
+  if [[ ! -d "$REPO_DIR/.git" ]]; then
+    install -d -m 0755 "$(dirname "$REPO_DIR")"
+    git clone --quiet "$REPO_URL" "$REPO_DIR"
+  fi
+  if [[ -n "${MACARON_DEPLOY_PREVIOUS:-}" ]]; then
+    previous="$MACARON_DEPLOY_PREVIOUS"
+  elif [[ -s "$DEPLOYED_FILE" ]]; then
+    previous="$(<"$DEPLOYED_FILE")"
+  else
+    previous="$(git -C "$REPO_DIR" rev-parse HEAD)"
+  fi
+  if [[ -z "${MACARON_DEPLOY_PREVIOUS:-}" ]]; then
+    git -C "$REPO_DIR" fetch --quiet origin main
+    git -C "$REPO_DIR" merge-base --is-ancestor "$previous" origin/main || die "origin/main is not a fast-forward of the deployed commit"
+    git -C "$REPO_DIR" checkout --quiet --detach origin/main
+    # Continue in the version just checked out (see the header).
+    exec env MACARON_DEPLOY_PREVIOUS="$previous" bash "$REPO_DIR/deploy/scripts/deploy.sh"
+  fi
+  current="$(git -C "$REPO_DIR" rev-parse HEAD)"
+  echo "   ${previous:0:7} → ${current:0:7}"
+
+  local image
+  image="$(sed -n 's/^Image=//p' "$REPO_DIR/deploy/quadlets/macaron-controller.container")"
+  [[ "$image" =~ @sha256:[0-9a-f]{64}$ ]] || die "controller image is not pinned by digest: $image"
+  [[ "$image" != *@sha256:0000000000000000000000000000000000000000000000000000000000000000 ]] || die "controller image digest is still the placeholder"
+
+  if systemctl is-active --quiet macaron-postgres && changed deploy/quadlets packages; then
+    log "database dump before changing the controller"
+    install -d -m 0700 "$BACKUP_DIR"
+    podman exec macaron-postgres pg_dump -U macaron -d macaron | gzip >"$BACKUP_DIR/pre-deploy-$(date -u +%Y%m%dT%H%M%SZ)-${previous:0:7}.sql.gz"
+    find "$BACKUP_DIR" -name 'pre-deploy-*.sql.gz' -mtime +30 -delete
+  fi
+
+  log "install quadlets"
+  install_quadlets
+
+  log "start or restart"
+  start_units || rollback "a unit failed to start"
+
+  log "health gate"
+  local _
+  for _ in $(seq 1 24); do
+    if healthy; then
+      printf '%s\n' "$current" >"$DEPLOYED_FILE"
+      echo "   healthy on ${current:0:7}"
+      return 0
+    fi
+    sleep 5
+  done
+  rollback "not healthy after 2 minutes"
+}
+
+main "$@"
+exit
