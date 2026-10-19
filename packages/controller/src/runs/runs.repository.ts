@@ -20,6 +20,7 @@ export interface NewRun {
   readonly mode: Mode;
   readonly harness: Harness;
   readonly model: string;
+  readonly fastModel: string;
   readonly context: RunContext;
   readonly limitMicros: UsdMicros;
 }
@@ -85,6 +86,7 @@ export class RunsRepository {
           mode: run.mode,
           harness: run.harness,
           model: run.model,
+          fastModel: run.fastModel,
           context: run.context,
           limitMicros: run.limitMicros,
           loop: thread.loops,

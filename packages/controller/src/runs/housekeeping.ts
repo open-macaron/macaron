@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { MAX_TIMEOUT_MINUTES } from "@open-macaron/contracts";
 import { BudgetService, RUN_KEY_PREFIX } from "../budget/budget.service.ts";
 import { Clock } from "../common/clock.ts";
 import { describeError } from "../common/errors.ts";
@@ -7,15 +8,20 @@ import { RepoConfigService } from "../config/repo-config.service.ts";
 import { GH_ORG, type GitHub } from "../github/github.ts";
 import { repoRef } from "../github/repo-ref.ts";
 import { Jobs, NoPayload, Queue, SettleCostJob } from "../jobs/jobs.ts";
-import { RunLauncher } from "./run-launcher.ts";
+import { SETTLE_MAX_WAIT_MS } from "../budget/settlement.ts";
+import { KEY_GRACE_MINUTES, RunLauncher } from "./run-launcher.ts";
 import { RunsRepository } from "./runs.repository.ts";
 
 /** A dispatch whose run id never got recorded is given up after this long. */
 const UNBOUND_TIMEOUT_MS = 10 * 60_000;
 /** Runs are aborted this long after their configured timeout, if GitHub hasn't ended them. */
 const TIMEOUT_GRACE_MS = 10 * 60_000;
-/** Keys older than this are deleted whatever their run's state: no run lives that long. */
-const KEY_MAX_AGE_MS = 6 * 60 * 60_000;
+/**
+ * Keys older than this are deleted whatever their run's state: no run lives that long. Derived from
+ * the longest allowed run, its key's grace and settlement's longest wait, plus an hour: deleting the
+ * key of a run that is still settling would leave it unsettled for good (Bifrost reads usage from the key).
+ */
+export const KEY_MAX_AGE_MS = (MAX_TIMEOUT_MINUTES + KEY_GRACE_MINUTES + 60) * 60_000 + SETTLE_MAX_WAIT_MS;
 
 /**
  * Safety nets, scheduled by pg-boss (one instance runs each tick):

@@ -52,6 +52,7 @@ async function newRun(n: number) {
     mode: "reproduce",
     harness: "claude",
     model: "anthropic/claude-sonnet-5.5",
+    fastModel: "anthropic/claude-haiku-5.5",
     context: runContext({ mode: "reproduce" }),
     limitMicros: 1_000_000,
   });

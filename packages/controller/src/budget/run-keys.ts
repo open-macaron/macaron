@@ -33,6 +33,8 @@ export abstract class RunKeys {
   abstract init(): Promise<void>;
   /** A key capped at `limitUsd`, refused after `expiresAt`, and usable only with `models` where the backend can restrict them. */
   abstract create(name: string, limitUsd: number, expiresAt: Date, models: readonly string[]): Promise<ProvisionedKey>;
+  /** The models among `models` this backend can't bill, so a key's budget wouldn't limit them. */
+  abstract unpriced(models: readonly string[]): Promise<string[]>;
   /** Immediate: the next request made with the key is refused. */
   abstract disable(hash: string): Promise<void>;
   /** Idempotent: deleting a key that is already gone is not an error. */

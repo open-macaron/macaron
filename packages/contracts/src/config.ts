@@ -60,6 +60,9 @@ export const Contribution = z.strictObject({
 });
 export type Contribution = z.infer<typeof Contribution>;
 
+/** Longest a run may take, in minutes. The controller derives how long run keys may live from it. */
+export const MAX_TIMEOUT_MINUTES = 360;
+
 /** Every setting a repo ends up with once global → project → repo are merged. */
 export const RepoSettings = z.strictObject({
   harness: Harness,
@@ -70,7 +73,7 @@ export const RepoSettings = z.strictObject({
   fastModel: z.string().min(1),
   runsOn: z.string().min(1),
   draftPr: z.boolean(),
-  timeoutMinutes: z.int().min(5).max(360),
+  timeoutMinutes: z.int().min(5).max(MAX_TIMEOUT_MINUTES),
   budgets: Budgets,
   caps: Caps,
   environment: Environment,
@@ -88,7 +91,7 @@ export const RepoSettingsPatch = z.strictObject({
   fastModel: z.string().min(1).optional(),
   runsOn: z.string().min(1).optional(),
   draftPr: z.boolean().optional(),
-  timeoutMinutes: z.int().min(5).max(360).optional(),
+  timeoutMinutes: z.int().min(5).max(MAX_TIMEOUT_MINUTES).optional(),
   budgets: Budgets.partial().optional(),
   caps: Caps.partial().optional(),
   environment: EnvironmentPatch.optional(),

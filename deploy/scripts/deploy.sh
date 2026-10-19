@@ -120,7 +120,11 @@ for unit in "${UNITS[@]}"; do
   if ! systemctl is-active --quiet "$unit"; then
     systemctl start "$unit"
   elif [[ "$config_changed" == true ]] || changed "deploy/quadlets/$unit.container" $(unit_files "$unit"); then
-    if [[ "$unit" == macaron-bifrost && "$(unsettled_runs)" != 0 ]]; then
+    if [[ "$unit" == macaron-bifrost ]]; then
+      unsettled="$(unsettled_runs)" || die "could not count unsettled runs"
+      [[ "$unsettled" =~ ^[0-9]+$ ]] || die "could not count unsettled runs (got: $unsettled)"
+    fi
+    if [[ "$unit" == macaron-bifrost && "$unsettled" != 0 ]]; then
       echo "   macaron-bifrost changed but runs are unsettled: not restarted, deploy again once they are" >&2
       continue
     fi

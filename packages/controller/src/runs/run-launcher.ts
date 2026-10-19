@@ -50,7 +50,7 @@ export interface Escalation {
 const DispatchDetails = z.object({ workflow_run_id: z.int().positive() });
 
 /** Keys outlive the job by this margin before their backend expires them on its own. */
-const KEY_GRACE_MINUTES = 15;
+export const KEY_GRACE_MINUTES = 15;
 
 /** The run's key, if it got one. */
 function keyOf(run: RunRecord): RunKeyRef | undefined {
@@ -95,6 +95,7 @@ export class RunLauncher {
       mode,
       harness: config.harness,
       model: config.models[mode] ?? config.model,
+      fastModel: config.fastModel,
       context,
       limitMicros: toMicros(limitUsd),
     });
@@ -102,7 +103,7 @@ export class RunLauncher {
     let key: RunKeyRef | undefined;
     let dispatched: RunRecord;
     try {
-      const minted = await this.budget.mint(run.id, limitUsd, config.timeoutMinutes + KEY_GRACE_MINUTES, [run.model, config.fastModel]);
+      const minted = await this.budget.mint(run.id, limitUsd, config.timeoutMinutes + KEY_GRACE_MINUTES, [run.model, run.fastModel ?? run.model]);
       key = minted;
       await this.runs.attachKey(run.id, minted);
       const ghRunId = await this.dispatch(run, config, context);
@@ -133,7 +134,8 @@ export class RunLauncher {
     this.logger.log(`run ${run.id} bootstrapped by workflow run ${String(verified.runId)}`);
     const config = this.config.repo(run.context.repo);
     return {
-      llm: { baseUrl: this.budget.baseUrl(run.keyBackend), key, fastModel: config?.fastModel ?? run.model },
+      // The fast model fixed at launch: the key's allowlist was built from it, whatever the config says now.
+      llm: { baseUrl: this.budget.baseUrl(run.keyBackend), key, fastModel: run.fastModel ?? run.model },
       harness: config?.harness ?? "claude",
       model: run.model,
       context: run.context,

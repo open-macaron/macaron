@@ -76,11 +76,15 @@ export class BudgetService {
     }
   }
 
-  /** Every run key on every configured backend, for the sweeper. */
+  /** Every run key on every reachable backend, for the sweeper: a backend that fails is logged and skipped. */
   async runKeys(): Promise<SweepableKey[]> {
     const found: SweepableKey[] = [];
     for (const keys of this.keys.all) {
-      for (const key of await keys.listByPrefix(RUN_KEY_PREFIX)) found.push({ ...key, backend: keys.backend });
+      try {
+        for (const key of await keys.listByPrefix(RUN_KEY_PREFIX)) found.push({ ...key, backend: keys.backend });
+      } catch (error: unknown) {
+        this.logger.error(`listing ${keys.backend} run keys failed: ${describeError(error)}`);
+      }
     }
     return found;
   }

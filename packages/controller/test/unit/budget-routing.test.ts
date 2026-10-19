@@ -13,6 +13,7 @@ class RecordingKeys extends RunKeys {
   constructor(
     readonly backend: LlmBackend,
     private readonly listed: readonly KeyStatus[] = [],
+    private readonly priced: ReadonlySet<string> = new Set(["model-a", "model-b"]),
   ) {
     super();
     this.baseUrl = `https://${backend}.example.test`;
@@ -22,6 +23,10 @@ class RecordingKeys extends RunKeys {
   init(): Promise<void> {
     this.calls.push("init");
     return Promise.resolve();
+  }
+
+  unpriced(models: readonly string[]): Promise<string[]> {
+    return Promise.resolve(models.filter((model) => !this.priced.has(model)));
   }
 
   create(name: string, limitUsd: number, expiresAt: Date, models: readonly string[]): Promise<ProvisionedKey> {
@@ -101,6 +106,16 @@ describe("BudgetService routing", () => {
     await registry.onModuleInit();
 
     expect([openrouter.calls, bifrost.calls]).toEqual([["init"], ["init"]]);
+  });
+
+  it("refuses to start when the active backend can't price a configured model", async () => {
+    const registry = new RunKeysRegistry("bifrost", [new RecordingKeys("openrouter", [], new Set()), new RecordingKeys("bifrost")], () => [
+      "model-a",
+      "anthropic/claude-sonnet-5.5",
+    ]);
+
+    await expect(registry.onApplicationBootstrap()).rejects.toThrow(/"bifrost" has no price for configured models: anthropic\/claude-sonnet-5.5/);
+    await expect(new RunKeysRegistry("bifrost", [new RecordingKeys("bifrost")], () => ["model-a", "model-b"]).onApplicationBootstrap()).resolves.toBeUndefined();
   });
 
   it("refuses to start with an active backend that isn't configured", () => {

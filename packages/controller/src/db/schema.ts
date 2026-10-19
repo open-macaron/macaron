@@ -97,6 +97,8 @@ export const runs = pgTable(
     status: runStatus("status").notNull().default("pending"),
     harness: text("harness").notNull(),
     model: text("model").notNull(),
+    /** The harness's background model, fixed at launch like `model`: the run's key allows only these two. Null before this column existed. */
+    fastModel: text("fast_model"),
     context: jsonb("context").$type<RunContext>().notNull(),
     /** Where the run's key was minted; set together with key_hash. */
     keyBackend: llmBackend("key_backend"),

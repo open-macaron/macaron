@@ -52,10 +52,15 @@ export class BifrostKeys extends RunKeys {
    * Refuses models without a price: Bifrost charges them $0, so the key's budget would never stop
    * them. Prices are reloaded once before refusing, in case the catalog changed since startup.
    */
+  async unpriced(models: readonly string[]): Promise<string[]> {
+    const distinct = [...new Set(models)];
+    if (distinct.some((model) => !this.priced.has(model))) await this.loadPrices();
+    return distinct.filter((model) => !this.priced.has(model));
+  }
+
   async create(name: string, limitUsd: number, expiresAt: Date, models: readonly string[]): Promise<ProvisionedKey> {
     const allowed = [...new Set(models)];
-    if (allowed.some((model) => !this.priced.has(model))) await this.loadPrices();
-    const unpriced = allowed.filter((model) => !this.priced.has(model));
+    const unpriced = await this.unpriced(allowed);
     if (unpriced.length > 0) throw new UpstreamError("bifrost", `no price for ${unpriced.join(", ")}: refusing a key its budget can't limit`, undefined);
 
     const body: CreateVirtualKeyData["body"] = {

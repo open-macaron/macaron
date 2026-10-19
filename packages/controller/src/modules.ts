@@ -51,12 +51,13 @@ export class CoreModule {}
   providers: [
     {
       provide: RunKeysRegistry,
-      inject: [APP_ENV],
-      useFactory: (env: AppEnv) =>
-        new RunKeysRegistry(env.LLM_BACKEND, [
-          ...(env.openRouter === undefined ? [] : [new OpenRouterKeys(env.openRouter)]),
-          ...(env.bifrost === undefined ? [] : [new BifrostKeys(env.bifrost)]),
-        ]),
+      inject: [APP_ENV, RepoConfigService],
+      useFactory: (env: AppEnv, config: RepoConfigService) =>
+        new RunKeysRegistry(
+          env.LLM_BACKEND,
+          [...(env.openRouter === undefined ? [] : [new OpenRouterKeys(env.openRouter)]), ...(env.bifrost === undefined ? [] : [new BifrostKeys(env.bifrost)])],
+          () => [...config.snapshot.repos.values()].flatMap((repo) => [repo.model, repo.fastModel, ...Object.values(repo.models)]),
+        ),
     },
     BudgetService,
   ],

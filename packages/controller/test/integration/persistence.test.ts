@@ -37,6 +37,7 @@ async function newRun(n: number) {
     mode: "implement",
     harness: "claude",
     model: "anthropic/claude-sonnet-5.5",
+    fastModel: "anthropic/claude-haiku-5.5",
     context,
     limitMicros: 1_000_000,
   });
@@ -61,6 +62,7 @@ describe("RunsRepository", () => {
       mode: "address_review",
       harness: "claude",
       model: run.model,
+      fastModel: "anthropic/claude-haiku-5.5",
       context,
       limitMicros: 1,
     });

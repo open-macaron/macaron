@@ -72,6 +72,11 @@ export class OpenRouterKeys extends RunKeys {
     return this.resolvedWorkspaceId;
   }
 
+  /** OpenRouter bills every model it serves. */
+  unpriced(_models: readonly string[]): Promise<string[]> {
+    return Promise.resolve([]);
+  }
+
   /** OpenRouter keys can't be restricted to models: `models` is only enforced by the backends that can. */
   async create(name: string, limitUsd: number, expiresAt: Date, _models: readonly string[]): Promise<ProvisionedKey> {
     const result = await apiKeysCreate(this.core, {
