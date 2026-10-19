@@ -388,6 +388,7 @@ knowledge/
 ├── projects/<project>/          same names as macaron's config/projects/<project>
 │   ├── OWNERS.yaml
 │   ├── rules/<slug>.md
+│   ├── rules/<category>/<slug>.md   optional grouping: tests/, svelte/, …
 │   └── lessons/<topic>.md
 └── repos/<owner>/<repo>/        the upstream slug, not the fork
     ├── OWNERS.yaml
@@ -396,7 +397,7 @@ knowledge/
     └── lessons/<topic>.md
 ```
 
-A rule's scope comes from its folder, never from a field its author picks: rules in `projects/a/` only reach project `a`'s repositories. A rule's id is `<scope>/<slug>`, where `<scope>` is `global`, the project name or `<owner>/<repo>`, and `<slug>` is its file name. The index is generated from front matter, never committed.
+A rule's scope comes from its folder, never from a field its author picks: rules in `projects/a/` only reach project `a`'s repositories. A rule's id is `<scope>/<slug>`, or `<scope>/<category>/<slug>` for a rule filed in a category folder (ESLint-style ids such as `podman-desktop/tests/prefer-reset-all-mocks`). `<scope>` is `global`, the project name or `<owner>/<repo>`; `<slug>` is the file name. Categories are one kebab-case level, in any owned folder, and can't be named `lessons` (lesson ids are `<scope>/lessons/<topic>`). The index is generated from front matter, never committed.
 
 `OWNERS.yaml` is our format; GitHub doesn't read it, and there is no `CODEOWNERS` for these folders (§6.4). Owners are matched by **numeric user id**: a login can be renamed and re-registered. The login is there for display and mentions; `check.yml` verifies that it still resolves to the id.
 

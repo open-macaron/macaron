@@ -38,7 +38,7 @@ export type OwnersFile = z.infer<typeof OwnersFile>;
 export const RuleSeverity = z.enum(["error", "warning"]);
 export type RuleSeverity = z.infer<typeof RuleSeverity>;
 
-/** Front matter of `rules/<slug>.md`. */
+/** Front matter of `rules/<slug>.md` or `rules/<category>/<slug>.md`. */
 export const RuleFrontMatter = z.strictObject({
   title: z.string().min(1).max(120),
   /** error → ❌ violation in reviews; warning → ⚠️ warning. */
@@ -69,7 +69,7 @@ export type LessonFrontMatter = z.infer<typeof LessonFrontMatter>;
 export const KnowledgeScope = z.string().regex(/^(global|[a-z0-9]+(-[a-z0-9]+)*|[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100})$/);
 
 export const PublishedRule = z.strictObject({
-  /** `<scope>/<slug>`: stable, cited by review tables, never reused. */
+  /** `<scope>/<slug>` or `<scope>/<category>/<slug>`: stable, cited by review tables, never reused. */
   id: z.string().min(1),
   scope: KnowledgeScope,
   title: z.string(),

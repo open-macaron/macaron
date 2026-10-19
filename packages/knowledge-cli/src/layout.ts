@@ -34,19 +34,25 @@ export function folderOf(path: string): OwnedFolder | undefined {
 export type Entry =
   | { readonly kind: "owners" }
   | { readonly kind: "overview" }
-  | { readonly kind: "rule"; readonly slug: string }
+  /** `<slug>`, or `<category>/<slug>` for a rule filed under `rules/<category>/` (ESLint-style ids). */
+  | { readonly kind: "rule"; readonly name: string }
   | { readonly kind: "lesson"; readonly slug: string };
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+const isSlug = (value: string | undefined): value is string => value !== undefined && SLUG.test(value) && value.length <= 64;
 
 /** Classifies `rest`, a path relative to its owned folder. Undefined: not allowed there. */
 export function entryOf(folder: OwnedFolder, rest: string): Entry | undefined {
   if (rest === "OWNERS.yaml") return { kind: "owners" };
   if (rest === "overview.md" && folder.kind === "repo") return { kind: "overview" };
-  const match = /^(rules|lessons)\/([^/]+)\.md$/.exec(rest);
-  const [, kind, slug] = match ?? [];
-  if (slug === undefined || !SLUG.test(slug) || slug.length > 64) return undefined;
-  return kind === "rules" ? { kind: "rule", slug } : { kind: "lesson", slug };
+  const lesson = /^lessons\/([^/]+)\.md$/.exec(rest)?.[1];
+  if (lesson !== undefined) return isSlug(lesson) ? { kind: "lesson", slug: lesson } : undefined;
+  const [, category, slug] = /^rules\/(?:([^/]+)\/)?([^/]+)\.md$/.exec(rest) ?? [];
+  if (!isSlug(slug)) return undefined;
+  if (category === undefined) return { kind: "rule", name: slug };
+  // `<scope>/lessons/<slug>` is a lesson's id: a `lessons` category would collide with it.
+  return isSlug(category) && category !== "lessons" ? { kind: "rule", name: `${category}/${slug}` } : undefined;
 }
 
 /** Files allowed outside owned folders (maintained by the platform team). */

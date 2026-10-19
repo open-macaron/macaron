@@ -58,6 +58,7 @@ const valid = {
   "global/OWNERS.yaml": OWNERS,
   "projects/sandbox/OWNERS.yaml": OWNERS,
   "projects/sandbox/rules/no-runtime-json-read.md": RULE,
+  "projects/sandbox/rules/tests/prefer-reset-all-mocks.md": RULE,
   "repos/axel7083/foobar-tmp-demo/OWNERS.yaml": OWNERS,
   "repos/axel7083/foobar-tmp-demo/overview.md": "# foobar-tmp-demo\n",
   "repos/axel7083/foobar-tmp-demo/lessons/building.md": LESSON,
@@ -68,7 +69,7 @@ describe("loadTree", () => {
     const loaded = await loadTree(await tree(valid));
     expect(loaded.problems).toEqual([]);
     expect(loaded.folders.map((folder) => folder.path)).toEqual(["global", "projects/sandbox", "repos/axel7083/foobar-tmp-demo"]);
-    expect(loaded.folders[1]?.rules.map((rule) => rule.id)).toEqual(["sandbox/no-runtime-json-read"]);
+    expect(loaded.folders[1]?.rules.map((rule) => rule.id).sort()).toEqual(["sandbox/no-runtime-json-read", "sandbox/tests/prefer-reset-all-mocks"]);
     expect(loaded.folders[2]?.lessons.map((lesson) => lesson.id)).toEqual(["axel7083/foobar-tmp-demo/lessons/building"]);
   });
 
@@ -79,6 +80,10 @@ describe("loadTree", () => {
         "projects/sandbox/rules/bad-severity.md": RULE.replace("severity: error", "severity: fatal"),
         "projects/sandbox/rules/Bad_Name.md": RULE,
         "projects/sandbox/notes.txt": "x",
+        "projects/sandbox/rules/tests/deeper/x.md": RULE,
+        "projects/sandbox/rules/Tests/x.md": RULE,
+        "projects/sandbox/rules/lessons/x.md": RULE,
+        "projects/sandbox/lessons/tests/x.md": LESSON,
         "repos/axel7083/foobar-tmp-demo/OWNERS.yaml": "owners:\n  - login: axel7083\n",
         "global/rules/no-front-matter.md": "## Check\n",
         "global/OWNERS.yaml": OWNERS,
@@ -89,6 +94,10 @@ describe("loadTree", () => {
     expect(byPath("projects/sandbox/rules/bad-severity.md")[0]).toMatch(/^severity:/);
     expect(byPath("projects/sandbox/rules/Bad_Name.md")[0]).toMatch(/unexpected file/);
     expect(byPath("projects/sandbox/notes.txt")[0]).toMatch(/unexpected file/);
+    // One category level for rules, kebab-case, never `lessons` (lesson ids are `<scope>/lessons/<slug>`); lessons stay flat.
+    for (const path of ["rules/tests/deeper/x.md", "rules/Tests/x.md", "rules/lessons/x.md", "lessons/tests/x.md"]) {
+      expect(byPath(`projects/sandbox/${path}`)[0]).toMatch(/unexpected file/);
+    }
     expect(byPath("projects/sandbox/OWNERS.yaml")[0]).toMatch(/needs an OWNERS.yaml/);
     expect(byPath("repos/axel7083/foobar-tmp-demo/OWNERS.yaml")[0]).toMatch(/^owners\.0\.id:/);
     expect(byPath("global/rules/no-front-matter.md")[0]).toMatch(/missing YAML front matter/);
@@ -122,9 +131,13 @@ describe("publish", () => {
     expect(written).toEqual(["v1/global.json", "v1/projects/sandbox.json", "v1/repos/axel7083/foobar-tmp-demo.json", "v1/index.json"]);
 
     const index = KnowledgeIndex.parse(JSON.parse(await readFile(join(out, "v1/index.json"), "utf8")));
-    expect(index.slices.find((slice) => slice.scope === "sandbox")?.rules).toEqual([
-      { id: "sandbox/no-runtime-json-read", title: "Import package.json instead of reading it at runtime", severity: "error", appliesTo: ["src/**/*.ts"] },
-    ]);
+    expect(index.slices.find((slice) => slice.scope === "sandbox")?.rules.map((rule) => rule.id)).toEqual(["sandbox/no-runtime-json-read", "sandbox/tests/prefer-reset-all-mocks"]);
+    expect(index.slices.find((slice) => slice.scope === "sandbox")?.rules[0]).toEqual({
+      id: "sandbox/no-runtime-json-read",
+      title: "Import package.json instead of reading it at runtime",
+      severity: "error",
+      appliesTo: ["src/**/*.ts"],
+    });
     const repo = KnowledgeSlice.parse(JSON.parse(await readFile(join(out, "v1/repos/axel7083/foobar-tmp-demo.json"), "utf8")));
     expect(repo.overview).toBe("# foobar-tmp-demo");
     expect(repo.lessons[0]?.body).toBe("`npm run build` type-checks with tsc before bundling.");

@@ -68,7 +68,7 @@ export async function loadTree(root: string): Promise<KnowledgeTree> {
         folder.overview = source.trim();
         break;
       case "rule": {
-        const rule = readRule(source, `${owned.scope}/${entry.slug}`, path, problems);
+        const rule = readRule(source, `${owned.scope}/${entry.name}`, path, problems);
         if (rule !== undefined) folder.rules.push(rule);
         break;
       }
