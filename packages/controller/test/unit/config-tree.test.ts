@@ -18,7 +18,12 @@ describe("the committed config/ tree", () => {
       environment: { source: "shared", name: "podman-desktop-extensions" },
       models: { review: "anthropic/claude-haiku-5.5" },
     });
-    expect(snapshot.repos.get("axel7083/podman-desktop")).toMatchObject({ project: "podman-desktop", capabilities: [], budgets: { review: 0.5 } });
+    expect(snapshot.repos.get("podman-desktop/podman-desktop")).toMatchObject({
+      project: "podman-desktop",
+      capabilities: [],
+      budgets: { review: 0.5 },
+      contribution: { dco: true },
+    });
   });
 });
 
