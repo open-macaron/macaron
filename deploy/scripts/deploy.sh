@@ -82,7 +82,8 @@ start_units() {
     fi
     # shellcheck disable=SC2046 # unit_files prints zero or one path
     if ! systemctl is-active --quiet "$unit"; then
-      systemctl start "$unit" || return 1
+      # restart, not start: a unit crash-looping on its old definition would otherwise keep it.
+      systemctl restart "$unit" || return 1
     elif [[ "$config_changed" == true ]] || changed "deploy/quadlets/$unit.container" $(unit_files "$unit"); then
       if [[ "$unit" == macaron-bifrost ]]; then
         unsettled="$(unsettled_runs)" || die "could not count unsettled runs"
