@@ -5,10 +5,12 @@ import { BotIdentity } from "../github/bot-identity.ts";
 import { Jobs, Queue, RunCompletedJob, ThreadReadyJob } from "../jobs/jobs.ts";
 import { repoRef } from "../github/repo-ref.ts";
 import { Publisher } from "../publish/publisher.ts";
-import { ReactionTargets } from "../publish/reaction-targets.ts";
+import { ReactionTargets, reactionTargetOf } from "../publish/reaction-targets.ts";
+import { isRefusal, route, type Route, type Subject, subjectOf, subjectOfRun, type ThreadState } from "../routing/routes.ts";
+import { ThreadStates } from "../routing/thread-states.ts";
 import { type Escalation, type LaunchOutcome, RunLauncher } from "../runs/run-launcher.ts";
 import { ACTIVE_STATUSES, RunsRepository, type ThreadRecord } from "../runs/runs.repository.ts";
-import { ContextBuilder, reviewedPull, type Trigger } from "./context-builder.ts";
+import { ContextBuilder, type Trigger } from "./context-builder.ts";
 import { type EventRecord, EventsRepository, QUIET_PERIOD_MS } from "./events.repository.ts";
 import { decideMode, parseMention } from "./triggers.ts";
 
@@ -16,10 +18,19 @@ import { decideMode, parseMention } from "./triggers.ts";
 const BUSY_RETRY_MS = 120_000;
 const NEEDS_GUI: ReadonlySet<Mode> = new Set<Mode>(["reproduce", "verify"]);
 
+/** A request to route: a mode, asked on a subject, by a trigger. */
+interface Request {
+  readonly subject: Subject;
+  readonly mode: Mode;
+  readonly trigger: Trigger;
+}
+
 /**
- * Processes a thread once it has been quiet: decides the mode from its pending triggers, builds
- * the agent's context and launches the run. Also completes finished runs, launching the
- * escalation a run may ask for.
+ * Processes a thread once it has been quiet. Requests on the issue and on a pull request are
+ * separate: the worker takes the subject of the oldest pending request, decides the mode from that
+ * subject's requests, routes it (ROUTES) and launches the run or posts the refusal there. The
+ * other subject waits for the next pass: one run at a time per thread. Also completes finished
+ * runs, launching the escalation a run may ask for.
  */
 @Injectable()
 export class ThreadWorker implements OnApplicationBootstrap {
@@ -30,6 +41,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
     private readonly events: EventsRepository,
     private readonly runs: RunsRepository,
     private readonly config: RepoConfigService,
+    private readonly states: ThreadStates,
     private readonly contexts: ContextBuilder,
     private readonly launcher: RunLauncher,
     private readonly publisher: Publisher,
@@ -47,50 +59,76 @@ export class ThreadWorker implements OnApplicationBootstrap {
 
   async process(threadId: string): Promise<void> {
     const pending = await this.events.pending(threadId);
-    if (pending.length === 0) return;
+    const first = pending[0];
+    if (first === undefined) return;
     const thread = await this.runs.threadById(threadId);
     const config = this.config.repo(thread.repo);
-    const ids = pending.map((event) => event.id);
-    if (config === undefined) return this.events.settle(ids, "dropped");
+    if (config === undefined) return this.events.settle(pending.map((event) => event.id), "dropped");
 
-    // One run at a time per thread: the batch waits for the current run to finish.
+    // One run at a time per thread: the requests wait for the current run to finish.
     const loops = await this.runs.loops(thread.id);
     if (loops.some((run) => ACTIVE_STATUSES.includes(run.status))) return this.jobs.threadReady(thread.id, QUIET_PERIOD_MS);
 
+    // The oldest request's subject goes first; requests on another subject wait for the next pass.
+    const batch = pending.filter((event) => event.subjectKind === first.subjectKind && event.subjectNumber === first.subjectNumber);
+    try {
+      await this.processBatch(config, thread, batch, loops);
+    } finally {
+      if (pending.length > batch.length) await this.jobs.threadReady(thread.id, QUIET_PERIOD_MS);
+    }
+  }
+
+  async escalate({ thread, from, mode }: Escalation): Promise<void> {
+    const config = this.config.repo(thread.repo);
+    if (config === undefined) return;
+    const request: Request = { subject: subjectOfRun(from, thread), mode, trigger: from.context.trigger };
+    const outcome = await this.routeAndStart(config, thread, await this.states.read(config.repo, thread), request);
+    if (outcome.kind === "refused") await this.publisher.reportRefusal(thread, request.subject, outcome.reason);
+    if (outcome.kind === "queued") this.logger.warn(`escalation of ${thread.repo}#${String(thread.number)} to ${mode} dropped: ${outcome.reason}`);
+  }
+
+  /** One subject's pending requests: routed, then launched or refused. */
+  private async processBatch(config: RepoConfig, thread: ThreadRecord, batch: readonly EventRecord[], loops: Awaited<ReturnType<RunsRepository["loops"]>>): Promise<void> {
+    const ids = batch.map((event) => event.id);
+    const last = batch.at(-1);
+    if (last === undefined) return;
+    const upstream = repoRef(thread.repo);
+    // Whatever happens next answers these requests: their 👀 belong to the next loop.
+    await this.reactions.claim(thread.id, batch.map(reactionTargetOf), thread.loops + 1);
+
     // Two bots must not ping-pong forever.
-    const fromBotsOnly = pending.every((event) => this.config.trigger(thread.repo, event.author) === "bot");
+    const fromBotsOnly = batch.every((event) => this.config.trigger(thread.repo, event.author) === "bot");
     if (fromBotsOnly && thread.loops >= config.caps.botReviewLoops) {
       this.logger.log(`${thread.repo}#${String(thread.number)}: bot review loop cap reached, ignoring`);
       return this.events.settle(ids, "dropped");
     }
 
     const login = this.bot.identity.login;
-    const mode = decideMode(pending.map((event) => ({ kind: eventKind(event), command: parseMention(event.body, login)?.command })));
-    if (mode === undefined || mode === "stop") return this.events.settle(ids, "done");
+    const command = decideMode(batch.map((event) => ({ kind: eventKind(event), command: parseMention(event.body, login)?.command })));
+    if (command === undefined || command === "stop") return this.events.settle(ids, "done");
 
-    let request: { readonly mode: Mode; readonly trigger: Trigger };
-    if (mode === "retry") {
+    const state = await this.states.read(config.repo, thread);
+    const subject = subjectOf({ kind: last.subjectKind, number: last.subjectNumber }, state);
+    let request: Request;
+    if (command === "retry") {
       const previous = loops.at(-1);
       if (previous === undefined || previous.status === "completed") {
         await this.events.settle(ids, "dropped");
-        return this.publisher.reportRefusal(thread, "there is no failed loop to retry");
+        return this.publisher.reportRefusal(thread, subject, "there is no failed loop to retry");
       }
-      await this.reactions.adopt(thread.id, previous.loop, thread.loops + 1, repoRef(thread.repo));
-      request = { mode: previous.mode, trigger: previous.context.trigger };
+      await this.reactions.adopt(thread.id, previous.loop, thread.loops + 1, upstream);
+      request = { subject: subjectOfRun(previous, thread), mode: previous.mode, trigger: previous.context.trigger };
     } else {
-      const last = pending.at(-1);
-      if (last === undefined) return;
-      request = {
-        mode,
-        trigger: {
-          kind: eventKind(last),
-          author: last.author,
-          url: last.url,
-          instruction: (parseMention(last.body, login)?.instruction ?? last.body).slice(0, 4_096),
-        },
+      const trigger: Trigger = {
+        kind: eventKind(last),
+        author: last.author,
+        url: last.url,
+        instruction: (parseMention(last.body, login)?.instruction ?? last.body).slice(0, 4_096),
       };
+      request = { subject, mode: command, trigger };
     }
-    const outcome = await this.start(config, thread, request.mode, request.trigger);
+
+    const outcome = await this.routeAndStart(config, thread, state, request);
     switch (outcome.kind) {
       case "launched":
         return this.events.settle(ids, "done");
@@ -98,31 +136,27 @@ export class ThreadWorker implements OnApplicationBootstrap {
         return this.jobs.threadReady(thread.id, BUSY_RETRY_MS);
       case "refused":
         await this.events.settle(ids, "dropped");
-        return this.publisher.reportRefusal(thread, outcome.reason);
+        return this.publisher.reportRefusal(thread, request.subject, outcome.reason);
     }
   }
 
-  async escalate({ thread, from, mode }: Escalation): Promise<void> {
-    const config = this.config.repo(thread.repo);
-    if (config === undefined) return;
-    const outcome = await this.start(config, thread, mode, from.context.trigger);
-    if (outcome.kind === "refused") await this.publisher.reportRefusal(thread, outcome.reason);
-    if (outcome.kind === "queued") this.logger.warn(`escalation of ${thread.repo}#${String(thread.number)} to ${mode} dropped: ${outcome.reason}`);
+  /** Routes a request (ROUTES), then launches the run unless the route or the repository refuses it. */
+  private async routeAndStart(config: RepoConfig, thread: ThreadRecord, state: ThreadState, request: Request): Promise<LaunchOutcome> {
+    const routed = route(state, request.subject, request.mode);
+    if (isRefusal(routed)) return { kind: "refused", reason: routed.refused };
+    return this.start(config, thread, routed, request.trigger);
   }
 
-  private async start(config: RepoConfig, thread: ThreadRecord, mode: Mode, trigger: Trigger): Promise<LaunchOutcome> {
-    if (NEEDS_GUI.has(mode) && !config.capabilities.includes("gui")) {
-      return { kind: "refused", reason: `this repository's environment can't run the application yet, so \`${mode}\` isn't available` };
+  private async start(config: RepoConfig, thread: ThreadRecord, routed: Route, trigger: Trigger): Promise<LaunchOutcome> {
+    if (NEEDS_GUI.has(routed.mode) && !config.capabilities.includes("gui")) {
+      return { kind: "refused", reason: `this repository's environment can't run the application yet, so \`${routed.mode}\` isn't available` };
     }
-    if (mode === "review" && reviewedPull(thread) === undefined) {
-      return { kind: "refused", reason: "`review` works on pull requests: comment on the pull request itself" };
-    }
-    const context = await this.contexts.build(config, thread, mode, trigger);
+    const context = await this.contexts.build(config, thread, routed, trigger);
     // Nothing to check: no runner, no cost.
     if (context.review?.rules.length === 0) {
       return { kind: "refused", reason: "no rule from open-macaron/knowledge applies to the files this pull request changes" };
     }
-    return this.launcher.launch({ config, thread, mode, context });
+    return this.launcher.launch({ config, thread, route: routed, context });
   }
 }
 

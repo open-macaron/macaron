@@ -18,14 +18,27 @@ const ReactionRecord = z.object({
 /** Effect kinds: `eyes:<target>` when work starts, `outcome:<target>` when it ends. */
 const EYES = "eyes:";
 const OUTCOME = "outcome:";
+/** Where 👀 waits until a run claims it: no loop is ever 0. */
+const UNCLAIMED_LOOP = 0;
 
 function targetKey(target: ReactionTarget): string {
   return target.kind === "issue" ? `issue:${String(target.number)}` : `${target.kind}:${String(target.id)}`;
 }
 
+/** What a request reacts on, from its event: the comment itself, or the issue / pull request. */
+export function reactionTargetOf(event: { readonly externalId: string; readonly subjectNumber: number }): ReactionTarget {
+  const [kind, id] = event.externalId.split(":");
+  const number = Number(id);
+  if (kind === "issue-comment") return { kind: "issue-comment", id: number };
+  if (kind === "review-comment") return { kind: "review-comment", id: number };
+  // `issue:<n>` and review summaries (GitHub has no reactions on reviews): the subject itself.
+  return { kind: "issue", number: event.subjectNumber };
+}
+
 /**
- * 👀 on every trigger when work starts, swapped for 👍 / 😕 when its loop ends. Reactions are
- * cosmetic: failures are logged, never fatal.
+ * 👀 on every request when it arrives, swapped for 👍 / 😕 when the loop that answers it ends.
+ * Requests on the issue and on a pull request are answered by separate loops, so 👀 waits
+ * unclaimed until a loop claims its requests. Reactions are cosmetic: failures are logged, never fatal.
  */
 @Injectable()
 export class ReactionTargets {
@@ -35,6 +48,16 @@ export class ReactionTargets {
     private readonly runs: RunsRepository,
     private readonly writer: UpstreamWriter,
   ) {}
+
+  /** 👀 on a request as it arrives, until a loop claims it. */
+  async watch(threadId: string, upstream: RepoRef, target: ReactionTarget): Promise<void> {
+    await this.start(threadId, UNCLAIMED_LOOP, upstream, target);
+  }
+
+  /** The loop that answers these requests takes over their 👀: its outcome replaces them. */
+  async claim(threadId: string, targets: readonly ReactionTarget[], loop: number): Promise<void> {
+    await this.runs.moveEffects(threadId, UNCLAIMED_LOOP, loop, targets.map((target) => `${EYES}${targetKey(target)}`));
+  }
 
   async start(threadId: string, loop: number, upstream: RepoRef, target: ReactionTarget): Promise<void> {
     try {

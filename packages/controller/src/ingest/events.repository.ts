@@ -10,6 +10,9 @@ export interface NewEvent {
   readonly threadId: string;
   /** `issue-comment:<id>`, `review-comment:<id>` or `issue:<number>`: unique per thread. */
   readonly externalId: string;
+  /** What the notification was about, as GitHub gives it. */
+  readonly subjectKind: "issue" | "pull";
+  readonly subjectNumber: number;
   readonly author: string;
   readonly kind: "mention" | "review" | "comment";
   readonly url: string;

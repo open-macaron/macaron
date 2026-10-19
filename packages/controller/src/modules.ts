@@ -30,6 +30,7 @@ import { Housekeeping } from "./runs/housekeeping.ts";
 import { githubJwks, OIDC_KEYS, OidcVerifier } from "./runs/oidc-verifier.ts";
 import { RunLauncher } from "./runs/run-launcher.ts";
 import { RunsRepository } from "./runs/runs.repository.ts";
+import { ThreadStates } from "./routing/thread-states.ts";
 
 /** Shared state: configuration, queues, repositories, locks, the bot's identity. */
 @Global()
@@ -93,6 +94,7 @@ export class RunsModule {}
     { provide: PollScheduler, useClass: PgBossPollScheduler },
     NotificationsPoller,
     ContextBuilder,
+    ThreadStates,
     ThreadWorker,
   ],
 })

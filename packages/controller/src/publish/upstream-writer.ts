@@ -37,6 +37,12 @@ export class UpstreamWriter {
     return data.number;
   }
 
+  /** Closes one of the bot's own pull requests (its author may), saying why first. */
+  async closePullRequest(upstream: RepoRef, number: number, reason: string): Promise<void> {
+    await this.comment(upstream, number, reason);
+    await this.posting(() => this.gh.rest.pulls.update({ ...upstream, pull_number: number, state: "closed" }));
+  }
+
   async pullBody(upstream: RepoRef, number: number): Promise<string> {
     const { data } = await this.gh.rest.pulls.get({ ...upstream, pull_number: number });
     return data.body ?? "";

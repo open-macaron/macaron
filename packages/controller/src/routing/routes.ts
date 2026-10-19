@@ -125,3 +125,17 @@ export function route(state: ThreadState, subject: Subject, mode: Mode): Route |
 export function isRefusal(outcome: Route | Refusal): outcome is Refusal {
   return "refused" in outcome;
 }
+
+/**
+ * The subject a run answers on: its route's, or for a run from before routes were stored, the one
+ * its trigger's URL points at.
+ */
+export function subjectOfRun(
+  run: { readonly route: unknown; readonly context: { readonly trigger: { readonly url: string } } },
+  thread: { readonly number: number; readonly prNumber: number | null },
+): Subject {
+  if (run.route !== null && run.route !== undefined) return Route.parse(run.route).subject;
+  const pull = /\/pull\/(\d+)/.exec(run.context.trigger.url)?.[1];
+  const raw: { kind: "issue" | "pull"; number: number } = pull === undefined ? { kind: "issue", number: thread.number } : { kind: "pull", number: Number(pull) };
+  return subjectOf(raw, { ownPullRequest: thread.prNumber ?? undefined });
+}

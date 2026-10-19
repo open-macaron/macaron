@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { RunContext } from "@open-macaron/contracts";
 import { LlmBackend } from "../budget/run-keys.ts";
+import type { Route } from "../routing/routes.ts";
 
 /** Money is stored as integer micro-dollars: no floating point anywhere near a bill. */
 const usdMicros = (name: string) => bigint(name, { mode: "number" });
@@ -71,6 +72,9 @@ export const events = pgTable(
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
     externalId: text("external_id").notNull(),
+    /** What the notification was about: the issue, or a pull request (the bot's own or not). */
+    subjectKind: threadKind("subject_kind").notNull(),
+    subjectNumber: integer("subject_number").notNull(),
     author: text("author").notNull(),
     kind: text("kind").notNull(),
     url: text("url").notNull(),
@@ -100,6 +104,8 @@ export const runs = pgTable(
     /** The harness's background model, fixed at launch like `model`: the run's key allows only these two. Null before this column existed. */
     fastModel: text("fast_model"),
     context: jsonb("context").$type<RunContext>().notNull(),
+    /** What the run was routed to do: where it answers, what it checked out. Null before this column existed. */
+    route: jsonb("route").$type<Route>(),
     /** Where the run's key was minted; set together with key_hash. */
     keyBackend: llmBackend("key_backend"),
     keyHash: text("key_hash"),
