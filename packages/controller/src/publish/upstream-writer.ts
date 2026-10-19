@@ -87,6 +87,11 @@ export class UpstreamWriter {
     return data.id;
   }
 
+  async commentBody(upstream: RepoRef, id: number): Promise<string> {
+    const { data } = await this.gh.rest.issues.getComment({ ...upstream, comment_id: id });
+    return data.body ?? "";
+  }
+
   /** Edits our sticky status comment, or creates it. Returns its id. */
   async upsertComment(upstream: RepoRef, number: number, existingId: number | null, body: string): Promise<number> {
     if (existingId !== null) {

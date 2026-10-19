@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { RepoConfig, RunContext } from "@open-macaron/contracts";
 import { z } from "zod";
 import { describeError } from "../common/errors.ts";
-import { formatUsd, type UsdMicros } from "../common/money.ts";
+import type { UsdMicros } from "../common/money.ts";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { BotIdentity } from "../github/bot-identity.ts";
 import { repoRef, type RepoRef } from "../github/repo-ref.ts";
@@ -15,7 +15,7 @@ import { Route, type Subject, subjectOfRun } from "../routing/routes.ts";
 import { EvidenceHost } from "./evidence-host.ts";
 import { ForkCommitter } from "./fork-committer.ts";
 import type { Publishable } from "./gate.ts";
-import { type CostRow, type LoopState, renderCostTable, resolveAttachments, sanitize, upsertCostSection } from "./markdown.ts";
+import { type CostRow, type LoopState, renderCostTable, resolveAttachments, sanitize, spentLine, upsertCostSection, withSpentLine } from "./markdown.ts";
 import { ReactionTargets } from "./reaction-targets.ts";
 import { type StatusComment, statusComment } from "./status-comment.ts";
 import { CannotPost, UpstreamWriter } from "./upstream-writer.ts";
@@ -154,9 +154,25 @@ export class Publisher {
     await this.updateCostTable(thread);
   }
 
-  /** Called when a loop's cost is settled: the PR's cost table picks up the final number. */
-  async refreshCost(thread: ThreadRecord): Promise<void> {
+  /** Called when a loop's cost is settled: the PR's cost table and the run's status comment pick up the final number. */
+  async refreshCost(thread: ThreadRecord, run: RunRecord): Promise<void> {
     await this.updateCostTable(thread);
+    const target = statusComment(thread, subjectOfRun(run, thread));
+    const commentId = target.commentId;
+    if (commentId === null) return;
+    const upstream = repoRef(thread.repo);
+    const line = spentLine(...(await this.spent(thread)));
+    await this.post(async () => {
+      const body = await this.writer.commentBody(upstream, commentId);
+      const updated = withSpentLine(body, line);
+      if (updated !== body) await this.writer.upsertComment(upstream, target.number, commentId, updated);
+    });
+  }
+
+  /** What the thread has cost so far, and whether a loop is still settling. */
+  private async spent(thread: ThreadRecord): Promise<[number, boolean]> {
+    const loops = await this.runs.loops(thread.id);
+    return [loops.reduce((total, loop) => total + (loop.costMicros ?? 0), 0), loops.some((loop) => loop.settledAt === null)];
   }
 
   /** A review run's cost is settled: its review shows the amount instead of ⏳. */
@@ -221,9 +237,6 @@ export class Publisher {
 
   /** One sticky comment per subject, edited in place on every loop. */
   private async updateStatus(thread: ThreadRecord, target: StatusComment, run: RunRecord, outcome: string, runUrl: string | null): Promise<void> {
-    const loops = await this.runs.loops(thread.id);
-    const spent = loops.reduce((total, loop) => total + (loop.costMicros ?? 0), 0);
-    const pending = loops.some((loop) => loop.settledAt === null) ? " ⏳" : "";
     const where = target.column === "statusCommentId" && thread.prNumber !== null && thread.kind === "issue" ? `\n\nWork continues in #${String(thread.prNumber)}.` : "";
     const body = [
       `**macaron-bot** · loop ${String(run.loop)} · \`${run.mode}\`${runUrl === null ? "" : ` · [run](${runUrl})`}`,
@@ -231,7 +244,7 @@ export class Publisher {
       outcome,
       where,
       "",
-      `<sub>Spent on this thread: ${formatUsd(spent)}${pending}.</sub>`,
+      spentLine(...(await this.spent(thread))),
     ].join("\n");
     await this.upsertStatus(thread, target, body);
   }
