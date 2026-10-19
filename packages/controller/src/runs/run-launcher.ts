@@ -11,6 +11,7 @@ import {
 } from "@open-macaron/contracts";
 import { z } from "zod";
 import { BudgetService, type RunKeyRef } from "../budget/budget.service.ts";
+import type { Route } from "../routing/routes.ts";
 import { decideSettlement, SETTLE_RECHECK_MS } from "../budget/settlement.ts";
 import { Clock } from "../common/clock.ts";
 import { describeError } from "../common/errors.ts";
@@ -31,7 +32,8 @@ import { type RunRecord, RunsRepository, type ThreadRecord } from "./runs.reposi
 export interface LaunchRequest {
   readonly config: RepoConfig;
   readonly thread: ThreadRecord;
-  readonly mode: Mode;
+  /** What the run does, and where it answers: stored on the run, followed until it is published. */
+  readonly route: Route;
   readonly context: RunContext;
 }
 
@@ -87,7 +89,8 @@ export class RunLauncher {
     const refusal = await this.refusal(request);
     if (refusal !== undefined) return refusal;
 
-    const { config, thread, mode, context } = request;
+    const { config, thread, route, context } = request;
+    const mode = route.mode;
     const limitUsd = config.budgets[mode];
     const run = await this.runs.createRun({
       threadId: thread.id,
@@ -97,6 +100,7 @@ export class RunLauncher {
       model: config.models[mode] ?? config.model,
       fastModel: config.fastModel,
       context,
+      route,
       limitMicros: toMicros(limitUsd),
     });
 
@@ -249,7 +253,8 @@ export class RunLauncher {
   }
 
   private async refusal(request: LaunchRequest): Promise<LaunchOutcome | undefined> {
-    const { config, thread, mode } = request;
+    const { config, thread } = request;
+    const mode = request.route.mode;
     if (!this.env.MACARON_ENABLED) return { kind: "refused", reason: "the bot is paused by its maintainers" };
 
     const limit = toMicros(config.budgets[mode]);

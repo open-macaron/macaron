@@ -1,7 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   GitHubLogin,
-  type Mode,
   type RepoConfig,
   type ReviewComment,
   type ReviewContext,
@@ -17,7 +16,7 @@ import { KnowledgeClient } from "../review/knowledge-client.ts";
 import { PullDiffReader } from "../review/pull-diff.ts";
 import { selectRules } from "@open-macaron/review";
 import { RunsRepository, type ThreadRecord } from "../runs/runs.repository.ts";
-import { branchFor } from "./triggers.ts";
+import type { Route } from "../routing/routes.ts";
 
 export interface Trigger {
   readonly kind: "mention" | "assign" | "review" | "comment";
@@ -32,8 +31,7 @@ const MAX_COMMENTS = 100;
 
 /**
  * Builds `context.json`: exactly what the agent is told. Everything comes from GitHub at launch
- * time; the base commit is the fork branch head for follow-up loops, the upstream default
- * branch head otherwise.
+ * time; the base commit and branch come from the run's route.
  */
 @Injectable()
 export class ContextBuilder {
@@ -47,16 +45,12 @@ export class ContextBuilder {
     private readonly knowledge: KnowledgeClient,
   ) {}
 
-  async build(config: RepoConfig, thread: ThreadRecord, mode: Mode, trigger: Trigger): Promise<RunContext> {
+  async build(config: RepoConfig, thread: ThreadRecord, route: Route, trigger: Trigger): Promise<RunContext> {
     const upstream = repoRef(thread.repo);
     const { data: issue } = await this.gh.rest.issues.get({ ...upstream, issue_number: thread.number });
-    const branch = thread.branch ?? branchFor(thread.number, issue.title);
-
-    // A review checks out the pull request's head; other modes the bot's branch, or upstream's default.
-    const review = mode === "review" ? await this.reviewContext(config, thread) : undefined;
-    const fork = { owner: this.bot.identity.login, repo: config.fork };
-    const branchHead = review !== undefined || thread.branch === null ? undefined : await this.committer.head(fork, thread.branch);
-    const baseSha = review?.headSha ?? branchHead ?? (await this.writer.defaultBranch(upstream)).sha;
+    const { mode, branch, checkout } = route;
+    const review = mode === "review" && checkout.from === "pullRequestHead" ? await this.reviewContext(config, checkout.pullRequest) : undefined;
+    const baseSha = review?.headSha ?? (await this.resolve(config, route));
 
     // The issue body comes first, under the issue number as its id (comment ids are far larger).
     const conversation: ThreadComment[] = [];
@@ -90,10 +84,24 @@ export class ContextBuilder {
     });
   }
 
+  /** The commit the route's checkout points at now. */
+  private async resolve(config: RepoConfig, route: Route): Promise<string> {
+    const upstream = repoRef(config.repo);
+    switch (route.checkout.from) {
+      case "defaultBranch":
+        return (await this.writer.defaultBranch(upstream)).sha;
+      case "botBranch": {
+        // A branch deleted since (by hand) falls back to the default branch: nothing to continue from.
+        const head = await this.committer.head({ owner: this.bot.identity.login, repo: config.fork }, route.branch);
+        return head ?? (await this.writer.defaultBranch(upstream)).sha;
+      }
+      case "pullRequestHead":
+        return (await this.diffs.head(config.repo, route.checkout.pullRequest)).headSha;
+    }
+  }
+
   /** The pull request at its current head, and the knowledge rules its changed files call for. */
-  private async reviewContext(config: RepoConfig, thread: ThreadRecord): Promise<ReviewContext> {
-    const pull = reviewedPull(thread);
-    if (pull === undefined) throw new Error(`thread ${thread.id} has no pull request to review`);
+  private async reviewContext(config: RepoConfig, pull: number): Promise<ReviewContext> {
     const { baseSha, headSha } = await this.diffs.head(config.repo, pull);
     const [diff, knowledge] = await Promise.all([this.diffs.read(config.repo, baseSha, headSha), this.knowledge.rulesFor(config)]);
     const paths = diff.files.map((file) => file.path);
@@ -131,9 +139,4 @@ export class ContextBuilder {
 
 function loginOf(login: string): GitHubLogin {
   return GitHubLogin.parse(login);
-}
-
-/** The pull request a review looks at: the thread itself, or the bot's pull request for an issue. */
-export function reviewedPull(thread: Pick<ThreadRecord, "kind" | "number" | "prNumber">): number | undefined {
-  return thread.kind === "pull" ? thread.number : (thread.prNumber ?? undefined);
 }

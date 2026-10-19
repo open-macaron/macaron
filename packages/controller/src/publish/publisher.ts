@@ -11,11 +11,13 @@ import { RunsRepository } from "../runs/runs.repository.ts";
 import { runUrl } from "../runs/run-url.ts";
 import { renderReview, withReviewCost } from "../review/render.ts";
 import type { RuleResult } from "@open-macaron/review";
+import { Route, type Subject, subjectOfRun } from "../routing/routes.ts";
 import { EvidenceHost } from "./evidence-host.ts";
 import { ForkCommitter } from "./fork-committer.ts";
 import type { Publishable } from "./gate.ts";
 import { type CostRow, type LoopState, renderCostTable, resolveAttachments, sanitize, upsertCostSection } from "./markdown.ts";
 import { ReactionTargets } from "./reaction-targets.ts";
+import { type StatusComment, statusComment } from "./status-comment.ts";
 import { CannotPost, UpstreamWriter } from "./upstream-writer.ts";
 
 export interface PublishInput {
@@ -29,18 +31,6 @@ export interface PublishInput {
 /** The review id stored as the `review` effect's external id. */
 const ReviewId = z.coerce.number().int().positive();
 
-/** Where a thread's sticky status comment lives: the issue until the bot's PR exists, then the PR. */
-interface StatusTarget {
-  readonly number: number;
-  readonly commentId: number | null;
-  readonly onPull: boolean;
-}
-
-function statusTarget(thread: ThreadRecord): StatusTarget {
-  return thread.prNumber === null
-    ? { number: thread.number, commentId: thread.statusCommentId, onPull: false }
-    : { number: thread.prNumber, commentId: thread.prStatusCommentId, onPull: true };
-}
 
 function loopState(status: RunRecord["status"]): LoopState {
   switch (status) {
@@ -84,8 +74,10 @@ export class Publisher {
     if (input.publishable.review !== undefined) return this.publishReview(input, input.publishable.review);
     const { run, config, publishable } = input;
     let thread = input.thread;
-    // The loop that opens the PR reports on the issue it started from; later loops on the PR.
-    const status = statusTarget(input.thread);
+    // Everything answers where the request was made (the run's subject).
+    const subject = subjectOfRun(run, thread);
+    const status = statusComment(thread, subject);
+    const supersedes = run.route === null ? undefined : Route.parse(run.route).supersedes;
     const context = run.context;
     const upstream = repoRef(thread.repo);
     const mentions = participants(context);
@@ -102,7 +94,8 @@ export class Publisher {
         await this.committer.ensureBranch(fork, context.branch, context.baseSha, base.name);
         return this.committer.commit(fork, context.branch, context.baseSha, changes, this.commitMessage(input), this.bot.identity);
       });
-      if (thread.prNumber === null) {
+      // A fresh attempt opens its own pull request, then closes the one it supersedes.
+      if (thread.prNumber === null || supersedes !== undefined) {
         const prNumber = await this.runs.once(thread.id, run.loop, "pr", async () => {
           const base = await this.writer.defaultBranch(upstream);
           const title = result.pr?.title ?? result.summary.slice(0, 120);
@@ -114,8 +107,11 @@ export class Publisher {
           return this.writer.openPullRequest(upstream, `${fork.owner}:${context.branch}`, base.name, title, body, config.draftPr);
         });
         if (typeof prNumber === "number") {
-          await this.runs.updateThread(thread.id, { prNumber, branch: context.branch });
-          thread = { ...thread, prNumber, branch: context.branch };
+          await this.runs.updateThread(thread.id, { prNumber, branch: context.branch, prStatusCommentId: null });
+          thread = { ...thread, prNumber, branch: context.branch, prStatusCommentId: null };
+          if (supersedes !== undefined) {
+            await this.post(() => this.runs.once(thread.id, run.loop, "supersede", () => this.writer.closePullRequest(upstream, supersedes, `Superseded by #${String(prNumber)}.`).then(() => supersedes)));
+          }
         }
       }
     }
@@ -135,8 +131,7 @@ export class Publisher {
 
     const message = [result.message, ...quoted].filter((part): part is string => part !== undefined && part.length > 0).join("\n\n---\n\n");
     if (message.length > 0) {
-      const target = thread.prNumber ?? thread.number;
-      await this.post(() => this.runs.once(thread.id, run.loop, "message", () => this.writer.comment(upstream, target, clean(message))));
+      await this.post(() => this.runs.once(thread.id, run.loop, "message", () => this.writer.comment(upstream, subject.number, clean(message))));
     }
 
     await this.updateStatus(thread, status, run, `✅ ${clean(result.summary)}`, input.runUrl);
@@ -148,14 +143,14 @@ export class Publisher {
   async reportFailure(input: FailureInput): Promise<void> {
     const upstream = repoRef(input.thread.repo);
     const retry = `Comment \`@${this.bot.identity.login} retry\` to run this loop again.`;
-    await this.updateStatus(input.thread, statusTarget(input.thread), input.run, `😕 ${input.reason}\n\n${retry}`, input.runUrl);
+    await this.updateStatus(input.thread, statusComment(input.thread, subjectOfRun(input.run, input.thread)), input.run, `😕 ${input.reason}\n\n${retry}`, input.runUrl);
     await this.updateCostTable(input.thread);
     await this.reactions.finish(input.thread.id, input.run.loop, upstream, "confused");
   }
 
   /** A run was dispatched: the status comment and the PR's table show it, with its link, right away. */
   async reportStarted(thread: ThreadRecord, run: RunRecord, runUrl: string | null): Promise<void> {
-    await this.updateStatus(thread, statusTarget(thread), run, "⏳ Working on it.", runUrl);
+    await this.updateStatus(thread, statusComment(thread, subjectOfRun(run, thread)), run, "⏳ Working on it.", runUrl);
     await this.updateCostTable(thread);
   }
 
@@ -204,15 +199,15 @@ export class Publisher {
       }),
     );
     const count = (outcome: RuleResult["outcome"]) => String(results.filter((result) => result.outcome === outcome).length);
-    await this.updateStatus(thread, statusTarget(thread), run, `✅ Review posted: ❌ ${count("violation")} · ⚠️ ${count("warning")} · ✅ ${count("valid")} · ➖ ${count("ignored")}.`, input.runUrl);
+    await this.updateStatus(thread, statusComment(thread, subjectOfRun(run, thread)), run, `✅ Review posted: ❌ ${count("violation")} · ⚠️ ${count("warning")} · ✅ ${count("valid")} · ➖ ${count("ignored")}.`, input.runUrl);
     await this.updateCostTable(thread);
     await this.reactions.finish(thread.id, run.loop, upstream, "+1");
   }
 
-  /** No run happened (caps, pause, missing capability): explain in the status comment, react 😕. */
-  async reportRefusal(thread: ThreadRecord, reason: string): Promise<void> {
+  /** No run happened (a route, caps, pause, missing capability): explain where it was asked, react 😕. */
+  async reportRefusal(thread: ThreadRecord, subject: Subject, reason: string): Promise<void> {
     const upstream = repoRef(thread.repo);
-    await this.upsertStatus(thread, statusTarget(thread), `**macaron-bot** · not started\n\n😕 ${reason}`);
+    await this.upsertStatus(thread, statusComment(thread, subject), `**macaron-bot** · not started\n\n😕 ${reason}`);
     await this.reactions.finish(thread.id, thread.loops + 1, upstream, "confused");
   }
 
@@ -224,12 +219,12 @@ export class Publisher {
     return lines.join("\n");
   }
 
-  /** One sticky comment per thread, edited in place on every loop. */
-  private async updateStatus(thread: ThreadRecord, target: StatusTarget, run: RunRecord, outcome: string, runUrl: string | null): Promise<void> {
+  /** One sticky comment per subject, edited in place on every loop. */
+  private async updateStatus(thread: ThreadRecord, target: StatusComment, run: RunRecord, outcome: string, runUrl: string | null): Promise<void> {
     const loops = await this.runs.loops(thread.id);
     const spent = loops.reduce((total, loop) => total + (loop.costMicros ?? 0), 0);
     const pending = loops.some((loop) => loop.settledAt === null) ? " ⏳" : "";
-    const where = !target.onPull && thread.prNumber !== null && thread.kind === "issue" ? `\n\nWork continues in #${String(thread.prNumber)}.` : "";
+    const where = target.column === "statusCommentId" && thread.prNumber !== null && thread.kind === "issue" ? `\n\nWork continues in #${String(thread.prNumber)}.` : "";
     const body = [
       `**macaron-bot** · loop ${String(run.loop)} · \`${run.mode}\`${runUrl === null ? "" : ` · [run](${runUrl})`}`,
       "",
@@ -241,11 +236,11 @@ export class Publisher {
     await this.upsertStatus(thread, target, body);
   }
 
-  private async upsertStatus(thread: ThreadRecord, target: StatusTarget, body: string): Promise<void> {
+  private async upsertStatus(thread: ThreadRecord, target: StatusComment, body: string): Promise<void> {
     await this.post(async () => {
       const id = await this.writer.upsertComment(repoRef(thread.repo), target.number, target.commentId, body);
-      if (id === target.commentId) return;
-      await this.runs.updateThread(thread.id, target.onPull ? { prStatusCommentId: id } : { statusCommentId: id });
+      if (id === target.commentId || target.column === undefined) return;
+      await this.runs.updateThread(thread.id, target.column === "prStatusCommentId" ? { prStatusCommentId: id } : { statusCommentId: id });
     });
   }
 

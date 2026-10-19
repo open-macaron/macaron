@@ -54,6 +54,7 @@ async function newRun(n: number) {
     model: "anthropic/claude-sonnet-5.5",
     fastModel: "anthropic/claude-haiku-5.5",
     context: runContext({ mode: "reproduce" }),
+    route: { mode: "reproduce", subject: { kind: "issue", number: 2000 + n }, checkout: { from: "defaultBranch" }, branch: `macaron/${String(2000 + n)}-work` },
     limitMicros: 1_000_000,
   });
   return { thread, run };

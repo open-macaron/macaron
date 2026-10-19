@@ -39,6 +39,7 @@ async function newRun(n: number) {
     model: "anthropic/claude-sonnet-5.5",
     fastModel: "anthropic/claude-haiku-5.5",
     context,
+    route: { mode: "implement", subject: { kind: "issue", number: 1000 + n }, checkout: { from: "defaultBranch" }, branch: `macaron/${String(1000 + n)}-work` },
     limitMicros: 1_000_000,
   });
   return { thread, run };
@@ -64,9 +65,11 @@ describe("RunsRepository", () => {
       model: run.model,
       fastModel: "anthropic/claude-haiku-5.5",
       context,
+      route: { mode: "address_review", subject: { kind: "ownPullRequest", number: 7 }, checkout: { from: "botBranch" }, branch: "macaron/1001-work" },
       limitMicros: 1,
     });
     expect([run.loop, second.loop]).toEqual([1, 2]);
+    expect((await runs.byId(second.id)).route).toEqual({ mode: "address_review", subject: { kind: "ownPullRequest", number: 7 }, checkout: { from: "botBranch" }, branch: "macaron/1001-work" });
   });
 
   it("hands out a key once, only to the workflow run it was dispatched as, and wipes it", async () => {
@@ -127,11 +130,25 @@ describe("EventsRepository", () => {
   it("records each trigger once", async () => {
     const events = new EventsRepository(db);
     const { thread } = await newRun(6);
-    const event = { threadId: thread.id, externalId: "issue-comment:1", author: "alice", kind: "mention" as const, url: "https://x", body: "@macaron-bot implement" };
+    const event = { threadId: thread.id, externalId: "issue-comment:1", subjectKind: "issue" as const, subjectNumber: 1006, author: "alice", kind: "mention" as const, url: "https://x", body: "@macaron-bot implement" };
 
     expect(await events.add(event)).toBe(true);
     expect(await events.add(event)).toBe(false);
-    expect(await events.pending(thread.id)).toHaveLength(1);
+    expect(await events.pending(thread.id)).toMatchObject([{ subjectKind: "issue", subjectNumber: 1006 }]);
+  });
+});
+
+describe("effects", () => {
+  it("moves a request's effects to the loop that answers it, leaving others", async () => {
+    const { thread } = await newRun(7);
+    await runs.once(thread.id, 0, "eyes:issue-comment:1", () => Promise.resolve("a"));
+    await runs.once(thread.id, 0, "eyes:issue-comment:2", () => Promise.resolve("b"));
+
+    await runs.moveEffects(thread.id, 0, 2, ["eyes:issue-comment:1"]);
+
+    expect(await runs.effect(thread.id, 2, "eyes:issue-comment:1")).toBe("a");
+    expect(await runs.effect(thread.id, 0, "eyes:issue-comment:1")).toBeUndefined();
+    expect(await runs.effect(thread.id, 0, "eyes:issue-comment:2")).toBe("b");
   });
 });
 

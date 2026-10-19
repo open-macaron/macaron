@@ -4,6 +4,7 @@ import type { Harness, Mode, RunContext, Ticket } from "@open-macaron/contracts"
 import { and, count, eq, gte, inArray, isNull, like, sql } from "drizzle-orm";
 import type { MintedKey } from "../budget/budget.service.ts";
 import { TicketAlreadyRedeemed, TicketRejected } from "../common/errors.ts";
+import type { Route } from "../routing/routes.ts";
 import type { UsdMicros } from "../common/money.ts";
 import type { Db } from "../db/db.module.ts";
 import { effects, ledger, runs, threads } from "../db/schema.ts";
@@ -22,6 +23,7 @@ export interface NewRun {
   readonly model: string;
   readonly fastModel: string;
   readonly context: RunContext;
+  readonly route: Route;
   readonly limitMicros: UsdMicros;
 }
 
@@ -88,6 +90,7 @@ export class RunsRepository {
           model: run.model,
           fastModel: run.fastModel,
           context: run.context,
+          route: run.route,
           limitMicros: run.limitMicros,
           loop: thread.loops,
         })
@@ -240,6 +243,15 @@ export class RunsRepository {
       .from(effects)
       .where(and(eq(effects.threadId, threadId), eq(effects.loop, loop), eq(effects.kind, kind)));
     return row === undefined ? undefined : row.externalId;
+  }
+
+  /** Moves the given effects from one loop to another, e.g. a request's 👀 to the run that answers it. */
+  async moveEffects(threadId: string, fromLoop: number, toLoop: number, kinds: readonly string[]): Promise<void> {
+    if (kinds.length === 0) return;
+    await this.db
+      .update(effects)
+      .set({ loop: toLoop })
+      .where(and(eq(effects.threadId, threadId), eq(effects.loop, fromLoop), inArray(effects.kind, [...kinds])));
   }
 
   /** The loop's recorded effects whose kind starts with `prefix` (a fixed string, no wildcards). */
