@@ -2,14 +2,15 @@ import slugify from "@sindresorhus/slugify";
 import type { Mode } from "@open-macaron/contracts";
 import { proseRanges } from "../publish/markdown-ast.ts";
 
-export interface Subject {
+/** What a GitHub notification is about, as GitHub gives it. */
+export interface NotificationSubject {
   readonly repo: string;
   readonly number: number;
   readonly kind: "issue" | "pull";
 }
 
 /** `https://api.github.com/repos/{owner}/{repo}/(issues|pulls)/{n}` → subject. */
-export function parseSubjectUrl(url: string | null): Subject | undefined {
+export function parseSubjectUrl(url: string | null): NotificationSubject | undefined {
   const match = /^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/(issues|pulls)\/(\d+)$/.exec(url ?? "");
   if (match === null) return undefined;
   const [, repo, type, number] = match;
@@ -65,10 +66,13 @@ function isCommand(value: string): value is Command {
   return COMMANDS.has(value);
 }
 
-/** `macaron/<number>-<slug>` from an issue title (slug by @sindresorhus/slugify, at most 40 chars). */
-export function branchFor(number: number, title: string): string {
+/**
+ * `macaron/<number>-<slug>` from an issue title (slug by @sindresorhus/slugify, at most 40 chars),
+ * with `-<attempt>` for a fresh attempt next to an earlier branch.
+ */
+export function branchFor(number: number, title: string, attempt?: number): string {
   const slug = slugify(title).slice(0, 40).replace(/-+$/, "");
-  return `macaron/${String(number)}-${slug === "" ? "work" : slug}`;
+  return `macaron/${String(number)}-${slug === "" ? "work" : slug}${attempt === undefined ? "" : `-${String(attempt)}`}`;
 }
 
 export interface TriggerEvent {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BotBranch } from "@open-macaron/contracts";
 import { branchFor, decideMode, parseMention, parseSubjectUrl } from "../../src/ingest/triggers.ts";
 
 describe("parseSubjectUrl", () => {
@@ -46,6 +47,8 @@ describe("parseMention", () => {
 describe("branchFor", () => {
   it("builds a stable, safe branch name", () => {
     expect(branchFor(12, "Crash on start (Électron 38)!")).toBe("macaron/12-crash-on-start-electron-38");
+    expect(branchFor(12, "Crash on start (Électron 38)!", 7)).toBe("macaron/12-crash-on-start-electron-38-7");
+    expect(BotBranch.safeParse(branchFor(12, "x".repeat(80), 9999)).success).toBe(true);
     expect(branchFor(7, "🔥🔥")).toBe("macaron/7-work");
   });
 });

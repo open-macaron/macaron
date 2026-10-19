@@ -12,7 +12,7 @@ import { Jobs } from "../jobs/jobs.ts";
 import { EventsRepository, type NewEvent, QUIET_PERIOD_MS } from "./events.repository.ts";
 import { NotificationSink } from "./notifications-poller.ts";
 import type { NotificationThread } from "./notifications-source.ts";
-import { parseMention, parseSubjectUrl, type Subject } from "./triggers.ts";
+import { type NotificationSubject, parseMention, parseSubjectUrl } from "./triggers.ts";
 
 /** Comments older than the notification by more than this are not new triggers. */
 const LOOKBACK_MS = 15 * 60_000;
@@ -72,7 +72,7 @@ export class IngestService extends NotificationSink {
     }
   }
 
-  private async issueComments(subject: Subject, ownPull: boolean, since: Date): Promise<{ event: Omit<NewEvent, "threadId">; target: ReactionTarget }[]> {
+  private async issueComments(subject: NotificationSubject, ownPull: boolean, since: Date): Promise<{ event: Omit<NewEvent, "threadId">; target: ReactionTarget }[]> {
     const upstream = repoRef(subject.repo);
     const found: { event: Omit<NewEvent, "threadId">; target: ReactionTarget }[] = [];
 
@@ -107,7 +107,7 @@ export class IngestService extends NotificationSink {
    * Review summaries (the text submitted with "Comment" / "Request changes"). GitHub has no
    * reactions on reviews, so 👀 goes on the PR itself.
    */
-  private async reviews(subject: Subject, since: Date): Promise<{ event: Omit<NewEvent, "threadId">; target: ReactionTarget }[]> {
+  private async reviews(subject: NotificationSubject, since: Date): Promise<{ event: Omit<NewEvent, "threadId">; target: ReactionTarget }[]> {
     const reviews = await this.gh.paginate(this.gh.rest.pulls.listReviews, { ...repoRef(subject.repo), pull_number: subject.number, per_page: 100 });
     return reviews
       .filter((review) => review.body.trim().length > 0 && review.submitted_at !== undefined && new Date(review.submitted_at) >= since)
@@ -123,7 +123,7 @@ export class IngestService extends NotificationSink {
       });
   }
 
-  private async reviewComments(subject: Subject, since: Date): Promise<{ event: Omit<NewEvent, "threadId">; target: ReactionTarget }[]> {
+  private async reviewComments(subject: NotificationSubject, since: Date): Promise<{ event: Omit<NewEvent, "threadId">; target: ReactionTarget }[]> {
     const upstream = repoRef(subject.repo);
     const comments = await this.gh.paginate(this.gh.rest.pulls.listReviewComments, { ...upstream, pull_number: subject.number, since: since.toISOString(), per_page: 100 });
     return comments
