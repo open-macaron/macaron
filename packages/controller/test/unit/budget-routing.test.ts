@@ -118,6 +118,17 @@ describe("BudgetService routing", () => {
     await expect(new RunKeysRegistry("bifrost", [new RecordingKeys("bifrost")], () => ["model-a", "model-b"]).onApplicationBootstrap()).resolves.toBeUndefined();
   });
 
+  it("leaves out an inactive backend that fails its start-up check, but never the active one", async () => {
+    const broken = new RecordingKeys("openrouter");
+    broken.init = () => Promise.reject(new Error("Invalid management key"));
+    const registry = new RunKeysRegistry("bifrost", [broken, new RecordingKeys("bifrost")]);
+
+    await registry.onModuleInit();
+
+    expect(registry.all.map((keys) => keys.backend)).toEqual(["bifrost"]);
+    await expect(new RunKeysRegistry("openrouter", [broken]).onModuleInit()).rejects.toThrow(/Invalid management key/);
+  });
+
   it("refuses to start with an active backend that isn't configured", () => {
     expect(() => new RunKeysRegistry("bifrost", [new RecordingKeys("openrouter")])).toThrow(/"bifrost" is selected but not configured/);
   });

@@ -1,4 +1,5 @@
-import type { OnApplicationBootstrap, OnModuleInit } from "@nestjs/common";
+import { Logger, type OnApplicationBootstrap, type OnModuleInit } from "@nestjs/common";
+import { describeError } from "../common/errors.ts";
 import type { LlmBackend, RunKeys } from "./run-keys.ts";
 
 /**
@@ -6,7 +7,8 @@ import type { LlmBackend, RunKeys } from "./run-keys.ts";
  * runs minted before a backend switch are still frozen, settled and swept where their key lives.
  */
 export class RunKeysRegistry implements OnModuleInit, OnApplicationBootstrap {
-  private readonly byBackend: ReadonlyMap<LlmBackend, RunKeys>;
+  private readonly logger = new Logger(RunKeysRegistry.name);
+  private readonly byBackend: Map<LlmBackend, RunKeys>;
 
   /** `configuredModels` lists every model the loaded configuration can give a run. */
   constructor(
@@ -18,9 +20,21 @@ export class RunKeysRegistry implements OnModuleInit, OnApplicationBootstrap {
     if (!this.byBackend.has(activeBackend)) throw new Error(`LLM backend "${activeBackend}" is selected but not configured`);
   }
 
-  /** Every backend must answer before the controller accepts work. */
+  /**
+   * The active backend must answer before the controller accepts work. Another one that doesn't
+   * (e.g. its keys were disabled) is logged and left out: it only matters for runs minted on it,
+   * which then fail to settle (and say so) until it is fixed.
+   */
   async onModuleInit(): Promise<void> {
-    for (const keys of this.byBackend.values()) await keys.init();
+    for (const keys of [...this.byBackend.values()]) {
+      try {
+        await keys.init();
+      } catch (error: unknown) {
+        if (keys.backend === this.activeBackend) throw error;
+        this.logger.error(`LLM backend "${keys.backend}" doesn't answer and is left out: ${describeError(error)}`);
+        this.byBackend.delete(keys.backend);
+      }
+    }
   }
 
   /**
