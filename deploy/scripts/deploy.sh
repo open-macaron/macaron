@@ -9,8 +9,8 @@ REPO_DIR="/opt/macaron/repo"
 QUADLET_DIR="/etc/containers/systemd"
 ETC_DIR="/etc/macaron"
 BACKUP_DIR="/var/backups/macaron"
-SECRETS=(macaron-pg-password macaron-database-url macaron-gh-interact macaron-gh-push macaron-gh-org macaron-or-provisioning macaron-or-router macaron-webhook-hmac)
-UNITS=(macaron-postgres macaron-controller macaron-caddy)
+SECRETS=(macaron-pg-password macaron-database-url macaron-gh-interact macaron-gh-push macaron-gh-org macaron-or-provisioning macaron-or-router macaron-webhook-hmac
+  macaron-bifrost-admin macaron-bifrost-db-password macaron-bifrost-encryption-key)
 
 log() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 die() { echo "error: $*" >&2; exit 1; }
@@ -24,6 +24,15 @@ log "prerequisites"
 for secret in "${SECRETS[@]}"; do
   podman secret exists "$secret" || die "podman secret $secret is missing (see provision-secrets.sh)"
 done
+# Bifrost runs only once the company's ENMAAS key is provisioned.
+if podman secret exists macaron-enmaas-key; then
+  BIFROST=true
+  UNITS=(macaron-postgres macaron-bifrost macaron-controller macaron-caddy)
+else
+  BIFROST=false
+  UNITS=(macaron-postgres macaron-controller macaron-caddy)
+fi
+echo "   Bifrost: $BIFROST"
 
 log "fetch main"
 if [[ ! -d "$REPO_DIR/.git" ]]; then
@@ -45,10 +54,42 @@ install_quadlets() {
   install -d -m 0755 "$QUADLET_DIR"
   rm -f "$QUADLET_DIR"/macaron-*
   install -m 0644 "$REPO_DIR"/deploy/quadlets/macaron-* "$QUADLET_DIR"/
+  if [[ "$BIFROST" != true ]]; then rm -f "$QUADLET_DIR"/macaron-bifrost.container; fi
   systemctl daemon-reload
 }
 
 changed() { git -C "$REPO_DIR" diff --quiet "$previous" "$current" -- "$@" && return 1 || return 0; }
+
+# Files besides its quadlet whose change restarts a unit.
+unit_files() {
+  case "$1" in
+    macaron-caddy) echo deploy/caddy ;;
+    macaron-bifrost) echo deploy/bifrost ;;
+  esac
+}
+
+# Bifrost's database and role in the shared Postgres. Idempotent; the password travels on stdin.
+# The macaron role is the image's superuser and keeps access; PUBLIC loses CONNECT on both databases
+# so the bifrost role can't open macaron's.
+ensure_bifrost_database() {
+  local password
+  password="$(podman secret inspect --showsecret --format '{{.SecretData}}' macaron-bifrost-db-password)"
+  [[ "$password" =~ ^[0-9a-f]+$ ]] || die "unexpected macaron-bifrost-db-password format"
+  podman exec -i macaron-postgres psql -q -v ON_ERROR_STOP=1 -U macaron -d macaron >/dev/null <<SQL
+SELECT 'CREATE ROLE bifrost LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'bifrost')\gexec
+ALTER ROLE bifrost WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '$password';
+SELECT 'CREATE DATABASE bifrost OWNER bifrost' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'bifrost')\gexec
+REVOKE CONNECT ON DATABASE macaron FROM PUBLIC;
+REVOKE CONNECT ON DATABASE bifrost FROM PUBLIC;
+GRANT CONNECT ON DATABASE bifrost TO bifrost;
+SQL
+}
+
+# Bifrost keeps spend in memory and writes it to Postgres every 10 s: restarting it while a run is
+# unsettled could lose some of that run's cost.
+unsettled_runs() {
+  podman exec macaron-postgres psql -tA -U macaron -d macaron -c "SELECT count(*) FROM runs WHERE settled_at IS NULL"
+}
 
 if systemctl is-active --quiet macaron-postgres && changed deploy/quadlets packages; then
   log "database dump before changing the controller"
@@ -62,9 +103,15 @@ install_quadlets
 
 log "start or restart"
 for unit in "${UNITS[@]}"; do
+  if [[ "$unit" == macaron-bifrost ]]; then ensure_bifrost_database; fi
+  # shellcheck disable=SC2046 # unit_files prints zero or one path
   if ! systemctl is-active --quiet "$unit"; then
     systemctl start "$unit"
-  elif changed "deploy/quadlets/$unit.container" "deploy/caddy"; then
+  elif changed "deploy/quadlets/$unit.container" $(unit_files "$unit"); then
+    if [[ "$unit" == macaron-bifrost && "$(unsettled_runs)" != 0 ]]; then
+      echo "   macaron-bifrost changed but runs are unsettled: not restarted, deploy again once they are" >&2
+      continue
+    fi
     systemctl restart "$unit"
   fi
 done

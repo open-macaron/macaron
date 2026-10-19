@@ -10,7 +10,8 @@ import { type KeyStatus, type ProvisionedKey, RunKeys } from "./run-keys.ts";
 const CreatedKey = z.object({ virtual_key: zVirtualKey.pick({ id: true, value: true }) });
 const KeyBudgets = z.object({ virtual_key: zVirtualKey.pick({ budgets: true }) });
 const ListedKey = zVirtualKey.pick({ id: true, name: true, is_active: true, created_at: true });
-const KeyPage = z.object({ virtual_keys: z.array(ListedKey), total_count: z.coerce.number() });
+/** An empty page has `virtual_keys: null` (Go's nil slice), unlike the OpenAPI document says. */
+const KeyPage = z.object({ virtual_keys: z.array(ListedKey).nullable(), total_count: z.coerce.number() });
 const Ignored = z.unknown();
 
 const PAGE_SIZE = 100;
@@ -90,11 +91,12 @@ export class BifrostKeys extends RunKeys {
     for (let offset = 0; ; offset += PAGE_SIZE) {
       const query = new URLSearchParams({ search: prefix, limit: String(PAGE_SIZE), offset: String(offset) });
       const page = await this.request("list keys", "GET", `/api/governance/virtual-keys?${query.toString()}`, KeyPage);
-      for (const key of page.virtual_keys) {
+      const listed = page.virtual_keys ?? [];
+      for (const key of listed) {
         // `search` is a substring match: keep only real prefixes.
         if (key.name.startsWith(prefix)) found.push({ hash: key.id, name: key.name, disabled: !key.is_active, createdAt: new Date(key.created_at) });
       }
-      if (page.virtual_keys.length === 0 || offset + PAGE_SIZE >= page.total_count) return found;
+      if (listed.length === 0 || offset + PAGE_SIZE >= page.total_count) return found;
     }
   }
 

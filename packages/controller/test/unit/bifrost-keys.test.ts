@@ -147,6 +147,15 @@ describe("BifrostKeys", () => {
     expect(found.at(-1)).toEqual({ hash: "vk-last", name: "macaron-run-last", disabled: true, createdAt: new Date("2026-10-19T12:00:00Z") });
   });
 
+  it("reads an empty listing, which Bifrost sends as null", async () => {
+    const bifrost = await keys();
+    server.use(
+      http.get(`${ADMIN}/api/governance/virtual-keys`, () => HttpResponse.json({ count: 0, limit: 100, offset: 0, total_count: 0, virtual_keys: null })),
+    );
+
+    expect(await bifrost.listByPrefix("macaron-run-")).toEqual([]);
+  });
+
   it("reads a key's spend from memory, summing its budgets", async () => {
     const bifrost = await keys();
     server.use(

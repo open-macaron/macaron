@@ -1,7 +1,8 @@
 [Unit]
 Description=macaron-bot: controller
 Requires=macaron-postgres.service
-After=macaron-postgres.service
+# Bifrost only runs when the ENMAAS key is provisioned; when it does, its admin API must answer first.
+After=macaron-postgres.service macaron-bifrost.service
 
 [Container]
 ContainerName=macaron-controller
@@ -23,6 +24,7 @@ Secret=macaron-gh-push,type=env,target=GH_PUSH
 Secret=macaron-gh-org,type=env,target=GH_ORG
 Secret=macaron-or-provisioning,type=env,target=OPENROUTER_PROVISIONING_KEY
 Secret=macaron-or-router,type=env,target=OPENROUTER_ROUTER_KEY
+Secret=macaron-bifrost-admin,type=env,target=BIFROST_ADMIN_PASSWORD
 Secret=macaron-webhook-hmac,type=env,target=WEBHOOK_HMAC
 HealthCmd=node -e "fetch('http://127.0.0.1:8080/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
 HealthInterval=15s
