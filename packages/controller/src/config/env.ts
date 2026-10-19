@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { RepoSlug } from "@open-macaron/contracts";
+import { LlmBackend } from "../budget/run-keys.ts";
 
 const Secret = z.string().min(20, "looks too short to be a real credential");
 
-/** Every environment variable the controller reads. Parsed once at boot; the process exits if invalid. */
-export const Env = z.object({
+/** Every environment variable the controller reads, as given. */
+const RawEnv = z.object({
   NODE_ENV: z.enum(["production", "development", "test"]).default("production"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
@@ -39,15 +40,91 @@ export const Env = z.object({
   /** open-macaron/knowledge's read API on GitHub Pages (DESIGN.md §6.5). */
   KNOWLEDGE_URL: z.url({ protocol: /^https$/ }).default("https://open-macaron.github.io/knowledge/v1"),
 
+  /** Where new runs get their LLM key. Every backend whose variables are set stays usable for runs minted on it before a switch. */
+  LLM_BACKEND: LlmBackend.default("openrouter"),
+
+  /** OpenRouter backend: configured when OPENROUTER_PROVISIONING_KEY is set. */
   OPENROUTER_BASE_URL: z.url().default("https://openrouter.ai/api/v1"),
   /** Workspace (slug) holding every key we create, so its dashboard shows the bot's total spend. */
   OPENROUTER_WORKSPACE: z.string().regex(/^[a-z0-9-]+$/).default("macaron"),
-  OPENROUTER_PROVISIONING_KEY: Secret,
-  OPENROUTER_ROUTER_KEY: Secret,
+  OPENROUTER_PROVISIONING_KEY: Secret.optional(),
+  OPENROUTER_ROUTER_KEY: Secret.optional(),
+
+  /** Bifrost backend (virtual keys over the company's ENMAAS key): configured when BIFROST_ADMIN_URL is set. */
+  BIFROST_ADMIN_URL: z.url().optional(),
+  /** What runners use as ANTHROPIC_BASE_URL: Caddy's inference-only route to Bifrost. */
+  BIFROST_PUBLIC_URL: z.url({ protocol: /^https$/ }).optional(),
+  BIFROST_ADMIN_USERNAME: z.string().min(1).default("macaron"),
+  BIFROST_ADMIN_PASSWORD: Secret.optional(),
+  /** Bifrost's provider holding the upstream key. */
+  BIFROST_PROVIDER: z.string().regex(/^[a-z0-9_-]+$/).default("anthropic"),
+  /**
+   * Requests per minute a run's key may start. Bifrost checks a budget before a request and charges
+   * it after, so this bounds how many requests can be in flight past the limit.
+   */
+  BIFROST_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(1_000).default(60),
 
   WEBHOOK_HMAC: z.string().min(32, "use at least 32 random characters"),
 });
-export type AppEnv = z.infer<typeof Env>;
+
+export interface OpenRouterEnv {
+  readonly baseUrl: string;
+  readonly workspace: string;
+  readonly provisioningKey: string;
+  readonly routerKey: string;
+}
+
+export interface BifrostEnv {
+  readonly adminUrl: string;
+  readonly publicUrl: string;
+  readonly username: string;
+  readonly password: string;
+  readonly provider: string;
+  readonly requestsPerMinute: number;
+}
+
+/** Every environment variable the controller reads. Parsed once at boot; the process exits if invalid. */
+export const Env = RawEnv.transform((raw, ctx) => {
+  const missing = (variables: Readonly<Record<string, unknown>>, why: string) => {
+    for (const [name, value] of Object.entries(variables)) {
+      if (value === undefined) ctx.addIssue({ code: "custom", path: [name], message: `required ${why}` });
+    }
+  };
+  let openRouter: OpenRouterEnv | undefined;
+  if (raw.OPENROUTER_PROVISIONING_KEY !== undefined || raw.LLM_BACKEND === "openrouter") {
+    missing(
+      { OPENROUTER_PROVISIONING_KEY: raw.OPENROUTER_PROVISIONING_KEY, OPENROUTER_ROUTER_KEY: raw.OPENROUTER_ROUTER_KEY },
+      "for the OpenRouter backend",
+    );
+    if (raw.OPENROUTER_PROVISIONING_KEY !== undefined && raw.OPENROUTER_ROUTER_KEY !== undefined) {
+      openRouter = {
+        baseUrl: raw.OPENROUTER_BASE_URL,
+        workspace: raw.OPENROUTER_WORKSPACE,
+        provisioningKey: raw.OPENROUTER_PROVISIONING_KEY,
+        routerKey: raw.OPENROUTER_ROUTER_KEY,
+      };
+    }
+  }
+  let bifrost: BifrostEnv | undefined;
+  if (raw.BIFROST_ADMIN_URL !== undefined || raw.LLM_BACKEND === "bifrost") {
+    missing(
+      { BIFROST_ADMIN_URL: raw.BIFROST_ADMIN_URL, BIFROST_PUBLIC_URL: raw.BIFROST_PUBLIC_URL, BIFROST_ADMIN_PASSWORD: raw.BIFROST_ADMIN_PASSWORD },
+      "for the Bifrost backend",
+    );
+    if (raw.BIFROST_ADMIN_URL !== undefined && raw.BIFROST_PUBLIC_URL !== undefined && raw.BIFROST_ADMIN_PASSWORD !== undefined) {
+      bifrost = {
+        adminUrl: raw.BIFROST_ADMIN_URL,
+        publicUrl: raw.BIFROST_PUBLIC_URL,
+        username: raw.BIFROST_ADMIN_USERNAME,
+        password: raw.BIFROST_ADMIN_PASSWORD,
+        provider: raw.BIFROST_PROVIDER,
+        requestsPerMinute: raw.BIFROST_REQUESTS_PER_MINUTE,
+      };
+    }
+  }
+  return { ...raw, openRouter, bifrost };
+});
+export type AppEnv = z.output<typeof Env>;
 
 export const APP_ENV = Symbol("APP_ENV");
 

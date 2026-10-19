@@ -1,5 +1,6 @@
 import { Global, Module } from "@nestjs/common";
 import { TerminusModule } from "@nestjs/terminus";
+import { BifrostKeys } from "./budget/bifrost-keys.ts";
 import { BudgetService } from "./budget/budget.service.ts";
 import { OpenRouterKeys } from "./budget/openrouter-keys.ts";
 import { RunKeysRegistry } from "./budget/run-keys.registry.ts";
@@ -52,8 +53,9 @@ export class CoreModule {}
       provide: RunKeysRegistry,
       inject: [APP_ENV],
       useFactory: (env: AppEnv) =>
-        new RunKeysRegistry("openrouter", [
-          new OpenRouterKeys({ baseUrl: env.OPENROUTER_BASE_URL, workspace: env.OPENROUTER_WORKSPACE, provisioningKey: env.OPENROUTER_PROVISIONING_KEY }),
+        new RunKeysRegistry(env.LLM_BACKEND, [
+          ...(env.openRouter === undefined ? [] : [new OpenRouterKeys(env.openRouter)]),
+          ...(env.bifrost === undefined ? [] : [new BifrostKeys(env.bifrost)]),
         ]),
     },
     BudgetService,

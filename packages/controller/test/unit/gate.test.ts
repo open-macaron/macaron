@@ -53,7 +53,8 @@ describe("gate", () => {
   it("refuses credentials in files and in texts, naming each kind once", async () => {
     const token = `ghp_${"A".repeat(36)}`;
     expect(await check({ changes: changes([upsert("config.ts", `const t = "${token}";`)]) })).toEqual(["config.ts: contains a github secret"]);
-    expect(await check({ result: runResult({ summary: `used sk-or-v1-${"0".repeat(64)}` }) })).toEqual(["text contains a OpenRouter API key secret"]);
+    expect(await check({ result: runResult({ summary: `used sk-or-v1-${"0".repeat(64)}` }) })).toEqual(["text contains a LLM key secret"]);
+    expect(await check({ result: runResult({ summary: "used sk-bf-123e4567-e89b-12d3-a456-426614174000" }) })).toEqual(["text contains a LLM key secret"]);
   });
 
   describe("review mode", () => {
