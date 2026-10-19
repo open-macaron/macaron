@@ -160,12 +160,34 @@ Behaviour notes:
 - Run modes:
   - `triage`: read-only, no setup step, small budget. It answers questions in a thread.
   - `plan`, `implement`, `address_review`: full environment.
-  - `reproduce` (on the base commit) and `verify` (on the PR branch): full environment, **no commit**. They reply with evidence such as screenshots and videos (see "Evidence" below). `@macaron-bot can you reproduce?` routes here.
+  - `reproduce` (on the default branch) and `verify` (on the pull request): full environment, **no commit**. They reply with evidence such as screenshots and videos (see "Evidence" below). `@macaron-bot can you reproduce?` routes here.
   - A run may return `escalate`, in which case `complete()` launches the next run in the requested mode.
   - Explicit commands (`@macaron-bot implement`, `/plan`, `/stop`) skip the Router.
   - `@macaron-bot retry` runs the thread's last failed or stopped loop again, with the same mode and trigger. It is refused when the last loop succeeded. Each failure's status comment says so.
 - The Ingest drops events from untrusted repos, untrusted users, and the bot itself. It also caps loops: at most N review loops per PR, and a lower cap when the reviewer is a bot, so two bots can't ping-pong forever.
-- Review *summaries* don't support reactions, so 👀 goes on their first inline comment, or on the PR otherwise.
+- Review *summaries* don't support reactions, so 👀 goes on the PR.
+
+### Subjects and routes (`src/routing/`)
+
+A thread is an issue and the bot's open pull request for it, but they are separate **subjects** (GitHub's term in notifications): the issue is for understanding the problem and starting the work, a pull request for checking and continuing a change. Each request is answered on its subject: its status comment, its message, its refusal.
+
+`ROUTES` (`routes.ts`) is the one table that says, per subject and mode, which commit a run starts from or why the request is refused. `route()` applies it to one request; the result is stored on the run (`runs.route`) and everything after launch follows it.
+
+| Subject | Mode | Checkout | Otherwise |
+|---|---|---|---|
+| issue | `triage`, `plan`, `reproduce` | default branch | |
+| issue | `implement` | default branch, on a new branch if the bot had one; supersedes the bot's open pull request | |
+| issue | `verify`, `review` | | refused: "runs on the pull request: mention me on #N" |
+| bot's pull request | `triage`, `address_review`, `verify` | bot's branch | |
+| any pull request | `review` | pull request head | |
+| another pull request | `triage`, `verify` | pull request head | |
+| any pull request | `implement`, `plan` | | refused: "can only be used from an issue" |
+| any pull request | `reproduce` | | refused: "can only be used from an issue. On a pull request, use `review` or `verify`" |
+
+- **One subject at a time, one run at a time per thread.** The worker takes the subject of the oldest pending request; requests on the other subject wait for the next pass. The thread keeps one ledger and one set of caps.
+- **Superseding.** A fresh `implement` opens its new pull request first, then closes the bot's previous one with "Superseded by #N", so a failed attempt never leaves the issue without one. No history of earlier pull requests is kept.
+- **A merged or closed bot pull request is forgotten** when the thread is next read (`ThreadStates`): the next `implement` starts over.
+- **Reactions.** 👀 waits unclaimed when a request arrives; the loop answering its subject claims it and swaps it for 👍 or 😕.
 
 ### Notification polling rules
 
@@ -359,7 +381,7 @@ sequenceDiagram
 
 Comment discipline:
 1. Threaded replies to review comments first.
-2. Then one sticky status comment per issue/PR, which the bot edits instead of re-posting.
+2. Then one sticky status comment per subject (the issue, the bot's pull request), which the bot edits instead of re-posting.
 3. A new top-level comment only when asking the human something, and at most one per run.
 
 The PR body ends with a section that the Publisher regenerates from the ledger on every loop:
