@@ -1,0 +1,43 @@
+[Unit]
+Description=macaron-bot: Bifrost (per-run virtual keys over the upstream LLM key)
+Requires=macaron-postgres.service
+After=macaron-postgres.service
+
+[Container]
+ContainerName=macaron-bifrost
+# transports/v2.3.0, digest of the multi-arch index. Bump together with the controller's generated
+# admin client (packages/controller/openapi-ts.bifrost.config.ts).
+Image=docker.io/maximhq/bifrost@sha256:8f37e33a8caa85faf59a875605c61d1d934738e517d8fe96e2d9fcf6f0ef9098
+UserNS=auto
+# edge: Caddy reaches the inference routes, Bifrost reaches the upstream (egress limited to TCP 443).
+# db: its own database in the shared Postgres, and the controller reaches the admin API.
+Network=macaron-edge.network
+Network=macaron-db.network
+ReadOnly=true
+DropCapability=ALL
+NoNewPrivileges=true
+# Bifrost wants a writable APP_DIR; everything it keeps lives in Postgres, so a tmpfs is enough.
+Tmpfs=/app/data:rw,size=64m,mode=1777
+# config.json rendered by deploy.sh (the upstream's URL comes from a secret); the pinned prices and
+# model parameters from the deployed repository.
+Volume=/etc/macaron/bifrost-config.json:/app/data/config.json:ro,Z
+Volume=/opt/macaron/repo/deploy/bifrost:/etc/bifrost:ro,Z
+Environment=LOG_STYLE=json BIFROST_ADMIN_USERNAME=macaron
+Secret=macaron-llm-upstream-key,type=env,target=LLM_UPSTREAM_KEY
+Secret=macaron-bifrost-admin,type=env,target=BIFROST_ADMIN_PASSWORD
+Secret=macaron-bifrost-db-password,type=env,target=BIFROST_DB_PASSWORD
+# Without it Bifrost stores the upstream LLM key and every virtual key in plain text in Postgres.
+Secret=macaron-bifrost-encryption-key,type=env,target=BIFROST_ENCRYPTION_KEY
+HealthCmd=wget -q -O /dev/null http://127.0.0.1:8080/health
+HealthInterval=15s
+HealthStartPeriod=60s
+Notify=healthy
+LogDriver=journald
+
+[Service]
+Restart=on-failure
+RestartSec=10
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
