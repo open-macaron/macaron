@@ -2,6 +2,8 @@ import { Global, Module } from "@nestjs/common";
 import { TerminusModule } from "@nestjs/terminus";
 import { BudgetService } from "./budget/budget.service.ts";
 import { OpenRouterKeys } from "./budget/openrouter-keys.ts";
+import { RunKeysRegistry } from "./budget/run-keys.registry.ts";
+import { APP_ENV, type AppEnv } from "./config/env.ts";
 import { RepoConfigService } from "./config/repo-config.service.ts";
 import { BotIdentity } from "./github/bot-identity.ts";
 import { BootstrapController } from "./http/bootstrap.controller.ts";
@@ -43,8 +45,21 @@ import { RunsRepository } from "./runs/runs.repository.ts";
 })
 export class CoreModule {}
 
-/** OpenRouter keys: the only module holding the provisioning key. */
-@Module({ providers: [OpenRouterKeys, BudgetService], exports: [OpenRouterKeys, BudgetService] })
+/** Run keys: the only module holding the credentials that mint them. */
+@Module({
+  providers: [
+    {
+      provide: RunKeysRegistry,
+      inject: [APP_ENV],
+      useFactory: (env: AppEnv) =>
+        new RunKeysRegistry("openrouter", [
+          new OpenRouterKeys({ baseUrl: env.OPENROUTER_BASE_URL, workspace: env.OPENROUTER_WORKSPACE, provisioningKey: env.OPENROUTER_PROVISIONING_KEY }),
+        ]),
+    },
+    BudgetService,
+  ],
+  exports: [BudgetService],
+})
 export class BudgetModule {}
 
 /** Everything that writes to GitHub. */

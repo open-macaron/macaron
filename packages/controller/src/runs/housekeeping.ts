@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
 import { BudgetService, RUN_KEY_PREFIX } from "../budget/budget.service.ts";
-import { OpenRouterKeys } from "../budget/openrouter-keys.ts";
 import { Clock } from "../common/clock.ts";
 import { describeError } from "../common/errors.ts";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
@@ -21,7 +20,7 @@ const KEY_MAX_AGE_MS = 6 * 60 * 60_000;
 /**
  * Safety nets, scheduled by pg-boss (one instance runs each tick):
  * - reconcile: completions missed while the controller was down, runs that never started, timeouts;
- * - sweep: OpenRouter run keys that outlived their run (keys also expire on their own).
+ * - sweep: run keys that outlived their run, on every configured backend (keys also expire on their own).
  */
 @Injectable()
 export class Housekeeping implements OnApplicationBootstrap {
@@ -34,7 +33,6 @@ export class Housekeeping implements OnApplicationBootstrap {
     private readonly runs: RunsRepository,
     private readonly launcher: RunLauncher,
     private readonly budget: BudgetService,
-    private readonly keys: OpenRouterKeys,
     private readonly config: RepoConfigService,
     private readonly clock: Clock,
   ) {}
@@ -75,10 +73,10 @@ export class Housekeeping implements OnApplicationBootstrap {
     // Keys of runs still running or awaiting their cost settlement are kept.
     const active = new Set((await this.runs.unsettled()).map((run) => `${RUN_KEY_PREFIX}${run.id}`));
     const now = this.clock.now().getTime();
-    for (const key of await this.keys.listByPrefix(RUN_KEY_PREFIX)) {
+    for (const key of await this.budget.runKeys()) {
       if (!active.has(key.name) || now - key.createdAt.getTime() > KEY_MAX_AGE_MS) {
-        this.logger.warn(`deleting leftover key ${key.name}`);
-        await this.budget.revoke(key.hash);
+        this.logger.warn(`deleting leftover ${key.backend} key ${key.name}`);
+        await this.budget.revoke(key);
       }
     }
   }

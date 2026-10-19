@@ -10,7 +10,7 @@ import {
   Ticket,
 } from "@open-macaron/contracts";
 import { z } from "zod";
-import { BudgetService } from "../budget/budget.service.ts";
+import { BudgetService, type RunKeyRef } from "../budget/budget.service.ts";
 import { decideSettlement, SETTLE_RECHECK_MS } from "../budget/settlement.ts";
 import { Clock } from "../common/clock.ts";
 import { describeError } from "../common/errors.ts";
@@ -49,11 +49,13 @@ export interface Escalation {
 
 const DispatchDetails = z.object({ workflow_run_id: z.int().positive() });
 
-/** OpenRouter reports usage ~25 s late (measured); the final read waits comfortably longer. */
-export const SETTLE_DELAY_MS = 90_000;
-
-/** Keys outlive the job by this margin before OpenRouter expires them on its own. */
+/** Keys outlive the job by this margin before their backend expires them on its own. */
 const KEY_GRACE_MINUTES = 15;
+
+/** The run's key, if it got one. */
+function keyOf(run: RunRecord): RunKeyRef | undefined {
+  return run.keyBackend === null || run.keyHash === null ? undefined : { backend: run.keyBackend, hash: run.keyHash };
+}
 
 function monthStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -97,18 +99,18 @@ export class RunLauncher {
       limitMicros: toMicros(limitUsd),
     });
 
-    let keyHash: string | undefined;
+    let key: RunKeyRef | undefined;
     let dispatched: RunRecord;
     try {
-      const key = await this.budget.mint(run.id, limitUsd, config.timeoutMinutes + KEY_GRACE_MINUTES);
-      keyHash = key.hash;
-      await this.runs.attachKey(run.id, key.hash, key.key);
+      const minted = await this.budget.mint(run.id, limitUsd, config.timeoutMinutes + KEY_GRACE_MINUTES, [run.model]);
+      key = minted;
+      await this.runs.attachKey(run.id, minted);
       const ghRunId = await this.dispatch(run, config, context);
       await this.runs.markDispatched(run.id, ghRunId);
       this.logger.log(`run ${run.id} (${thread.repo}#${String(thread.number)} loop ${String(run.loop)} ${mode}) dispatched as ${String(ghRunId)}`);
-      dispatched = { ...run, status: "dispatched", ghRunId, keyHash: key.hash };
+      dispatched = { ...run, status: "dispatched", ghRunId, keyBackend: minted.backend, keyHash: minted.hash };
     } catch (error: unknown) {
-      if (keyHash !== undefined) await this.budget.revoke(keyHash);
+      if (key !== undefined) await this.budget.revoke(key);
       // The key never reached a runner: nothing was spent.
       await this.runs.finish(run.id, { status: "failed", failure: `launch failed: ${describeError(error)}` }, this.clock.now());
       await this.runs.settle(run.id, 0, this.attribution(config), this.clock.now());
@@ -139,9 +141,8 @@ export class RunLauncher {
     const config = this.config.repo(thread.repo);
     const url = runUrl(this.env, ghRunId);
 
-    // Spending stops now; the cost is settled in the background once OpenRouter has reported it.
-    if (run.keyHash !== null) await this.budget.freeze(run.keyHash);
-    await this.jobs.settleCost(run.id, SETTLE_DELAY_MS);
+    // Spending stops now; the cost is settled in the background once the backend has reported it.
+    await this.stopSpending(run);
 
     const fail = async (reason: string): Promise<Escalation | undefined> => {
       const closed = await this.runs.finish(run.id, { status: "failed", failure: reason }, this.clock.now());
@@ -188,8 +189,7 @@ export class RunLauncher {
   /** /stop, watchdog, timeout: spending stops now, then the workflow is cancelled. */
   async abort(run: RunRecord, reason: string): Promise<void> {
     const thread = await this.runs.threadById(run.threadId);
-    if (run.keyHash !== null) await this.budget.freeze(run.keyHash);
-    await this.jobs.settleCost(run.id, SETTLE_DELAY_MS);
+    await this.stopSpending(run);
     if (run.ghRunId !== null) {
       await this.gh.rest.actions.cancelWorkflowRun({ ...repoRef(this.env.RUNNER_REPO), run_id: run.ghRunId }).catch((error: unknown) => {
         this.logger.warn(`cancelling workflow run ${String(run.ghRunId)} failed: ${describeError(error)}`);
@@ -208,7 +208,8 @@ export class RunLauncher {
     if (run.settledAt !== null) return;
     const now = this.clock.now();
     const since = new Date(run.createdAt.getTime() - 5 * 60_000);
-    const observedMicros: UsdMicros = run.keyHash === null ? 0 : await this.budget.usage(run.keyHash, since);
+    const key = keyOf(run);
+    const observedMicros: UsdMicros = key === undefined ? 0 : await this.budget.usage(key, since);
     const decision = decideSettlement({
       redeemed: run.redeemedAt !== null,
       observedMicros,
@@ -224,11 +225,18 @@ export class RunLauncher {
     const attribution = config === undefined ? { repo: thread.repo, project: "unknown" } : this.attribution(config);
     if (await this.runs.settle(run.id, decision.costMicros, attribution, now)) {
       this.logger.log(`run ${run.id} cost ${String(decision.costMicros)} µ$`);
-      if (run.keyHash !== null) await this.budget.revoke(run.keyHash);
+      if (key !== undefined) await this.budget.revoke(key);
       const current = await this.runs.threadById(thread.id);
       await this.publisher.refreshCost(current);
       if (run.mode === "review") await this.publisher.refreshReviewCost(current, run, decision.costMicros);
     }
+  }
+
+  /** Freezes the run's key and schedules its settlement once the backend's usage has caught up. */
+  private async stopSpending(run: RunRecord): Promise<void> {
+    const key = keyOf(run);
+    if (key !== undefined) await this.budget.freeze(key);
+    await this.jobs.settleCost(run.id, key === undefined ? 0 : this.budget.usageLagMs(key.backend));
   }
 
   private async refusal(request: LaunchRequest): Promise<LaunchOutcome | undefined> {
