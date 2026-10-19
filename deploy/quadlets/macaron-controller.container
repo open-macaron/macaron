@@ -33,6 +33,8 @@ Notify=healthy
 LogDriver=journald
 
 [Service]
+# Migrations, then each LLM backend's start-up checks, before it reports healthy.
+TimeoutStartSec=180
 Restart=on-failure
 RestartSec=10
 MemoryMax=768M
