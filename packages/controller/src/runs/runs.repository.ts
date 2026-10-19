@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { InjectDrizzle } from "@nestjs/drizzle";
 import type { Harness, Mode, RunContext, Ticket } from "@open-macaron/contracts";
 import { and, count, eq, gte, inArray, isNull, like, sql } from "drizzle-orm";
+import type { MintedKey } from "../budget/budget.service.ts";
 import { TicketAlreadyRedeemed, TicketRejected } from "../common/errors.ts";
 import type { UsdMicros } from "../common/money.ts";
 import type { Db } from "../db/db.module.ts";
@@ -19,6 +20,7 @@ export interface NewRun {
   readonly mode: Mode;
   readonly harness: Harness;
   readonly model: string;
+  readonly fastModel: string;
   readonly context: RunContext;
   readonly limitMicros: UsdMicros;
 }
@@ -84,6 +86,7 @@ export class RunsRepository {
           mode: run.mode,
           harness: run.harness,
           model: run.model,
+          fastModel: run.fastModel,
           context: run.context,
           limitMicros: run.limitMicros,
           loop: thread.loops,
@@ -94,8 +97,8 @@ export class RunsRepository {
     });
   }
 
-  async attachKey(runId: string, hash: string, secret: string): Promise<void> {
-    await this.db.update(runs).set({ keyHash: hash, keySecret: secret }).where(eq(runs.id, runId));
+  async attachKey(runId: string, key: MintedKey): Promise<void> {
+    await this.db.update(runs).set({ keyBackend: key.backend, keyHash: key.hash, keySecret: key.key }).where(eq(runs.id, runId));
   }
 
   async markDispatched(runId: string, ghRunId: number): Promise<void> {

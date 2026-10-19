@@ -1,0 +1,60 @@
+{
+  "$schema": "https://www.getbifrost.ai/schema",
+  "version": 2,
+  "source_of_truth": "config.json",
+  "client": {
+    "enforce_auth_on_inference": true,
+    "drop_excess_requests": true,
+    "allow_direct_keys": false,
+    "enable_logging": true,
+    "disable_content_logging": true,
+    "log_retention_days": 30,
+    "allowed_origins": [],
+    "allowed_headers": ["anthropic-beta", "anthropic-version"]
+  },
+  "config_store": {
+    "enabled": true,
+    "type": "postgres",
+    "config": {
+      "host": "macaron-postgres",
+      "port": "5432",
+      "user": "bifrost",
+      "password": "env.BIFROST_DB_PASSWORD",
+      "db_name": "bifrost",
+      "ssl_mode": "disable"
+    }
+  },
+  "logs_store": {
+    "enabled": true,
+    "type": "postgres",
+    "config": {
+      "host": "macaron-postgres",
+      "port": "5432",
+      "user": "bifrost",
+      "password": "env.BIFROST_DB_PASSWORD",
+      "db_name": "bifrost",
+      "ssl_mode": "disable"
+    }
+  },
+  "governance": {
+    "auth_config": {
+      "admin_username": "env.BIFROST_ADMIN_USERNAME",
+      "admin_password": "env.BIFROST_ADMIN_PASSWORD",
+      "is_enabled": true
+    }
+  },
+  "framework": {
+    "pricing": {
+      "pricing_url": "file:///etc/bifrost/pricing.json",
+      "model_parameters_url": "file:///etc/bifrost/model-parameters.json",
+      "pricing_sync_interval": 86400
+    }
+  },
+  "providers": {
+    "anthropic": {
+      "keys": [{ "id": "upstream", "name": "upstream", "value": "env.LLM_UPSTREAM_KEY", "weight": 1, "models": ["*"] }],
+      "network_config": { "base_url": "__LLM_UPSTREAM_URL__" },
+      "concurrency_and_buffer_size": { "concurrency": 16, "buffer_size": 16 }
+    }
+  }
+}

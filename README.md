@@ -24,12 +24,12 @@ Only trusted users of trusted repositories (`config/`) can trigger it. Anyone el
 
 **Reviews check one thing per rule.** A violation is only reported with a quote of a line the pull request adds; the reviewer reads code and history but can't change or run anything. The same review runs locally, before you push, with your own agent: `npx @open-macaron/review --project <project>` ([packages/review](packages/review/README.md)).
 
-**Cost.** Every run has its own OpenRouter key, capped at the mode's budget. The cost of each loop is reported: in a table at the end of the bot's pull requests, and in each review. Per-thread, per-repository and per-project monthly caps stop the bot before it spends more.
+**Cost.** Every run has its own LLM key (OpenRouter, or a Bifrost gateway over a company key), capped at the mode's budget and limited to the run's models. The cost of each loop is reported: in a table at the end of the bot's pull requests, and in each review. Per-thread, per-repository and per-project monthly caps stop the bot before it spends more.
 
 ## How it works
 
 - A **controller** on our own VPS holds every credential. It reads the bot's GitHub notifications, decides what to do, and does everything deterministic: budget keys, policy checks, commits, comments.
-- **Agents** (Claude Code, Codex, opencode) run on throwaway GitHub-hosted runners in [`open-macaron/runner`](https://github.com/open-macaron/runner), with no GitHub credential and one OpenRouter key capped at the run's budget.
+- **Agents** (Claude Code, Codex, opencode) run on throwaway GitHub-hosted runners in [`open-macaron/runner`](https://github.com/open-macaron/runner), with no GitHub credential and one LLM key capped at the run's budget.
 - The agent's output goes through a **Gate** (paths, sizes, secrets, media types) before the controller publishes anything.
 
 Read [docs/DESIGN.md](docs/DESIGN.md) first; [docs/SCALING.md](docs/SCALING.md), [docs/REPOSITORIES.md](docs/REPOSITORIES.md), [docs/ENGINEERING.md](docs/ENGINEERING.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) cover the rest.

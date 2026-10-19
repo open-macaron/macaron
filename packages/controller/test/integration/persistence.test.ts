@@ -37,6 +37,7 @@ async function newRun(n: number) {
     mode: "implement",
     harness: "claude",
     model: "anthropic/claude-sonnet-5.5",
+    fastModel: "anthropic/claude-haiku-5.5",
     context,
     limitMicros: 1_000_000,
   });
@@ -61,6 +62,7 @@ describe("RunsRepository", () => {
       mode: "address_review",
       harness: "claude",
       model: run.model,
+      fastModel: "anthropic/claude-haiku-5.5",
       context,
       limitMicros: 1,
     });
@@ -69,7 +71,7 @@ describe("RunsRepository", () => {
 
   it("hands out a key once, only to the workflow run it was dispatched as, and wipes it", async () => {
     const { run } = await newRun(2);
-    await runs.attachKey(run.id, "hash-2", "sk-or-v1-secret");
+    await runs.attachKey(run.id, { backend: "openrouter", hash: "hash-2", key: "sk-or-v1-secret" });
 
     await expect(runs.redeem(ticket(2), 555, new Date())).rejects.toBeInstanceOf(RunNotBoundYet);
     await runs.markDispatched(run.id, 555);
@@ -84,7 +86,7 @@ describe("RunsRepository", () => {
 
   it("lets exactly one of two concurrent redemptions win", async () => {
     const { run } = await newRun(3);
-    await runs.attachKey(run.id, "hash-3", "sk-or-v1-race");
+    await runs.attachKey(run.id, { backend: "openrouter", hash: "hash-3", key: "sk-or-v1-race" });
     await runs.markDispatched(run.id, 777);
 
     const outcomes = await Promise.allSettled([runs.redeem(ticket(3), 777, new Date()), runs.redeem(ticket(3), 777, new Date())]);

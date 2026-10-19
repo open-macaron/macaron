@@ -10,11 +10,11 @@ Read first: [README.md](README.md) (what the bot does), [docs/DESIGN.md](docs/DE
 |---|---|
 | `packages/contracts` | Zod schemas shared across the trust boundary (config, run context/result, knowledge). Emits `schemas/*.json` and `openapi/controller.json` |
 | `packages/controller` | NestJS 12 controller (runs on the VPS, holds every credential) |
-| `packages/agent-cli` | `macaron-agent`, run on GitHub Actions runners (no GitHub token, one capped OpenRouter key) |
+| `packages/agent-cli` | `macaron-agent`, run on GitHub Actions runners (no GitHub token, one capped LLM key) |
 | `packages/review` | The review engine (rule selection, read-only judge session, evidence verification, rendering), shared by the controller and agent-cli, and the `macaron-review` CLI published to npm as `@open-macaron/review` |
 | `packages/knowledge-cli` | Validation, owner-approved merges and the Pages read API of open-macaron/knowledge |
 | `config/` | Trusted projects, repositories, users, budgets (`global.yaml` → `projects/<p>/project.yaml` → `repos/<r>.yaml`) |
-| `deploy/` | Quadlets, Caddy, `deploy.sh` (runs **on** the VPS) |
+| `deploy/` | Quadlets, Caddy, Bifrost (`deploy/bifrost/`: config, pinned prices, `dev.sh`), `deploy.sh` (runs **on** the VPS) |
 | `docs/` | Design documents; keep them in sync with what you change |
 
 Related repositories: [open-macaron/runner](https://github.com/open-macaron/runner) (`run.yml`, `environments/`), [open-macaron/knowledge](https://github.com/open-macaron/knowledge) (rules and lessons, its own README explains approvals).
@@ -25,7 +25,9 @@ Related repositories: [open-macaron/runner](https://github.com/open-macaron/runn
 pnpm install
 pnpm check                      # typecheck + lint + all tests
 pnpm exec vitest run --project controller        # unit tests of one package (contracts, review, agent-cli, controller, knowledge-cli)
-pnpm test:live                  # live tests against OpenRouter/GitHub (~/.config/macaron/dev.env; skipped without it)
+pnpm test:live                  # live tests against OpenRouter/GitHub/Bifrost (~/.config/macaron/dev.env; each skipped without its variables)
+deploy/bifrost/dev.sh up        # local Bifrost + Postgres + Caddy for the Bifrost live test (LLM_UPSTREAM_URL, LLM_UPSTREAM_KEY, BIFROST_ADMIN_PASSWORD in dev.env)
+pnpm --filter @open-macaron/controller gen:bifrost   # Bifrost admin client, when bumping the Bifrost image
 pnpm --filter @open-macaron/controller db:generate   # after changing src/db/schema.ts
 pnpm --filter @open-macaron/controller db:check
 ```
@@ -77,3 +79,5 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 - A merge by the knowledge repository's `GITHUB_TOKEN` fails (403) when the branch is behind `main` on `.github/workflows/`.
 - GitHub user-attachments: the upload endpoint needs write access to `repository_id` (404 otherwise) and an asset is private until a saved comment references it.
 - Claude Code's `--json-schema` only knows draft 7: no `$schema` key.
+- Bifrost: a model without a price is charged $0 (prices are pinned in `deploy/bifrost/pricing.json`); budgets and per-key rate limits are counted after requests, so only the provider-wide concurrency cap bounds a burst; empty lists come back as `null`; virtual keys need `key_ids: ["*"]` to use the provider's keys.
+- Caddy's `path` matcher ignores case and cleans the path: rewrite matched requests to their canonical upstream path rather than forwarding the client's.

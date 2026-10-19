@@ -17,7 +17,8 @@
     "dev": "pnpm build && node --enable-source-maps --env-file=${MACARON_ENV_FILE:-$HOME/.config/macaron/dev.env} dist/main.js",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
-    "gen": "tsc -p tsconfig.scripts.json && node dist-scripts/scripts/emit-openapi.js"
+    "gen": "tsc -p tsconfig.scripts.json && node dist-scripts/scripts/emit-openapi.js",
+    "gen:bifrost": "openapi-ts -f openapi-ts.bifrost.config.ts"
   },
   "dependencies": {
     "@nestjs/common": "catalog:",
@@ -59,6 +60,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@hey-api/openapi-ts": "catalog:",
     "@nestjs/testing": "catalog:",
     "@testcontainers/postgresql": "catalog:",
     "@types/express": "catalog:",

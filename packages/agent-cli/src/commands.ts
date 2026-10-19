@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import * as core from "@actions/core";
-import { Attachment, AttachmentId, RunContext, RunResult } from "@open-macaron/contracts";
+import { Attachment, AttachmentId, type LlmAccess, RunContext, RunResult } from "@open-macaron/contracts";
 import { judge, localScope } from "@open-macaron/review";
 import { z } from "zod";
 import { bootstrap as requestBootstrap } from "./controller-api.ts";
@@ -11,7 +11,14 @@ import { type Inputs, type Paths, paths, readInputs } from "./inputs.ts";
 import { systemPrompt, taskPrompt } from "./prompts.ts";
 import { fetchPullBase } from "./review-diff.ts";
 
-const BootstrapState = z.object({ harness: z.enum(["claude", "codex", "opencode"]), model: z.string().min(1) });
+/** What bootstrap hands to the later steps, apart from the key (kept in its own private file). */
+const BootstrapState = z.object({
+  harness: z.enum(["claude", "codex", "opencode"]),
+  model: z.string().min(1),
+  baseUrl: z.url(),
+  fastModel: z.string().min(1),
+});
+type BootstrapState = z.infer<typeof BootstrapState>;
 
 async function readJson<T>(file: string, schema: z.ZodType<T>): Promise<T> {
   return schema.parse(JSON.parse(await readFile(file, "utf8")));
@@ -38,11 +45,12 @@ export async function bootstrap(inputs: Inputs = readInputs()): Promise<void> {
   const p = paths(inputs);
   const oidc = await core.getIDToken(inputs.MACARON_CONTROLLER_URL);
   const response = await requestBootstrap(inputs.MACARON_CONTROLLER_URL, { ticket: inputs.MACARON_TICKET }, oidc);
-  core.setSecret(response.openRouterKey);
+  core.setSecret(response.llm.key);
   await mkdir(p.state, { recursive: true, mode: 0o700 });
-  await writeFile(p.keyFile, response.openRouterKey, { mode: 0o600 });
+  await writeFile(p.keyFile, response.llm.key, { mode: 0o600 });
   await writeJson(p.contextFile, response.context, 0o600);
-  await writeJson(p.bootstrapFile, { harness: response.harness, model: response.model }, 0o600);
+  const state: BootstrapState = { harness: response.harness, model: response.model, baseUrl: response.llm.baseUrl, fastModel: response.llm.fastModel };
+  await writeJson(p.bootstrapFile, state, 0o600);
   core.info(`bootstrapped: ${response.context.mode} on ${response.context.repo}#${String(response.context.number)} with ${response.model}`);
 }
 
@@ -60,7 +68,7 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
     toolsDir: p.tools,
     work: p.work,
     model: state.model,
-    openRouterKey: (await readFile(p.keyFile, "utf8")).trim(),
+    llm: await llmAccess(p, state),
     systemPromptFile,
     task: taskPrompt(context),
     mcpConfigFile: environment.mcpConfigFile,
@@ -68,6 +76,11 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
   await rm(p.keyFile, { force: true });
   if (exitCode !== 0) core.warning(`harness exited with ${String(exitCode)}`);
   return finish(inputs);
+}
+
+/** The run's LLM endpoint and key, as bootstrap left them. */
+async function llmAccess(p: Paths, state: BootstrapState): Promise<LlmAccess> {
+  return { baseUrl: state.baseUrl, key: (await readFile(p.keyFile, "utf8")).trim(), fastModel: state.fastModel };
 }
 
 /**
@@ -89,7 +102,7 @@ const MAX_INLINE_DIFF_CHARS = 150_000;
  * the controller selected on GitHub's diff; it verifies every claimed violation again before
  * publishing anything. This command writes result.json itself (the session can't write files).
  */
-async function review(inputs: Inputs, context: RunContext, state: z.infer<typeof BootstrapState>): Promise<number> {
+async function review(inputs: Inputs, context: RunContext, state: BootstrapState): Promise<number> {
   const p = paths(inputs);
   const pull = context.review;
   if (pull === undefined) throw new Error("a review run needs its review context");
@@ -98,7 +111,7 @@ async function review(inputs: Inputs, context: RunContext, state: z.infer<typeof
   const judgement = await judge({
     command: claudeBinary(p.tools),
     cwd: p.work,
-    env: claudeEnvironment((await readFile(p.keyFile, "utf8")).trim(), state.model),
+    env: claudeEnvironment(await llmAccess(p, state), state.model),
     model: state.model,
     subject: {
       what: `pull request ${context.repo}#${String(context.number)}`,

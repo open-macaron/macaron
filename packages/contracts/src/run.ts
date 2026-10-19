@@ -198,8 +198,19 @@ export type DispatchInputs = z.infer<typeof DispatchInputs>;
 export const BootstrapRequest = z.strictObject({ ticket: Ticket });
 export type BootstrapRequest = z.infer<typeof BootstrapRequest>;
 
+/** How the harness reaches the run's LLM backend. */
+export const LlmAccess = z.strictObject({
+  /** Anthropic Messages endpoint (ANTHROPIC_BASE_URL). */
+  baseUrl: z.url({ protocol: /^https$/ }),
+  /** The run's capped, expiring key. */
+  key: z.string().min(1),
+  /** The background model; the key only allows it and the run's model where the backend can restrict models. */
+  fastModel: z.string().min(1),
+});
+export type LlmAccess = z.infer<typeof LlmAccess>;
+
 export const BootstrapResponse = z.strictObject({
-  openRouterKey: z.string().min(1),
+  llm: LlmAccess,
   harness: Harness,
   model: z.string().min(1),
   context: RunContext,
