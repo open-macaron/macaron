@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
+#
+# Test fork of podman-desktop/podman-desktop (synced with upstream on 2026-10-19).
+
+repo: axel7083/podman-desktop
+fork: 2elnuw-podman-desktop
+commands:
+  build: pnpm build
+  test: pnpm test:unit
+  lint: pnpm lint:check

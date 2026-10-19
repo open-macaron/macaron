@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=../../../packages/contracts/schemas/config-project.schema.json
+#
+# Podman Desktop itself. For now only a test fork (axel7083/podman-desktop): reviews against the
+# podman-desktop rules of open-macaron/knowledge, and code-only implementation (no GUI environment).
+
+project: podman-desktop
+owners: "@open-macaron/maintainers"
+users:
+  - axel7083
+bots: []
+budget:
+  monthUsd: 30.00
+concurrency: 1
+defaults:
+  runsOn: ubuntu-26.04
+  timeoutMinutes: 45
+  budgets:
+    implement: 5.00
+    address_review: 2.00
+    review: 0.50
