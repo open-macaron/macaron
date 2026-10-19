@@ -17,7 +17,6 @@ import { ForkCommitter } from "./fork-committer.ts";
 import type { Publishable } from "./gate.ts";
 import { type CostRow, type LoopState, renderCostTable, resolveAttachments, sanitize, spentLine, upsertCostSection, withSpentLine } from "./markdown.ts";
 import { ReactionTargets } from "./reaction-targets.ts";
-import { type StatusComment, statusComment } from "./status-comment.ts";
 import { CannotPost, UpstreamWriter } from "./upstream-writer.ts";
 
 export interface PublishInput {
@@ -30,6 +29,9 @@ export interface PublishInput {
 
 /** The review id stored as the `review` effect's external id. */
 const ReviewId = z.coerce.number().int().positive();
+const CommentId = z.coerce.number().int().positive();
+/** Effect kind holding a loop's status comment id. */
+const STATUS_EFFECT = "status";
 
 
 function loopState(status: RunRecord["status"]): LoopState {
@@ -76,7 +78,6 @@ export class Publisher {
     let thread = input.thread;
     // Everything answers where the request was made (the run's subject).
     const subject = subjectOfRun(run, thread);
-    const status = statusComment(thread, subject);
     const supersedes = run.route === null ? undefined : Route.parse(run.route).supersedes;
     const context = run.context;
     const upstream = repoRef(thread.repo);
@@ -107,8 +108,8 @@ export class Publisher {
           return this.writer.openPullRequest(upstream, `${fork.owner}:${context.branch}`, base.name, title, body, config.draftPr);
         });
         if (typeof prNumber === "number") {
-          await this.runs.updateThread(thread.id, { prNumber, branch: context.branch, prStatusCommentId: null });
-          thread = { ...thread, prNumber, branch: context.branch, prStatusCommentId: null };
+          await this.runs.updateThread(thread.id, { prNumber, branch: context.branch });
+          thread = { ...thread, prNumber, branch: context.branch };
           if (supersedes !== undefined) {
             await this.post(() => this.runs.once(thread.id, run.loop, "supersede", () => this.writer.closePullRequest(upstream, supersedes, `Superseded by #${String(prNumber)}.`).then(() => supersedes)));
           }
@@ -134,7 +135,7 @@ export class Publisher {
       await this.post(() => this.runs.once(thread.id, run.loop, "message", () => this.writer.comment(upstream, subject.number, clean(message))));
     }
 
-    await this.updateStatus(thread, status, run, `✅ ${clean(result.summary)}`, input.runUrl);
+    await this.updateStatus(thread, subject, run, `✅ ${clean(result.summary)}`, input.runUrl);
     await this.updateCostTable(thread);
     await this.reactions.finish(thread.id, run.loop, upstream, "+1");
   }
@@ -143,29 +144,28 @@ export class Publisher {
   async reportFailure(input: FailureInput): Promise<void> {
     const upstream = repoRef(input.thread.repo);
     const retry = `Comment \`@${this.bot.identity.login} retry\` to run this loop again.`;
-    await this.updateStatus(input.thread, statusComment(input.thread, subjectOfRun(input.run, input.thread)), input.run, `😕 ${input.reason}\n\n${retry}`, input.runUrl);
+    await this.updateStatus(input.thread, subjectOfRun(input.run, input.thread), input.run, `😕 ${input.reason}\n\n${retry}`, input.runUrl);
     await this.updateCostTable(input.thread);
     await this.reactions.finish(input.thread.id, input.run.loop, upstream, "confused");
   }
 
   /** A run was dispatched: the status comment and the PR's table show it, with its link, right away. */
   async reportStarted(thread: ThreadRecord, run: RunRecord, runUrl: string | null): Promise<void> {
-    await this.updateStatus(thread, statusComment(thread, subjectOfRun(run, thread)), run, "⏳ Working on it.", runUrl);
+    await this.updateStatus(thread, subjectOfRun(run, thread), run, "⏳ Working on it.", runUrl);
     await this.updateCostTable(thread);
   }
 
   /** Called when a loop's cost is settled: the PR's cost table and the run's status comment pick up the final number. */
   async refreshCost(thread: ThreadRecord, run: RunRecord): Promise<void> {
     await this.updateCostTable(thread);
-    const target = statusComment(thread, subjectOfRun(run, thread));
-    const commentId = target.commentId;
-    if (commentId === null) return;
+    const commentId = await this.statusCommentId(thread, run);
+    if (commentId === undefined) return;
     const upstream = repoRef(thread.repo);
     const line = spentLine(...(await this.spent(thread)));
     await this.post(async () => {
       const body = await this.writer.commentBody(upstream, commentId);
       const updated = withSpentLine(body, line);
-      if (updated !== body) await this.writer.upsertComment(upstream, target.number, commentId, updated);
+      if (updated !== body) await this.writer.updateComment(upstream, commentId, updated);
     });
   }
 
@@ -215,15 +215,15 @@ export class Publisher {
       }),
     );
     const count = (outcome: RuleResult["outcome"]) => String(results.filter((result) => result.outcome === outcome).length);
-    await this.updateStatus(thread, statusComment(thread, subjectOfRun(run, thread)), run, `✅ Review posted: ❌ ${count("violation")} · ⚠️ ${count("warning")} · ✅ ${count("valid")} · ➖ ${count("ignored")}.`, input.runUrl);
+    await this.updateStatus(thread, subjectOfRun(run, thread), run, `✅ Review posted: ❌ ${count("violation")} · ⚠️ ${count("warning")} · ✅ ${count("valid")} · ➖ ${count("ignored")}.`, input.runUrl);
     await this.updateCostTable(thread);
     await this.reactions.finish(thread.id, run.loop, upstream, "+1");
   }
 
-  /** No run happened (a route, caps, pause, missing capability): explain where it was asked, react 😕. */
+  /** No run happened (a route, caps, pause, missing capability): a reply where it was asked, 😕. */
   async reportRefusal(thread: ThreadRecord, subject: Subject, reason: string): Promise<void> {
     const upstream = repoRef(thread.repo);
-    await this.upsertStatus(thread, statusComment(thread, subject), `**macaron-bot** · not started\n\n😕 ${reason}`);
+    await this.post(() => this.writer.comment(upstream, subject.number, `**macaron-bot** · not started\n\n😕 ${reason}`));
     await this.reactions.finish(thread.id, thread.loops + 1, upstream, "confused");
   }
 
@@ -235,9 +235,12 @@ export class Publisher {
     return lines.join("\n");
   }
 
-  /** One sticky comment per subject, edited in place on every loop. */
-  private async updateStatus(thread: ThreadRecord, target: StatusComment, run: RunRecord, outcome: string, runUrl: string | null): Promise<void> {
-    const where = target.column === "statusCommentId" && thread.prNumber !== null && thread.kind === "issue" ? `\n\nWork continues in #${String(thread.prNumber)}.` : "";
+  /**
+   * Each loop has its own status comment, posted where the request was made, right after it:
+   * created when the run starts, edited as it ends. Earlier loops' comments are never touched.
+   */
+  private async updateStatus(thread: ThreadRecord, subject: Subject, run: RunRecord, outcome: string, runUrl: string | null): Promise<void> {
+    const where = subject.kind === "issue" && thread.prNumber !== null && thread.kind === "issue" ? `\n\nWork continues in #${String(thread.prNumber)}.` : "";
     const body = [
       `**macaron-bot** · loop ${String(run.loop)} · \`${run.mode}\`${runUrl === null ? "" : ` · [run](${runUrl})`}`,
       "",
@@ -246,15 +249,19 @@ export class Publisher {
       "",
       spentLine(...(await this.spent(thread))),
     ].join("\n");
-    await this.upsertStatus(thread, target, body);
+    const upstream = repoRef(thread.repo);
+    await this.post(async () => {
+      const created = await this.runs.once(thread.id, run.loop, STATUS_EFFECT, () => this.writer.comment(upstream, subject.number, body));
+      if (created !== undefined) return;
+      const commentId = await this.statusCommentId(thread, run);
+      if (commentId !== undefined) await this.writer.updateComment(upstream, commentId, body);
+    });
   }
 
-  private async upsertStatus(thread: ThreadRecord, target: StatusComment, body: string): Promise<void> {
-    await this.post(async () => {
-      const id = await this.writer.upsertComment(repoRef(thread.repo), target.number, target.commentId, body);
-      if (id === target.commentId || target.column === undefined) return;
-      await this.runs.updateThread(thread.id, target.column === "prStatusCommentId" ? { prStatusCommentId: id } : { statusCommentId: id });
-    });
+  /** The loop's status comment, once created. */
+  private async statusCommentId(thread: ThreadRecord, run: RunRecord): Promise<number | undefined> {
+    const id = CommentId.safeParse(await this.runs.effect(thread.id, run.loop, STATUS_EFFECT));
+    return id.success ? id.data : undefined;
   }
 
   private async updateCostTable(thread: ThreadRecord): Promise<void> {

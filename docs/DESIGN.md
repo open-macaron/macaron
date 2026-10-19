@@ -169,7 +169,7 @@ Behaviour notes:
 
 ### Subjects and routes (`src/routing/`)
 
-A thread is an issue and the bot's open pull request for it, but they are separate **subjects** (GitHub's term in notifications): the issue is for understanding the problem and starting the work, a pull request for checking and continuing a change. Each request is answered on its subject: its status comment, its message, its refusal.
+A thread is an issue and the bot's open pull request for it, but they are separate **subjects** (GitHub's term in notifications): the issue is for understanding the problem and starting the work, a pull request for checking and continuing a change. Each request is answered on its subject: its loop's status comment, its message, its refusal.
 
 `ROUTES` (`routes.ts`) is the one table that says, per subject and mode, which commit a run starts from or why the request is refused. `route()` applies it to one request; the result is stored on the run (`runs.route`) and everything after launch follows it.
 
@@ -381,7 +381,7 @@ sequenceDiagram
 
 Comment discipline:
 1. Threaded replies to review comments first.
-2. Then one sticky status comment per subject (the issue, the bot's pull request), which the bot edits instead of re-posting.
+2. Then one status comment per loop, posted where the request was made, right after it: created when the run starts (⏳ and its run link), edited when it ends (outcome, cost). Earlier loops' comments are never rewritten, so every request keeps its answer and its run link.
 3. A new top-level comment only when asking the human something, and at most one per run.
 
 The PR body ends with a section that the Publisher regenerates from the ledger on every loop:

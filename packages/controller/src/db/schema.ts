@@ -51,9 +51,9 @@ export const threads = pgTable(
     branch: text("branch"),
     prNumber: integer("pr_number"),
     loops: integer("loops").notNull().default(0),
-    /** The sticky status comment on the issue, used until the bot's PR exists. */
+    /** No longer written: each loop has its own status comment (effect `status`). Kept for history. */
     statusCommentId: bigint("status_comment_id", { mode: "number" }),
-    /** The sticky status comment on the bot's PR, used for every loop after it was opened. */
+    /** No longer written: see statusCommentId. */
     prStatusCommentId: bigint("pr_status_comment_id", { mode: "number" }),
     createdAt: createdAt(),
   },

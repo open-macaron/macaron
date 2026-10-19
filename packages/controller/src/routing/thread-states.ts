@@ -26,7 +26,7 @@ export class ThreadStates {
     let ownPullRequest = thread.prNumber ?? undefined;
     if (ownPullRequest !== undefined && !(await this.pulls.head(repo, ownPullRequest)).open) {
       this.logger.log(`${thread.repo}#${String(thread.number)}: pull request #${String(ownPullRequest)} is closed, forgetting it`);
-      await this.runs.updateThread(thread.id, { prNumber: null, prStatusCommentId: null });
+      await this.runs.updateThread(thread.id, { prNumber: null });
       ownPullRequest = undefined;
     }
     return { number: thread.number, title: issue.title, ownPullRequest, branch: thread.branch ?? undefined, nextLoop: thread.loops + 1 };
