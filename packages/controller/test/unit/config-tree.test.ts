@@ -16,7 +16,7 @@ describe("the committed config/ tree", () => {
       runsOn: "ubuntu-26.04",
       capabilities: ["gui"],
       environment: { source: "shared", name: "podman-desktop-extensions" },
-      models: { review: "anthropic/claude-haiku-5.5" },
+      models: { review: "claude-haiku-4-5" },
     });
     expect(snapshot.repos.get("podman-desktop/podman-desktop")).toMatchObject({
       project: "podman-desktop",

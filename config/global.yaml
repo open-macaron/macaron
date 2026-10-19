@@ -11,12 +11,15 @@ concurrency:
 
 defaults:
   harness: claude
-  model: anthropic/claude-sonnet-5.5
+  # Model names follow the LLM backend (LLM_BACKEND=bifrost): each must be priced in
+  # deploy/bifrost/pricing.json, or the controller refuses to start.
+  model: claude-sonnet-5-5
   # Per-mode overrides. Reviews check rules one by one against a diff: a cheap model is enough.
   models:
-    review: anthropic/claude-haiku-5.5
+    review: claude-haiku-4-5
   # Claude Code's small background model. The run's key allows only it and the run's model.
-  fastModel: anthropic/claude-haiku-5.5
+  # Haiku 4.5: the upstream doesn't serve Haiku 5.5 yet.
+  fastModel: claude-haiku-4-5
   runsOn: ubuntu-24.04
   draftPr: true
   timeoutMinutes: 60
