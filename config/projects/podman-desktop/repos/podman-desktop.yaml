@@ -1,10 +1,14 @@
 # yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
 #
-# Test fork of podman-desktop/podman-desktop (synced with upstream on 2026-10-19).
+# podman-desktop/podman-desktop. The bot's fork is the one GitHub allows per fork network: it was
+# forked from axel7083/podman-desktop, so the test fork can't be enrolled at the same time.
+# Commits need a DCO sign-off (CONTRIBUTING.md); LLM_POLICY.md applies to everything posted.
 
-repo: axel7083/podman-desktop
+repo: podman-desktop/podman-desktop
 fork: 2elnuw-podman-desktop
 commands:
   build: pnpm build
   test: pnpm test:unit
   lint: pnpm lint:check
+contribution:
+  dco: true
