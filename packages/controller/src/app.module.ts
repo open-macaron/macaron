@@ -11,7 +11,7 @@ export const REDACTED_PATHS = [
   "req.headers.authorization",
   "req.headers.cookie",
   'req.headers["x-hub-signature-256"]',
-  "*.openRouterKey",
+  "*.llm.key",
   "*.key",
   "*.keySecret",
   "*.token",

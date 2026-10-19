@@ -37,6 +37,10 @@
             "minLength": 1
           }
         },
+        "fastModel": {
+          "type": "string",
+          "minLength": 1
+        },
         "runsOn": {
           "type": "string",
           "minLength": 1
@@ -284,6 +288,7 @@
         "harness",
         "model",
         "models",
+        "fastModel",
         "runsOn",
         "draftPr",
         "timeoutMinutes",

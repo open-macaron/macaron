@@ -7,7 +7,11 @@ export const zBootstrapBody = z.object({
 });
 
 export const zBootstrapResponse = z.object({
-    openRouterKey: z.string().min(1),
+    llm: z.object({
+        baseUrl: z.url(),
+        key: z.string().min(1),
+        fastModel: z.string().min(1)
+    }),
     harness: z.enum([
         'claude',
         'codex',

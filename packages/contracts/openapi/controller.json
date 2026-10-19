@@ -33,9 +33,28 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "openRouterKey": {
-                      "type": "string",
-                      "minLength": 1
+                    "llm": {
+                      "type": "object",
+                      "properties": {
+                        "baseUrl": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "key": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "fastModel": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "baseUrl",
+                        "key",
+                        "fastModel"
+                      ],
+                      "additionalProperties": false
                     },
                     "harness": {
                       "type": "string",
@@ -477,7 +496,7 @@
                     }
                   },
                   "required": [
-                    "openRouterKey",
+                    "llm",
                     "harness",
                     "model",
                     "context"

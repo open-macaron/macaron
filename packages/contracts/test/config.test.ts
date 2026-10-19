@@ -6,6 +6,7 @@ const global = GlobalFile.parse({
     harness: "claude",
     model: "anthropic/claude-sonnet-5.5",
     models: { review: "anthropic/claude-haiku-5.5" },
+    fastModel: "anthropic/claude-haiku-5.5",
     runsOn: "ubuntu-24.04",
     draftPr: true,
     timeoutMinutes: 60,

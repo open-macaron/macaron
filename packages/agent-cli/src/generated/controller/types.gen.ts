@@ -34,7 +34,11 @@ export type BootstrapErrors = {
 
 export type BootstrapResponses = {
     200: {
-        openRouterKey: string;
+        llm: {
+            baseUrl: string;
+            key: string;
+            fastModel: string;
+        };
         harness: 'claude' | 'codex' | 'opencode';
         model: string;
         context: {

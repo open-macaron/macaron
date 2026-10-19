@@ -15,10 +15,12 @@ defaults:
   # Per-mode overrides. Reviews check rules one by one against a diff: a cheap model is enough.
   models:
     review: anthropic/claude-haiku-5.5
+  # Claude Code's small background model. The run's key allows only it and the run's model.
+  fastModel: anthropic/claude-haiku-5.5
   runsOn: ubuntu-24.04
   draftPr: true
   timeoutMinutes: 60
-  # USD per run, enforced by the run's OpenRouter key.
+  # USD per run, enforced by the run's LLM key.
   budgets:
     triage: 0.20
     plan: 1.00

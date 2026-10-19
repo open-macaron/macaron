@@ -2,17 +2,15 @@ import { spawn } from "node:child_process";
 import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { Harness } from "@open-macaron/contracts";
+import type { Harness, LlmAccess } from "@open-macaron/contracts";
 import { inheritedEnvironment } from "./inputs.ts";
 
 /** Pinned: the newest release that had matured 3 days when it was chosen (same rule as our dependencies). */
 const CLAUDE_CODE_VERSION = "2.1.296";
-const OPENROUTER_ANTHROPIC_URL = "https://openrouter.ai/api";
-/** Claude Code's small background model, also routed through OpenRouter. */
-const FAST_MODEL = "anthropic/claude-haiku-5.5";
 /**
  * OpenRouter refuses a request (402) when its worst case (max_tokens × output price) exceeds
  * what's left on the key. Claude Code asks for 64 000 by default, which a $0.50 key can't cover.
+ * Bifrost charges after the request instead, so this also bounds how far one request overshoots.
  */
 const MAX_OUTPUT_TOKENS = "16000";
 
@@ -36,7 +34,7 @@ export interface HarnessRun {
   readonly toolsDir: string;
   readonly work: string;
   readonly model: string;
-  readonly openRouterKey: string;
+  readonly llm: LlmAccess;
   readonly systemPromptFile: string;
   readonly task: string;
   /** MCP servers the environment provides (e.g. to drive Podman Desktop). */
@@ -81,17 +79,17 @@ export function claudeBinary(toolsDir: string): string {
   return join(toolsDir, "node_modules", ".bin", "claude");
 }
 
-/** Every session's environment: OpenRouter's Anthropic-compatible endpoint, with this run's capped key only. */
-export function claudeEnvironment(openRouterKey: string, model: string): NodeJS.ProcessEnv {
+/** Every session's environment: the run's Anthropic-compatible endpoint, with this run's capped key only. */
+export function claudeEnvironment(llm: LlmAccess, model: string): NodeJS.ProcessEnv {
   return {
     ...inheritedEnvironment(),
-    ANTHROPIC_BASE_URL: OPENROUTER_ANTHROPIC_URL,
-    ANTHROPIC_AUTH_TOKEN: openRouterKey,
+    ANTHROPIC_BASE_URL: llm.baseUrl,
+    ANTHROPIC_AUTH_TOKEN: llm.key,
     ANTHROPIC_API_KEY: "",
-    // Every model class maps to an OpenRouter model id.
+    // Every model class maps to a model the run's key allows.
     ANTHROPIC_DEFAULT_OPUS_MODEL: model,
     ANTHROPIC_DEFAULT_SONNET_MODEL: model,
-    ANTHROPIC_DEFAULT_HAIKU_MODEL: FAST_MODEL,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: llm.fastModel,
     CLAUDE_CODE_SUBAGENT_MODEL: model,
     CLAUDE_CODE_MAX_OUTPUT_TOKENS: MAX_OUTPUT_TOKENS,
     DISABLE_AUTOUPDATER: "1",
@@ -103,7 +101,7 @@ function runClaude(run: HarnessRun): Promise<number> {
   const child = spawn(claudeBinary(run.toolsDir), claudeArgs(run), {
     cwd: run.work,
     stdio: ["pipe", "inherit", "inherit"],
-    env: claudeEnvironment(run.openRouterKey, run.model),
+    env: claudeEnvironment(run.llm, run.model),
   });
   child.stdin.end(run.task);
   return new Promise((resolve, reject) => {

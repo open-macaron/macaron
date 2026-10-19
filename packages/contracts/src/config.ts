@@ -66,6 +66,8 @@ export const RepoSettings = z.strictObject({
   model: z.string().min(1),
   /** Per-mode overrides of `model`, e.g. a cheap model for `review`. */
   models: z.partialRecord(Mode, z.string().min(1)),
+  /** The harness's small background model (Claude Code's "haiku" slot). Names follow the LLM backend. */
+  fastModel: z.string().min(1),
   runsOn: z.string().min(1),
   draftPr: z.boolean(),
   timeoutMinutes: z.int().min(5).max(360),
@@ -83,6 +85,7 @@ export const RepoSettingsPatch = z.strictObject({
   harness: Harness.optional(),
   model: z.string().min(1).optional(),
   models: z.partialRecord(Mode, z.string().min(1)).optional(),
+  fastModel: z.string().min(1).optional(),
   runsOn: z.string().min(1).optional(),
   draftPr: z.boolean().optional(),
   timeoutMinutes: z.int().min(5).max(360).optional(),

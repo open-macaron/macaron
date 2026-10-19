@@ -102,7 +102,7 @@ export class RunLauncher {
     let key: RunKeyRef | undefined;
     let dispatched: RunRecord;
     try {
-      const minted = await this.budget.mint(run.id, limitUsd, config.timeoutMinutes + KEY_GRACE_MINUTES, [run.model]);
+      const minted = await this.budget.mint(run.id, limitUsd, config.timeoutMinutes + KEY_GRACE_MINUTES, [run.model, config.fastModel]);
       key = minted;
       await this.runs.attachKey(run.id, minted);
       const ghRunId = await this.dispatch(run, config, context);
@@ -129,8 +129,15 @@ export class RunLauncher {
   async bootstrap(oidcToken: string, ticket: Ticket): Promise<BootstrapResponse> {
     const verified = await this.oidc.verify(oidcToken);
     const { key, run } = await this.runs.redeem(ticket, verified.runId, this.clock.now());
+    if (run.keyBackend === null) throw new Error(`run ${run.id} has a key but no key backend`);
     this.logger.log(`run ${run.id} bootstrapped by workflow run ${String(verified.runId)}`);
-    return { openRouterKey: key, harness: this.harnessOf(run), model: run.model, context: run.context };
+    const config = this.config.repo(run.context.repo);
+    return {
+      llm: { baseUrl: this.budget.baseUrl(run.keyBackend), key, fastModel: config?.fastModel ?? run.model },
+      harness: config?.harness ?? "claude",
+      model: run.model,
+      context: run.context,
+    };
   }
 
   /** workflow_run completed (webhook or reconcile). Idempotent. Returns the escalation the run asked for, if any. */
@@ -290,11 +297,6 @@ export class RunLauncher {
     const details = DispatchDetails.safeParse(response.data);
     if (!details.success) throw new Error(`workflow dispatch returned ${String(response.status)} without run details`);
     return details.data.workflow_run_id;
-  }
-
-  private harnessOf(run: RunRecord): BootstrapResponse["harness"] {
-    const config = this.config.repo(run.context.repo);
-    return config?.harness ?? "claude";
   }
 
   private attribution(config: RepoConfig): { repo: string; project: string } {
