@@ -96,8 +96,11 @@ describe("review run", () => {
       review: { pull: 7, baseSha, headSha, rules: [{ rule, files: ["a.ts"] }], skipped: [], knowledgeCommit: null },
     });
     await writeFile(p.contextFile, JSON.stringify(context));
-    await writeFile(p.bootstrapFile, JSON.stringify({ harness: "claude", model: "anthropic/claude-haiku-5.5" }));
-    await writeFile(p.keyFile, "sk-or-v1-test");
+    await writeFile(
+      p.bootstrapFile,
+      JSON.stringify({ harness: "claude", model: "claude-sonnet-5-5", baseUrl: "https://llm.example.test/anthropic", fastModel: "claude-haiku-4-5" }),
+    );
+    await writeFile(p.keyFile, "sk-bf-test");
   });
 
   afterEach(async () => {
@@ -108,7 +111,7 @@ describe("review run", () => {
   async function fakeClaude(answer: unknown): Promise<string> {
     const p = paths(inputs);
     const log = join(root, "claude.log");
-    const script = `#!/bin/sh\nprintf '%s\\n' "$@" > '${log}'\ncat >> '${log}'\nprintf '%s' '${JSON.stringify(answer).replaceAll("'", "'\\''")}'\n`;
+    const script = `#!/bin/sh\nprintf '%s\\n' "$@" > '${log}'\nprintf 'env %s %s %s\\n' "$ANTHROPIC_BASE_URL" "$ANTHROPIC_AUTH_TOKEN" "$ANTHROPIC_DEFAULT_HAIKU_MODEL" >> '${log}'\ncat >> '${log}'\nprintf '%s' '${JSON.stringify(answer).replaceAll("'", "'\\''")}'\n`;
     const bin = join(p.tools, "node_modules", ".bin", "claude");
     await writeFile(bin, script);
     await chmod(bin, 0o755);
@@ -124,6 +127,7 @@ describe("review run", () => {
     expect(result).toMatchObject({ action: "review", review: [verdict], summary: "Checked 1 of 1 rule." });
     const seen = await readFile(log, "utf8");
     expect(seen).toContain("dontAsk");
+    expect(seen).toContain("env https://llm.example.test/anthropic sk-bf-test claude-haiku-4-5");
     expect(seen).toContain("+     2 | eval(input);");
     expect(seen).toContain("### `org-x/no-eval` (error): No eval");
   });
