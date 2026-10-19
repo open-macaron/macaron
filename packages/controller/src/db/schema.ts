@@ -13,6 +13,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { RunContext } from "@open-macaron/contracts";
+import { LlmBackend } from "../budget/run-keys.ts";
 
 /** Money is stored as integer micro-dollars: no floating point anywhere near a bill. */
 const usdMicros = (name: string) => bigint(name, { mode: "number" });
@@ -23,6 +24,7 @@ export const eventStatus = pgEnum("event_status", ["pending", "done", "dropped"]
 export const runStatus = pgEnum("run_status", ["pending", "dispatched", "running", "completed", "failed", "aborted"]);
 export const runMode = pgEnum("run_mode", ["triage", "plan", "implement", "address_review", "reproduce", "verify", "retro", "review"]);
 export const ledgerKind = pgEnum("ledger_kind", ["run", "router"]);
+export const llmBackend = pgEnum("llm_backend", LlmBackend.enum);
 
 /** Singleton row (id = 1): the notifications poller's state. Persisted so restarts never poll early. */
 export const pollState = pgTable(
@@ -96,15 +98,17 @@ export const runs = pgTable(
     harness: text("harness").notNull(),
     model: text("model").notNull(),
     context: jsonb("context").$type<RunContext>().notNull(),
+    /** Where the run's key was minted; set together with key_hash. */
+    keyBackend: llmBackend("key_backend"),
     keyHash: text("key_hash"),
-    /** The run's OpenRouter key, held only until the ticket is redeemed, then wiped. */
+    /** The run's LLM key, held only until the ticket is redeemed, then wiped. */
     keySecret: text("key_secret"),
     limitMicros: usdMicros("limit_micros").notNull(),
     costMicros: usdMicros("cost_micros"),
     ghRunId: bigint("gh_run_id", { mode: "number" }),
     redeemedAt: timestamp("redeemed_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
-    /** Set once the key's final usage is in the ledger (OpenRouter reports usage ~25 s late). */
+    /** Set once the key's final usage is in the ledger (backends report usage some seconds late). */
     settledAt: timestamp("settled_at", { withTimezone: true }),
     failure: text("failure"),
     createdAt: createdAt(),

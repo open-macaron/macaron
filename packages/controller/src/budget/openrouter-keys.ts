@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
 import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { apiKeysCreate } from "@openrouter/sdk/funcs/apiKeysCreate.js";
 import { apiKeysDelete } from "@openrouter/sdk/funcs/apiKeysDelete.js";
@@ -7,21 +7,23 @@ import { apiKeysList } from "@openrouter/sdk/funcs/apiKeysList.js";
 import { apiKeysUpdate } from "@openrouter/sdk/funcs/apiKeysUpdate.js";
 import { workspacesList } from "@openrouter/sdk/funcs/workspacesList.js";
 import { z } from "zod";
-import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { UpstreamError } from "../common/errors.ts";
+import { type KeyStatus, type ProvisionedKey, RunKeys } from "./run-keys.ts";
 
-export interface ProvisionedKey {
-  /** The bearer key, shown once at creation. */
-  readonly key: string;
-  readonly hash: string;
+export interface OpenRouterSettings {
+  /** OpenRouter's API, for key management and analytics. */
+  readonly baseUrl: string;
+  /** Slug of the workspace holding every key we create, so its dashboard shows the bot's total spend. */
+  readonly workspace: string;
+  readonly provisioningKey: string;
 }
 
-export interface KeyStatus {
-  readonly hash: string;
-  readonly name: string;
+/** Where Claude Code finds OpenRouter's Anthropic Messages endpoint. */
+const ANTHROPIC_BASE_URL = "https://openrouter.ai/api";
+
+/** OpenRouter's own figure for a key; its `usage` is unreliable outside the default workspace (see spentSince). */
+export interface OpenRouterKeyStatus extends KeyStatus {
   readonly usageUsd: number;
-  readonly disabled: boolean;
-  readonly createdAt: Date;
 }
 
 const AnalyticsResponse = z.object({
@@ -41,33 +43,33 @@ function statusOf(error: unknown): number | undefined {
  * spec, responses validated with Zod). Authenticated with the provisioning key, which never
  * leaves this class. Every key lives in one workspace, so its dashboard is the bot's total spend.
  */
-@Injectable()
-export class OpenRouterKeys implements OnModuleInit {
+export class OpenRouterKeys extends RunKeys {
+  readonly backend = "openrouter";
+  readonly baseUrl = ANTHROPIC_BASE_URL;
+  /** OpenRouter reports usage ~25 s late (measured); the first read waits comfortably longer. */
+  readonly usageLagMs = 90_000;
   private readonly logger = new Logger(OpenRouterKeys.name);
   private readonly core: OpenRouterCore;
   private resolvedWorkspaceId: string | undefined;
 
-  constructor(@Inject(APP_ENV) private readonly env: AppEnv) {
-    this.core = new OpenRouterCore({
-      apiKey: env.OPENROUTER_PROVISIONING_KEY,
-      serverURL: env.OPENROUTER_BASE_URL,
-      timeoutMs: 30_000,
-    });
+  constructor(private readonly settings: OpenRouterSettings) {
+    super();
+    this.core = new OpenRouterCore({ apiKey: settings.provisioningKey, serverURL: settings.baseUrl, timeoutMs: 30_000 });
   }
 
   /** Resolves the workspace slug once; refuses to start rather than create keys in the wrong workspace. */
-  async onModuleInit(): Promise<void> {
+  async init(): Promise<void> {
     for (let offset = 0; ; ) {
       const result = await workspacesList(this.core, { offset, limit: 100 });
       if (!result.ok) throw this.failure("list workspaces", result.error);
       const page = result.value.result.data;
-      const match = page.find((workspace) => workspace.slug === this.env.OPENROUTER_WORKSPACE);
+      const match = page.find((workspace) => workspace.slug === this.settings.workspace);
       if (match !== undefined) {
         this.resolvedWorkspaceId = match.id;
         this.logger.log(`OpenRouter keys live in workspace "${match.slug}"`);
         return;
       }
-      if (page.length === 0) throw new Error(`OpenRouter workspace "${this.env.OPENROUTER_WORKSPACE}" not found`);
+      if (page.length === 0) throw new Error(`OpenRouter workspace "${this.settings.workspace}" not found`);
       offset += page.length;
     }
   }
@@ -77,8 +79,8 @@ export class OpenRouterKeys implements OnModuleInit {
     return this.resolvedWorkspaceId;
   }
 
-  /** Creates a key capped at `limitUsd` that expires on its own at `expiresAt`. */
-  async create(name: string, limitUsd: number, expiresAt: Date): Promise<ProvisionedKey> {
+  /** OpenRouter keys can't be restricted to models: `models` is only enforced by the backends that can. */
+  async create(name: string, limitUsd: number, expiresAt: Date, _models: readonly string[]): Promise<ProvisionedKey> {
     const result = await apiKeysCreate(this.core, {
       requestBody: { name, limit: limitUsd, limitReset: null, includeByokInLimit: true, expiresAt, workspaceId: this.workspaceId },
     });
@@ -86,28 +88,25 @@ export class OpenRouterKeys implements OnModuleInit {
     return { key: result.value.key, hash: result.value.data.hash };
   }
 
-  async status(hash: string): Promise<KeyStatus> {
+  async status(hash: string): Promise<OpenRouterKeyStatus> {
     const result = await apiKeysGet(this.core, { hash });
     if (!result.ok) throw this.failure("get key", result.error);
     const { data } = result.value;
     return { hash: data.hash, name: data.name, usageUsd: data.usage, disabled: data.disabled, createdAt: new Date(data.createdAt) };
   }
 
-  /** Disabling is immediate: the next request made with the key is refused. */
   async disable(hash: string): Promise<void> {
     const result = await apiKeysUpdate(this.core, { hash, requestBody: { disabled: true } });
     if (!result.ok) throw this.failure("disable key", result.error);
   }
 
-  /** Idempotent: deleting a key that is already gone is not an error. */
   async delete(hash: string): Promise<void> {
     const result = await apiKeysDelete(this.core, { hash });
     if (!result.ok && statusOf(result.error) !== 404) throw this.failure("delete key", result.error);
   }
 
-  /** Every key whose name starts with `prefix`, across all pages. */
-  async listByPrefix(prefix: string): Promise<KeyStatus[]> {
-    const found: KeyStatus[] = [];
+  async listByPrefix(prefix: string): Promise<OpenRouterKeyStatus[]> {
+    const found: OpenRouterKeyStatus[] = [];
     for (let offset = 0; ; ) {
       const result = await apiKeysList(this.core, { offset, includeDisabled: true, workspaceId: this.workspaceId });
       if (!result.ok) throw this.failure("list keys", result.error);
@@ -131,9 +130,9 @@ export class OpenRouterKeys implements OnModuleInit {
    * generated schema types analytics rows as `{}` and strips every field.
    */
   async spentSince(hash: string, since: Date): Promise<number> {
-    const response = await fetch(`${this.env.OPENROUTER_BASE_URL}/analytics/query`, {
+    const response = await fetch(`${this.settings.baseUrl}/analytics/query`, {
       method: "POST",
-      headers: { authorization: `Bearer ${this.env.OPENROUTER_PROVISIONING_KEY}`, "content-type": "application/json" },
+      headers: { authorization: `Bearer ${this.settings.provisioningKey}`, "content-type": "application/json" },
       body: JSON.stringify({
         metrics: ["total_usage"],
         filters: [{ field: "api_key_id", operator: "eq", value: hash }],
