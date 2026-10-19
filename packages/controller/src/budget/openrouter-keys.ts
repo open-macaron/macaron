@@ -8,15 +8,8 @@ import { apiKeysUpdate } from "@openrouter/sdk/funcs/apiKeysUpdate.js";
 import { workspacesList } from "@openrouter/sdk/funcs/workspacesList.js";
 import { z } from "zod";
 import { UpstreamError } from "../common/errors.ts";
+import type { OpenRouterEnv } from "../config/env.ts";
 import { type KeyStatus, type ProvisionedKey, RunKeys } from "./run-keys.ts";
-
-export interface OpenRouterSettings {
-  /** OpenRouter's API, for key management and analytics. */
-  readonly baseUrl: string;
-  /** Slug of the workspace holding every key we create, so its dashboard shows the bot's total spend. */
-  readonly workspace: string;
-  readonly provisioningKey: string;
-}
 
 /** Where Claude Code finds OpenRouter's Anthropic Messages endpoint. */
 const ANTHROPIC_BASE_URL = "https://openrouter.ai/api";
@@ -52,7 +45,7 @@ export class OpenRouterKeys extends RunKeys {
   private readonly core: OpenRouterCore;
   private resolvedWorkspaceId: string | undefined;
 
-  constructor(private readonly settings: OpenRouterSettings) {
+  constructor(private readonly settings: OpenRouterEnv) {
     super();
     this.core = new OpenRouterCore({ apiKey: settings.provisioningKey, serverURL: settings.baseUrl, timeoutMs: 30_000 });
   }

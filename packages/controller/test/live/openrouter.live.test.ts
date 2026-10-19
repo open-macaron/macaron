@@ -5,13 +5,13 @@ import { RunKeysRegistry } from "../../src/budget/run-keys.registry.ts";
 import { SystemClock } from "../../src/common/clock.ts";
 import { liveEnv } from "../support/live.ts";
 
-const env = liveEnv();
+const env = liveEnv()?.openRouter;
 
 /** Spends about $0.0001 of real OpenRouter credit. */
 describe.skipIf(env === undefined)("OpenRouter key lifecycle (live)", () => {
   it("mints a capped, expiring key in the workspace, records its usage, and deletes it", { timeout: 240_000 }, async () => {
     if (env === undefined) return;
-    const keys = new OpenRouterKeys({ baseUrl: env.OPENROUTER_BASE_URL, workspace: env.OPENROUTER_WORKSPACE, provisioningKey: env.OPENROUTER_PROVISIONING_KEY });
+    const keys = new OpenRouterKeys(env);
     const registry = new RunKeysRegistry("openrouter", [keys]);
     await registry.onModuleInit();
     const budget = new BudgetService(registry, new SystemClock());
@@ -23,7 +23,7 @@ describe.skipIf(env === undefined)("OpenRouter key lifecycle (live)", () => {
       expect(status.name).toBe(`${RUN_KEY_PREFIX}${runId}`);
       expect(status.disabled).toBe(false);
 
-      const response = await fetch(`${env.OPENROUTER_BASE_URL}/chat/completions`, {
+      const response = await fetch(`${env.baseUrl}/chat/completions`, {
         method: "POST",
         headers: { authorization: `Bearer ${key.key}`, "content-type": "application/json" },
         body: JSON.stringify({ model: "anthropic/claude-haiku-5.5", max_tokens: 5, messages: [{ role: "user", content: "Say ok." }] }),
