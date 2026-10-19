@@ -92,17 +92,13 @@ export class UpstreamWriter {
     return data.body ?? "";
   }
 
-  /** Edits our sticky status comment, or creates it. Returns its id. */
-  async upsertComment(upstream: RepoRef, number: number, existingId: number | null, body: string): Promise<number> {
-    if (existingId !== null) {
-      try {
-        await this.gh.rest.issues.updateComment({ ...upstream, comment_id: existingId, body });
-        return existingId;
-      } catch (error: unknown) {
-        if (httpStatus(error) !== 404) throw error; // deleted by a maintainer: post a new one
-      }
+  /** Edits one of our comments; one deleted by a maintainer stays deleted. */
+  async updateComment(upstream: RepoRef, id: number, body: string): Promise<void> {
+    try {
+      await this.gh.rest.issues.updateComment({ ...upstream, comment_id: id, body });
+    } catch (error: unknown) {
+      if (httpStatus(error) !== 404) throw error;
     }
-    return this.comment(upstream, number, body);
   }
 
   async react(upstream: RepoRef, target: ReactionTarget, content: ReactionContent): Promise<number> {
