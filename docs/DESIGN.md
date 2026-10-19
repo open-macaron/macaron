@@ -12,7 +12,7 @@ Companion docs:
 - We want a bot account (`macaron-bot`) that is mentioned on an issue and then plans, asks questions, or opens a PR. It also handles review loops on its own PRs.
 - Agents (claude / codex / opencode) run on GitHub-hosted runners, so we don't manage agent environments.
 - A **controller on our Fedora VPS** (rootless Podman quadlets) holds every credential and does everything deterministic: polling, webhooks, reactions, budget keys, policy checks, pushes, comments.
-- Security comes first. The agent never holds a GitHub credential. Every agent run gets its own budget-capped LLM key: an OpenRouter key, or a Bifrost virtual key over the company's ENMAAS key (§4 "Budgets"). Pushes are done afterwards by deterministic code that only writes to one branch.
+- Security comes first. The agent never holds a GitHub credential. Every agent run gets its own budget-capped LLM key: an OpenRouter key, or a Bifrost virtual key over the upstream LLM key (§4 "Budgets"). Pushes are done afterwards by deterministic code that only writes to one branch.
 - The bot only works for allow-listed repos and users. It reacts fast (👀), comments little, reports the cost of every action, and learns over time through a curated knowledge base.
 
 ## 2. Target architecture
@@ -36,7 +36,7 @@ flowchart LR
   subgraph GHA["GitHub Actions: open-macaron/runner"]
     RUN["run.yml (1 job, no secrets)<br/>clone → env → bootstrap → harness<br/>artifact: patch + result"]
   end
-  OR[("LLM backend<br/>OpenRouter, or Bifrost → ENMAAS<br/>keys, usage $")]
+  OR[("LLM backend<br/>OpenRouter, or Bifrost → upstream<br/>keys, usage $")]
 
   ING -- "poll notifications" --> UP
   UP -. "webhook (optional, upstream admin)" .-> ING
@@ -103,7 +103,7 @@ sequenceDiagram
 - The OIDC check requires `repository_id` and `repository_owner_id` (immutable), of `open-macaron/runner`, `workflow_ref=open-macaron/runner/.github/workflows/run.yml@refs/heads/main`, `event_name=workflow_dispatch` and `actor=macaron-bot`.
 - A ticket can be redeemed only once. The legitimate bootstrap step uses it before the agent starts, so an agent that mints its own OIDC token gets nothing. The environment step runs *before* bootstrap. If environment code redeems the ticket first, the real bootstrap gets a 409 and the controller revokes the key at once: at worst a failed run, never a leaked credential.
 - The agent job has no endpoint for submitting results. The controller *pulls* the artifact.
-- **With the Bifrost backend, a credential-holding service runs next to the controller.** Bifrost holds the company's ENMAAS key, which has no cap of its own and can't derive keys. Runners reach it only through three exact Caddy routes (messages, token counting, model list), each rewritten to its canonical path; its admin API and UI are on the internal network, used only by the controller. Its configuration file is authoritative over its database at every start, auth is enforced on inference, and stored keys are encrypted. Anyone holding the admin password can still change settings until the next restart, so that password exists only in the controller and Bifrost.
+- **With the Bifrost backend, a credential-holding service runs next to the controller.** Bifrost holds the upstream LLM key, which has no cap of its own and can't derive keys. Runners reach it only through three exact Caddy routes (messages, token counting, model list), each rewritten to its canonical path; its admin API and UI are on the internal network, used only by the controller. Its configuration file is authoritative over its database at every start, auth is enforced on inference, and stored keys are encrypted. Anyone holding the admin password can still change settings until the next restart, so that password exists only in the controller and Bifrost.
 
 ## 4. Components (`packages/controller/`, NestJS — module map in ENGINEERING.md §3)
 
@@ -219,7 +219,7 @@ class BudgetService {
 }
 ```
 
-- **Two backends.** OpenRouter mints real keys with a limit and an expiry. Bifrost (a self-hosted gateway, `deploy/quadlets/macaron-bifrost.container`) holds the company's ENMAAS key and mints virtual keys over it with a budget, an expiry, an allowlist of the run's model and fast model, and a per-minute request limit. Each run records where its key was minted, so switching `LLM_BACKEND` never strands a run's key.
+- **Two backends.** OpenRouter mints real keys with a limit and an expiry. Bifrost (a self-hosted gateway, `deploy/quadlets/macaron-bifrost.container`) holds the upstream LLM key and mints virtual keys over it with a budget, an expiry, an allowlist of the run's model and fast model, and a per-minute request limit. Each run records where its key was minted, so switching `LLM_BACKEND` never strands a run's key.
 - **OpenRouter keys live in one workspace** (`OPENROUTER_WORKSPACE`, default `macaron`). The controller resolves it at startup and refuses to start if it's missing. The workspace dashboard is therefore the bot's total spend, and a workspace budget can act as a hard global ceiling on top of our caps.
 - **Costs are settled in two phases.** Backends report a key's usage asynchronously (OpenRouter ~25 s after the call; Bifrost writes spend every 10 s). At completion the key is frozen and the result is published immediately. A `settle-cost` job runs after the backend's `usageLagMs` (90 s for OpenRouter, 15 s for Bifrost), writes the final cost to the ledger once, deletes the key and refreshes the PR's cost table, where the loop shows "settling…" until then. A run's whole limit counts against the caps until it is settled, so nothing can overshoot in between.
 
@@ -542,7 +542,7 @@ One file per folder, not pre-merged: which project a repository belongs to is ma
 | Agent steals a GitHub token | There are no GitHub-side secrets; the job only has `id-token: write`, and its ticket is already redeemed |
 | Agent pushes elsewhere or rewrites history | Only the controller pushes: one ledger-owned ref, fast-forward only; `GH_PUSH` is limited to the forks, without workflows permission |
 | Runaway spend | Per-run key limit, live watchdog, mid-run revoke, thread/repo/month caps, loop caps, `timeout-minutes`, kill switch; with Bifrost, pinned prices for allowed models only and a provider-wide cap on requests in flight |
-| The ENMAAS key leaks or is used without a run key | Only Bifrost holds it (Podman secret, encrypted at rest); inference requires a virtual key; Caddy routes three exact paths, never the admin API or UI |
+| The upstream LLM key leaks or is used without a run key | Only Bifrost holds it (Podman secret, encrypted at rest); inference requires a virtual key; Caddy routes three exact paths, never the admin API or UI |
 | Prompt injection via issue or review | Worst case is a bad patch in a PR that humans review; replies are sanitised (capped, @mentions defanged); knowledge updates are gated |
 | Malicious media (huge files, disguised types, HTML/SVG) | Allow-list by magic bytes (no SVG or HTML), size and count caps, served from GitHub Releases rather than our host; the controller never decodes media |
 | Forged authorship | The Publisher creates the commit itself (bot author, signed) from the diff |
@@ -574,7 +574,7 @@ All `open-macaron` repos, the `runner` Actions logs, the images and the knowledg
 6. **Hosting (decided 2026-10-15):** a Fedora VPS running rootless Podman quadlets, replacing OpenShift. Still open: see DEPLOYMENT.md §6.
 7. **Organisation (decided 2026-10-15):** `open-macaron` owns `macaron`, `runner`, `knowledge` and `.github`; the user `macaron-bot` owns only forks. See REPOSITORIES.md.
 8. **Knowledge approval (decided 2026-10-15):** Prow-style. Per-folder `OWNERS.yaml` matched by user id; folder owners need no write access; `merge.yml` (on `main`, triggered by reviews, trusting nothing from the triggering run) merges with the repository's own token. No upstream-provided rules for now. See §6.4.
-9. **LLM backend (decided 2026-10-19):** OpenRouter stays available; Bifrost (Apache 2.0, ~200 MB) mints per-run keys over the company's ENMAAS key, which can't derive keys. LiteLLM was rejected for its weight. A live spike verified Claude Code through Bifrost with raw pass-through and spend matching Claude Code's own cost.
+9. **LLM backend (decided 2026-10-19):** OpenRouter stays available; Bifrost (Apache 2.0, ~200 MB) mints per-run keys over the upstream LLM key, which can't derive keys. LiteLLM was rejected for its weight. A live spike verified Claude Code through Bifrost with raw pass-through and spend matching Claude Code's own cost.
 
 ## 9. Milestones
 

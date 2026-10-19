@@ -50,7 +50,7 @@ const RawEnv = z.object({
   OPENROUTER_PROVISIONING_KEY: Secret.optional(),
   OPENROUTER_ROUTER_KEY: Secret.optional(),
 
-  /** Bifrost backend (virtual keys over the company's ENMAAS key): configured when BIFROST_ADMIN_URL is set. */
+  /** Bifrost backend (virtual keys over the upstream LLM key): configured when BIFROST_ADMIN_URL is set. */
   BIFROST_ADMIN_URL: z.url().optional(),
   /** What runners use as ANTHROPIC_BASE_URL: Caddy's inference-only route to Bifrost. */
   BIFROST_PUBLIC_URL: z.url({ protocol: /^https$/ }).optional(),

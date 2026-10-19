@@ -52,8 +52,8 @@
   },
   "providers": {
     "anthropic": {
-      "keys": [{ "id": "enmaas", "name": "enmaas", "value": "env.ENMAAS_KEY", "weight": 1, "models": ["*"] }],
-      "network_config": { "base_url": "https://api.enmaas.devshift.net" },
+      "keys": [{ "id": "upstream", "name": "upstream", "value": "env.LLM_UPSTREAM_KEY", "weight": 1, "models": ["*"] }],
+      "network_config": { "base_url": "__LLM_UPSTREAM_URL__" },
       "concurrency_and_buffer_size": { "concurrency": 16, "buffer_size": 16 }
     }
   }

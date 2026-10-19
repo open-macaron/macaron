@@ -26,7 +26,7 @@ pnpm install
 pnpm check                      # typecheck + lint + all tests
 pnpm exec vitest run --project controller        # unit tests of one package (contracts, review, agent-cli, controller, knowledge-cli)
 pnpm test:live                  # live tests against OpenRouter/GitHub/Bifrost (~/.config/macaron/dev.env; each skipped without its variables)
-deploy/bifrost/dev.sh up        # local Bifrost + Postgres + Caddy for the Bifrost live test (ENMAAS_KEY, BIFROST_ADMIN_PASSWORD in dev.env)
+deploy/bifrost/dev.sh up        # local Bifrost + Postgres + Caddy for the Bifrost live test (LLM_UPSTREAM_URL, LLM_UPSTREAM_KEY, BIFROST_ADMIN_PASSWORD in dev.env)
 pnpm --filter @open-macaron/controller gen:bifrost   # Bifrost admin client, when bumping the Bifrost image
 pnpm --filter @open-macaron/controller db:generate   # after changing src/db/schema.ts
 pnpm --filter @open-macaron/controller db:check

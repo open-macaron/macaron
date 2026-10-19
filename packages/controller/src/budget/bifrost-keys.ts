@@ -23,7 +23,7 @@ const PAGE_SIZE = 100;
 const BUDGET_RESET = "1Y";
 
 /**
- * Run keys as Bifrost virtual keys, over the provider key Bifrost holds (the company's ENMAAS key,
+ * Run keys as Bifrost virtual keys, over the provider key Bifrost holds (the upstream LLM key,
  * which can't derive keys itself). Authenticated with Bifrost's admin credentials, which never
  * leave this class; the admin API is reachable on the internal network only.
  */

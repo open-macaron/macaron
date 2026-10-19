@@ -3,7 +3,7 @@
 # Run from a developer machine; every remote action goes through ssh, values never hit the
 # terminal or the remote shell history (they travel on stdin):
 #   deploy/scripts/provision-secrets.sh [ssh-host] [env-file]
-# Re-running replaces the GitHub/OpenRouter/ENMAAS/webhook secrets; the database passwords and
+# Re-running replaces the GitHub/OpenRouter/LLM-upstream/webhook secrets; the database passwords and
 # Bifrost's admin password and encryption key are created once and never rotated by this script
 # (the databases were initialised with them; Bifrost can't change its encryption key).
 set -euo pipefail
@@ -32,8 +32,12 @@ remote_secret macaron-gh-org GH_ORG
 remote_secret macaron-or-provisioning OPENROUTER_PROVISIONING_KEY
 remote_secret macaron-or-router OPENROUTER_ROUTER_KEY
 remote_secret macaron-webhook-hmac WEBHOOK_HMAC
-# The company's ENMAAS key: its presence on the VPS is what turns Bifrost on (deploy.sh).
-if has ENMAAS_KEY; then remote_secret macaron-enmaas-key ENMAAS_KEY; fi
+# The upstream LLM key and its URL, kept out of the public repository: their presence on the VPS is
+# what turns Bifrost on (deploy.sh).
+if has LLM_UPSTREAM_KEY; then
+  remote_secret macaron-llm-upstream-url LLM_UPSTREAM_URL
+  remote_secret macaron-llm-upstream-key LLM_UPSTREAM_KEY
+fi
 
 # Database credentials are generated on the VPS itself, once.
 ssh -o BatchMode=yes "$HOST" 'sudo bash -s' <<'REMOTE'
@@ -59,13 +63,13 @@ REMOTE
 
 echo "==> settings on $HOST"
 BIFROST=false
-if ssh -o BatchMode=yes "$HOST" "sudo podman secret exists macaron-enmaas-key"; then BIFROST=true; fi
+if ssh -o BatchMode=yes "$HOST" "sudo podman secret exists macaron-llm-upstream-key"; then BIFROST=true; fi
 # The LLM backend keeps its current value on the VPS unless LLM_BACKEND is given explicitly.
 if [[ -z "${LLM_BACKEND:-}" ]]; then
   LLM_BACKEND="$(ssh -o BatchMode=yes "$HOST" "sudo sed -n 's/^LLM_BACKEND=//p' /etc/macaron/controller.env 2>/dev/null" || true)"
   LLM_BACKEND="${LLM_BACKEND:-openrouter}"
 fi
-[[ "$LLM_BACKEND" != bifrost || "$BIFROST" == true ]] || { echo "LLM_BACKEND=bifrost needs ENMAAS_KEY in $ENV_FILE" >&2; exit 1; }
+[[ "$LLM_BACKEND" != bifrost || "$BIFROST" == true ]] || { echo "LLM_BACKEND=bifrost needs LLM_UPSTREAM_KEY in $ENV_FILE" >&2; exit 1; }
 # The kill switch keeps its current value on the VPS unless MACARON_ENABLED is given explicitly;
 # a fresh host starts disabled.
 if [[ -z "${MACARON_ENABLED:-}" ]]; then

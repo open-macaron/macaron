@@ -23,7 +23,7 @@ async function settle(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 2_000));
 }
 
-/** Against `deploy/bifrost/dev.sh up`; spends well under a cent of ENMAAS usage. */
+/** Against `deploy/bifrost/dev.sh up`; spends well under a cent of upstream usage. */
 describe.skipIf(env === undefined)("Bifrost key lifecycle (live)", () => {
   it("mints a capped key that charges every allowed model, refuses others, freezes, and deletes", { timeout: 120_000 }, async () => {
     if (env === undefined) return;

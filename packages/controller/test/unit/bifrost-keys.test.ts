@@ -19,7 +19,7 @@ const prices = {
   models: [
     { name: "claude-sonnet-5-5", provider: "anthropic", input_cost_per_token: 2e-6, output_cost_per_token: 1e-5 },
     { name: "claude-haiku-4-5", provider: "anthropic", input_cost_per_token: 1e-6, output_cost_per_token: 5e-6 },
-    { name: "rits/zai-org/glm-5-3", provider: "anthropic" },
+    { name: "vendor/unpriced-model", provider: "anthropic" },
   ],
   total: 3,
 };
@@ -92,7 +92,7 @@ describe("BifrostKeys", () => {
       http.post(`${ADMIN}/api/governance/virtual-keys`, () => HttpResponse.json({}, { status: 500 })),
     );
 
-    const attempt = bifrost.create("macaron-run-r2", 0.5, new Date("2026-10-19T13:15:00Z"), ["claude-haiku-4-5", "rits/zai-org/glm-5-3"]);
+    const attempt = bifrost.create("macaron-run-r2", 0.5, new Date("2026-10-19T13:15:00Z"), ["claude-haiku-4-5", "vendor/unpriced-model"]);
 
     await expect(attempt).rejects.toThrow(/no price for rits\/zai-org\/glm-5-3/);
     expect(priceLoads).toBe(1);

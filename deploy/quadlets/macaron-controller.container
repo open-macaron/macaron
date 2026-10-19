@@ -1,7 +1,7 @@
 [Unit]
 Description=macaron-bot: controller
 Requires=macaron-postgres.service
-# Bifrost only runs when the ENMAAS key is provisioned; when it does, its admin API must answer first.
+# Bifrost only runs when the upstream LLM key is provisioned; when it does, its admin API must answer first.
 After=macaron-postgres.service macaron-bifrost.service
 
 [Container]

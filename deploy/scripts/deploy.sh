@@ -24,8 +24,8 @@ log "prerequisites"
 for secret in "${SECRETS[@]}"; do
   podman secret exists "$secret" || die "podman secret $secret is missing (see provision-secrets.sh)"
 done
-# Bifrost runs only once the company's ENMAAS key is provisioned.
-if podman secret exists macaron-enmaas-key; then
+# Bifrost runs only once the upstream LLM key is provisioned.
+if podman secret exists macaron-llm-upstream-key && podman secret exists macaron-llm-upstream-url; then
   BIFROST=true
   UNITS=(macaron-postgres macaron-bifrost macaron-controller macaron-caddy)
 else
@@ -85,6 +85,14 @@ GRANT CONNECT ON DATABASE bifrost TO bifrost;
 SQL
 }
 
+# config.json from the repository's template and the upstream's URL (a secret). Returns 0 when it changed.
+render_bifrost_config() {
+  local out="$ETC_DIR/bifrost-config.json" before=""
+  [[ -f "$out" ]] && before="$(sha256sum "$out")"
+  podman secret inspect --showsecret --format '{{.SecretData}}' macaron-llm-upstream-url | bash "$REPO_DIR/deploy/bifrost/render-config.sh" "$out"
+  [[ "$(sha256sum "$out")" != "$before" ]]
+}
+
 # Bifrost keeps spend in memory and writes it to Postgres every 10 s: restarting it while a run is
 # unsettled could lose some of that run's cost.
 unsettled_runs() {
@@ -103,11 +111,15 @@ install_quadlets
 
 log "start or restart"
 for unit in "${UNITS[@]}"; do
-  if [[ "$unit" == macaron-bifrost ]]; then ensure_bifrost_database; fi
+  config_changed=false
+  if [[ "$unit" == macaron-bifrost ]]; then
+    ensure_bifrost_database
+    if render_bifrost_config; then config_changed=true; fi
+  fi
   # shellcheck disable=SC2046 # unit_files prints zero or one path
   if ! systemctl is-active --quiet "$unit"; then
     systemctl start "$unit"
-  elif changed "deploy/quadlets/$unit.container" $(unit_files "$unit"); then
+  elif [[ "$config_changed" == true ]] || changed "deploy/quadlets/$unit.container" $(unit_files "$unit"); then
     if [[ "$unit" == macaron-bifrost && "$(unsettled_runs)" != 0 ]]; then
       echo "   macaron-bifrost changed but runs are unsettled: not restarted, deploy again once they are" >&2
       continue
