@@ -7,7 +7,9 @@ Image=docker.io/library/postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c
 # Own user namespace: root in here is an unprivileged, unshared ID on the host.
 UserNS=auto
 Network=macaron-db.network
-Volume=macaron-pgdata.volume:/var/lib/postgresql/data
+# U: the volume follows the container's host ID range, which UserNS=auto can change on each start;
+# the entrypoint (as root) then gives the data directory back to postgres.
+Volume=macaron-pgdata.volume:/var/lib/postgresql/data:U
 Environment=POSTGRES_USER=macaron POSTGRES_DB=macaron
 Secret=macaron-pg-password,type=env,target=POSTGRES_PASSWORD
 ReadOnly=true
