@@ -94,7 +94,7 @@ describe("BifrostKeys", () => {
 
     const attempt = bifrost.create("macaron-run-r2", 0.5, new Date("2026-10-19T13:15:00Z"), ["claude-haiku-4-5", "vendor/unpriced-model"]);
 
-    await expect(attempt).rejects.toThrow(/no price for rits\/zai-org\/glm-5-3/);
+    await expect(attempt).rejects.toThrow(/no price for vendor\/unpriced-model/);
     expect(priceLoads).toBe(1);
   });
 
