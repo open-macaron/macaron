@@ -16,7 +16,7 @@ BACKUP_DIR="/var/backups/macaron"
 # The last commit whose deploy passed the health gate: what "changed" compares against, so a deploy
 # that failed half-way still restarts everything that changed since.
 DEPLOYED_FILE="$ETC_DIR/deployed-commit"
-SECRETS=(macaron-pg-password macaron-database-url macaron-gh-interact macaron-gh-push macaron-gh-org macaron-or-provisioning macaron-or-router macaron-webhook-hmac
+SECRETS=(macaron-pg-password macaron-database-url macaron-gh-interact macaron-gh-push macaron-gh-org macaron-webhook-hmac
   macaron-bifrost-admin macaron-bifrost-db-password macaron-bifrost-encryption-key)
 
 log() { printf '\033[1m==> %s\033[0m\n' "$*"; }

@@ -22,8 +22,8 @@ Secret=macaron-database-url,type=env,target=DATABASE_URL
 Secret=macaron-gh-interact,type=env,target=GH_INTERACT
 Secret=macaron-gh-push,type=env,target=GH_PUSH
 Secret=macaron-gh-org,type=env,target=GH_ORG
-Secret=macaron-or-provisioning,type=env,target=OPENROUTER_PROVISIONING_KEY
-Secret=macaron-or-router,type=env,target=OPENROUTER_ROUTER_KEY
+# OpenRouter is no longer configured (its keys are disabled; LLM_BACKEND=bifrost). To bring it back,
+# mount macaron-or-provisioning and macaron-or-router as OPENROUTER_PROVISIONING_KEY / OPENROUTER_ROUTER_KEY.
 Secret=macaron-bifrost-admin,type=env,target=BIFROST_ADMIN_PASSWORD
 Secret=macaron-webhook-hmac,type=env,target=WEBHOOK_HMAC
 HealthCmd=node -e "fetch('http://127.0.0.1:8080/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"

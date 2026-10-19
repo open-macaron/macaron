@@ -29,8 +29,9 @@ echo "==> secrets on $HOST"
 remote_secret macaron-gh-interact GH_INTERACT
 remote_secret macaron-gh-push GH_PUSH
 remote_secret macaron-gh-org GH_ORG
-remote_secret macaron-or-provisioning OPENROUTER_PROVISIONING_KEY
-remote_secret macaron-or-router OPENROUTER_ROUTER_KEY
+# OpenRouter is optional (not mounted while LLM_BACKEND=bifrost).
+if has OPENROUTER_PROVISIONING_KEY; then remote_secret macaron-or-provisioning OPENROUTER_PROVISIONING_KEY; fi
+if has OPENROUTER_ROUTER_KEY; then remote_secret macaron-or-router OPENROUTER_ROUTER_KEY; fi
 remote_secret macaron-webhook-hmac WEBHOOK_HMAC
 # The upstream LLM key and its URL, kept out of the public repository: their presence on the VPS is
 # what turns Bifrost on (deploy.sh).
