@@ -110,6 +110,16 @@ export const zBootstrapResponse = z.object({
                 reason: z.enum(['no_matching_file', 'over_limit'])
             })),
             knowledgeCommit: z.string().regex(/^[0-9a-f]{40}$/).nullable()
-        }).optional()
+        }).optional(),
+        platform: z.enum([
+            'linux',
+            'windows',
+            'macos'
+        ]).default('linux'),
+        platforms: z.array(z.enum([
+            'linux',
+            'windows',
+            'macos'
+        ])).min(1).default(['linux'])
     })
 });

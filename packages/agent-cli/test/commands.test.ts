@@ -109,6 +109,21 @@ describe("finish", () => {
     expect(await finish(inputs)).toBe(1);
   });
 
+  it("refuses files the run turned from LF to CRLF, not files that already had CRLF", async () => {
+    const p = paths(inputs);
+    await writeFile(join(p.work, "dos.txt"), "a\r\nb\r\n");
+    await git(p.work, "add", "dos.txt");
+    await git(p.work, "commit", "--quiet", "-m", "dos");
+    const context = RunContext.parse({ ...JSON.parse(await readFile(p.contextFile, "utf8")), baseSha: (await git(p.work, "rev-parse", "HEAD")).stdout.trim() });
+    await writeFile(p.contextFile, JSON.stringify(context));
+    await writeFile(p.resultFile, JSON.stringify({ action: "commit", commitMessage: "fix: crash", summary: "Fixed." }));
+
+    await writeFile(join(p.work, "dos.txt"), "a\r\nb\r\nc\r\n");
+    expect(await finish(inputs)).toBe(0);
+    await writeFile(join(p.work, "README.md"), "hello\r\nworld\r\n");
+    expect(await finish(inputs)).toBe(1);
+  });
+
   it("fails clearly when the agent wrote no result", async () => {
     expect(await finish(inputs)).toBe(1);
   });
@@ -125,5 +140,14 @@ describe("prompts", () => {
     expect(system).toContain('"escalateTo"');
     expect(system).toContain(`https://github.com/org-x/repo-a/blob/${baseSha}/`);
     expect(taskPrompt(context)).toContain("@alice asked");
+    expect(system).not.toContain("## Platform");
+  });
+
+  it("tell the agent its platform, and triage where it may escalate to", async () => {
+    const context = RunContext.parse(JSON.parse(await readFile(paths(inputs).contextFile, "utf8")));
+
+    expect(systemPrompt({ ...context, platform: "windows", platforms: ["linux", "windows"] }, "/out")).toContain("## Platform: windows\nThis machine runs Windows");
+    expect(systemPrompt({ ...context, mode: "triage", platforms: ["linux", "windows"] }, "/out")).toContain("set `escalateOn`");
+    expect(systemPrompt({ ...context, mode: "triage" }, "/out")).not.toContain("escalateOn`");
   });
 });

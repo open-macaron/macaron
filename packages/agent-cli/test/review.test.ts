@@ -1,13 +1,13 @@
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { CommitSha, RepoSlug, RunContext, RunResult, Ticket } from "@open-macaron/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { claudeReviewArgs } from "@open-macaron/review";
 import { environmentExtras, run } from "../src/commands.ts";
-import { claudeArgs } from "../src/harness.ts";
+import { claudeArgs, claudeBinary } from "../src/harness.ts";
 import { type Inputs, paths } from "../src/inputs.ts";
 
 const git = (cwd: string, ...args: string[]) => promisify(execFile)("git", args, { cwd });
@@ -64,7 +64,7 @@ describe("review run", () => {
       GITHUB_WORKSPACE: join(root, "ws"),
     };
     const p = paths(inputs);
-    await Promise.all([mkdir(p.work, { recursive: true }), mkdir(p.state, { recursive: true }), mkdir(p.media, { recursive: true }), mkdir(join(p.tools, "node_modules", ".bin"), { recursive: true })]);
+    await Promise.all([mkdir(p.work, { recursive: true }), mkdir(p.state, { recursive: true }), mkdir(p.media, { recursive: true }), mkdir(dirname(claudeBinary(p.tools)), { recursive: true })]);
     // The upstream: a base commit, then the pull request's head. `origin` is the work tree itself.
     await git(p.work, "init", "--quiet");
     await git(p.work, "config", "user.email", "t@t");
@@ -112,7 +112,7 @@ describe("review run", () => {
     const p = paths(inputs);
     const log = join(root, "claude.log");
     const script = `#!/bin/sh\nprintf '%s\\n' "$@" > '${log}'\nprintf 'env %s %s %s\\n' "$ANTHROPIC_BASE_URL" "$ANTHROPIC_AUTH_TOKEN" "$ANTHROPIC_DEFAULT_HAIKU_MODEL" >> '${log}'\ncat >> '${log}'\nprintf '%s' '${JSON.stringify(answer).replaceAll("'", "'\\''")}'\n`;
-    const bin = join(p.tools, "node_modules", ".bin", "claude");
+    const bin = claudeBinary(p.tools);
     await writeFile(bin, script);
     await chmod(bin, 0o755);
     return log;

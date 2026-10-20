@@ -111,6 +111,8 @@ export type BootstrapResponses = {
                 }>;
                 knowledgeCommit: string | null;
             };
+            platform: 'linux' | 'windows' | 'macos';
+            platforms: Array<'linux' | 'windows' | 'macos'>;
         };
     };
 };

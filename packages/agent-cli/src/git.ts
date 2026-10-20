@@ -27,6 +27,9 @@ async function succeeds(cwd: string, ...args: string[]): Promise<boolean> {
  */
 export async function checkout(work: string, repo: string, fork: string, branch: string, baseSha: string): Promise<void> {
   await run("git", ["init", "--quiet", work]);
+  // Files as committed: Git for Windows would otherwise check them out with CRLF, and every file
+  // the agent touches would come back with all its lines changed.
+  await git(work, "config", "core.autocrlf", "false");
   await git(work, "remote", "add", "origin", `https://github.com/${repo}.git`);
   await git(work, "remote", "add", "fork", `https://github.com/${fork}.git`);
   const fromFork = await succeeds(work, "fetch", "--quiet", "--depth=200", "fork", baseSha);
@@ -56,4 +59,15 @@ export async function changesSince(work: string, baseSha: string): Promise<Chang
     files.push({ action: "upsert", path, mode, contentBase64: (await readFile(join(work, path))).toString("base64") });
   }
   return Changes.parse({ baseSha, files });
+}
+
+/** Files the changes turn from LF to CRLF line endings (new files count as LF), to convert back before publishing. */
+export async function crlfIntroduced(work: string, changes: Changes): Promise<string[]> {
+  const paths: string[] = [];
+  for (const file of changes.files) {
+    if (file.action !== "upsert" || !Buffer.from(file.contentBase64, "base64").includes("\r\n")) continue;
+    const before = await git(work, "show", `${changes.baseSha}:${file.path}`).catch(() => "");
+    if (!before.includes("\r\n")) paths.push(file.path);
+  }
+  return paths;
 }

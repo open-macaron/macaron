@@ -5,7 +5,7 @@ import { Attachment, AttachmentId, type LlmAccess, RunContext, RunResult } from 
 import { judge, localScope } from "@open-macaron/review";
 import { z } from "zod";
 import { bootstrap as requestBootstrap } from "./controller-api.ts";
-import { changesSince, checkout } from "./git.ts";
+import { changesSince, checkout, crlfIntroduced } from "./git.ts";
 import { claudeBinary, claudeEnvironment, installHarness, runHarness } from "./harness.ts";
 import { type Inputs, type Paths, paths, readInputs } from "./inputs.ts";
 import { systemPrompt, taskPrompt } from "./prompts.ts";
@@ -181,6 +181,11 @@ export async function finish(inputs: Inputs = readInputs()): Promise<number> {
   const forbidden = changes.files.filter((file) => file.path.startsWith(".github/"));
   if (forbidden.length > 0) {
     core.error(`these files can't be changed by the bot, revert them: ${forbidden.map((file) => file.path).join(", ")}`);
+    return 1;
+  }
+  const crlf = await crlfIntroduced(p.work, changes);
+  if (crlf.length > 0) {
+    core.error(`these files now have CRLF line endings, convert them back to LF: ${crlf.join(", ")}`);
     return 1;
   }
   core.info(`result ready: ${result.action}, ${String(changes.files.length)} changed file(s), ${String(result.attachments.length)} attachment(s)`);

@@ -21,7 +21,10 @@ const MAX_OUTPUT_TOKENS = "16000";
 export async function installHarness(harness: Harness, toolsDir: string): Promise<void> {
   switch (harness) {
     case "claude":
-      await promisify(execFile)("npm", ["install", "--prefix", toolsDir, "--no-fund", "--no-audit", "--no-save", `@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}`]);
+      // On Windows npm is a .cmd script, which Node only starts through a shell. The arguments are constants.
+      await promisify(execFile)("npm", ["install", "--prefix", toolsDir, "--no-fund", "--no-audit", "--no-save", `@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}`], {
+        shell: process.platform === "win32",
+      });
       return;
     case "codex":
     case "opencode":
@@ -74,9 +77,12 @@ export function claudeArgs(run: Pick<HarnessRun, "model" | "systemPromptFile" | 
   ];
 }
 
-/** The harness installed by `prepare`. */
+/**
+ * The harness installed by `prepare`: the package's native executable, named `claude.exe` on every
+ * platform. Not `.bin/claude`, a `.cmd` shim on Windows that Node can't spawn without a shell.
+ */
 export function claudeBinary(toolsDir: string): string {
-  return join(toolsDir, "node_modules", ".bin", "claude");
+  return join(toolsDir, "node_modules", "@anthropic-ai", "claude-code", "bin", "claude.exe");
 }
 
 /** Every session's environment: the run's Anthropic-compatible endpoint, with this run's capped key only. */
