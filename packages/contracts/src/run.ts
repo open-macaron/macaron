@@ -2,7 +2,7 @@ import { z } from "zod";
 import { Commands } from "./config.ts";
 import { BotBranch, CommitSha, GitHubLogin, RepoSlug, Ticket, Usd } from "./ids.ts";
 import { PublishedRule } from "./knowledge.ts";
-import { Harness, Mode, ResultAction } from "./mode.ts";
+import { Harness, Mode, Platform, ResultAction } from "./mode.ts";
 
 const Body = z.string().max(65_536);
 
@@ -84,6 +84,10 @@ export const RunContext = z.strictObject({
   attachments: AttachmentLimits,
   /** Set iff mode is `review`. */
   review: ReviewContext.optional(),
+  /** The machine's operating system. Defaults keep contexts from controllers that predate platforms valid. */
+  platform: Platform.default("linux"),
+  /** The platforms this repository's runs can use: where a triage run may escalate to. */
+  platforms: z.array(Platform).min(1).default(["linux"]),
 });
 export type RunContext = z.infer<typeof RunContext>;
 
@@ -147,6 +151,8 @@ export const RunResult = z
   .strictObject({
     action: ResultAction,
     escalateTo: Mode.optional(),
+    /** The platform the escalated run should use; the escalating run's own when absent. */
+    escalateOn: Platform.optional(),
     commitMessage: z.string().min(1).max(4_096).optional(),
     pr: z.strictObject({ title: z.string().min(1).max(256), body: Body }).optional(),
     message: Body.optional(),
@@ -162,6 +168,9 @@ export const RunResult = z
     }
     if (result.action === "escalate" && result.escalateTo === undefined) {
       ctx.addIssue({ code: "custom", path: ["escalateTo"], message: "required when action is escalate" });
+    }
+    if (result.action !== "escalate" && result.escalateOn !== undefined) {
+      ctx.addIssue({ code: "custom", path: ["escalateOn"], message: "only when action is escalate" });
     }
     if (result.action === "commit" && result.commitMessage === undefined) {
       ctx.addIssue({ code: "custom", path: ["commitMessage"], message: "required when action is commit" });

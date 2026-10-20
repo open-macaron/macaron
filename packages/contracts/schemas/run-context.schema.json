@@ -421,6 +421,30 @@
         "knowledgeCommit"
       ],
       "additionalProperties": false
+    },
+    "platform": {
+      "default": "linux",
+      "type": "string",
+      "enum": [
+        "linux",
+        "windows",
+        "macos"
+      ]
+    },
+    "platforms": {
+      "default": [
+        "linux"
+      ],
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "linux",
+          "windows",
+          "macos"
+        ]
+      }
     }
   },
   "required": [

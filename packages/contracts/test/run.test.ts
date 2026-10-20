@@ -25,6 +25,11 @@ describe("RunResult", () => {
     expect(RunResult.safeParse({ ...base, action: "commit" }).success).toBe(false);
   });
 
+  it("names a platform only when escalating", () => {
+    expect(RunResult.safeParse({ ...base, action: "escalate", escalateTo: "reproduce", escalateOn: "windows" }).success).toBe(true);
+    expect(RunResult.safeParse({ ...base, action: "reply", message: "Done.", escalateOn: "windows" }).success).toBe(false);
+  });
+
   it("rejects attachment paths outside media/ and duplicate ids", () => {
     const outside = { id: "a", path: "../etc/passwd", kind: "image", caption: "x" };
     expect(RunResult.safeParse({ ...base, action: "reply", attachments: [outside] }).success).toBe(false);

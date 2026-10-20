@@ -27,6 +27,14 @@
         "review"
       ]
     },
+    "escalateOn": {
+      "type": "string",
+      "enum": [
+        "linux",
+        "windows",
+        "macos"
+      ]
+    },
     "commitMessage": {
       "type": "string",
       "minLength": 1,

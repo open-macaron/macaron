@@ -42,6 +42,26 @@
       "type": "string",
       "minLength": 1
     },
+    "platforms": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "windows",
+          "macos"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "runsOn": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
     "draftPr": {
       "type": "boolean"
     },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GlobalFile, ProjectFile, RepoFile, resolveRepoConfig } from "../src/index.ts";
+import { GlobalFile, ProjectFile, RepoFile, platformsOf, resolveRepoConfig, runnerFor } from "../src/index.ts";
 
 const global = GlobalFile.parse({
   defaults: {
@@ -94,6 +94,27 @@ describe("resolveRepoConfig", () => {
 
     expect(config.models).toEqual({ review: "anthropic/claude-haiku-5.5", implement: "anthropic/claude-opus-5.5" });
     expect(RepoFile.safeParse({ repo: "o/r", fork: "abc123-r", models: { reviw: "m" } }).success).toBe(false);
+  });
+
+  it("runs on Linux by default, and on the other platforms a level enables", () => {
+    const linuxOnly = resolveRepoConfig(global, project, RepoFile.parse({ repo: "podman-desktop/extension-a", fork: "abc123-extension-a" }));
+    expect(runnerFor(linuxOnly, "linux")).toBe("ubuntu-24.04");
+    expect(runnerFor(linuxOnly, "windows")).toBeUndefined();
+    expect(platformsOf(linuxOnly)).toEqual(["linux"]);
+
+    const withWindows = resolveRepoConfig(
+      global,
+      ProjectFile.parse({ ...project, defaults: { ...project.defaults, platforms: { windows: { runsOn: "windows-2022" } } } }),
+      RepoFile.parse({ repo: "podman-desktop/extension-a", fork: "abc123-extension-a", platforms: { windows: { runsOn: "windows-2025" } } }),
+    );
+    expect(runnerFor(withWindows, "windows")).toBe("windows-2025");
+    expect(platformsOf(withWindows)).toEqual(["linux", "windows"]);
+  });
+
+  it("rejects Linux under platforms and platforms without a runner", () => {
+    expect(RepoFile.safeParse({ repo: "a/b", fork: "abc123-b", platforms: { linux: { runsOn: "ubuntu-24.04" } } }).success).toBe(false);
+    const repo = RepoFile.parse({ repo: "a/b", fork: "abc123-b", platforms: { windows: {} } });
+    expect(() => resolveRepoConfig(global, project, repo)).toThrow(/runsOn/);
   });
 
   it("rejects unknown keys so typos never pass silently", () => {

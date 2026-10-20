@@ -1,7 +1,7 @@
 import { deepmergeCustom } from "deepmerge-ts";
 import { z } from "zod";
 import { GitHubLogin, RepoSlug, Slug, Usd } from "./ids.ts";
-import { Capability, Harness, Mode } from "./mode.ts";
+import { Capability, Harness, Mode, Platform } from "./mode.ts";
 
 const Params = z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/), z.string());
 
@@ -68,6 +68,15 @@ export const Contribution = z.strictObject({
 });
 export type Contribution = z.infer<typeof Contribution>;
 
+/**
+ * A platform other than Linux a repository's runs can use. The environment and every other setting
+ * stay the repository's: one environment action covers every platform (steps branch on `runner.os`).
+ */
+export const PlatformSettings = z.strictObject({ runsOn: z.string().min(1) });
+export type PlatformSettings = z.infer<typeof PlatformSettings>;
+
+const OtherPlatform = Platform.exclude(["linux"]);
+
 /** Longest a run may take, in minutes. The controller derives how long run keys may live from it. */
 export const MAX_TIMEOUT_MINUTES = 360;
 
@@ -79,7 +88,10 @@ export const RepoSettings = z.strictObject({
   models: z.partialRecord(Mode, z.string().min(1)),
   /** The harness's small background model (Claude Code's "haiku" slot). Names follow the LLM backend. */
   fastModel: z.string().min(1),
+  /** The Linux runner label. */
   runsOn: z.string().min(1),
+  /** The other platforms runs may ask for (`@macaron-bot reproduce on windows`). */
+  platforms: z.partialRecord(OtherPlatform, PlatformSettings).default({}),
   draftPr: z.boolean(),
   timeoutMinutes: z.int().min(5).max(MAX_TIMEOUT_MINUTES),
   /** USD per run, enforced by the run's LLM key. `review` is the ceiling of `reviewCost`. */
@@ -100,6 +112,7 @@ export const RepoSettingsPatch = z.strictObject({
   models: z.partialRecord(Mode, z.string().min(1)).optional(),
   fastModel: z.string().min(1).optional(),
   runsOn: z.string().min(1).optional(),
+  platforms: z.partialRecord(OtherPlatform, PlatformSettings.partial()).optional(),
   draftPr: z.boolean().optional(),
   timeoutMinutes: z.int().min(5).max(MAX_TIMEOUT_MINUTES).optional(),
   budgets: Budgets.partial().optional(),
@@ -176,4 +189,14 @@ export function resolveRepoConfig(global: GlobalFile, project: ProjectFile, repo
   const { repo: slug, fork, ...repoPatch } = repo;
   const settings = applySettingsPatch(applySettingsPatch(global.defaults, project.defaults), repoPatch);
   return RepoConfig.parse({ ...settings, repo: slug, fork, project: project.project, users: project.users, bots: project.bots });
+}
+
+/** The runner label for `platform`, or undefined when the repository doesn't enable it. */
+export function runnerFor(config: Pick<RepoSettings, "runsOn" | "platforms">, platform: Platform): string | undefined {
+  return platform === "linux" ? config.runsOn : config.platforms[platform]?.runsOn;
+}
+
+/** Every platform the repository's runs can use, Linux first. */
+export function platformsOf(config: Pick<RepoSettings, "platforms">): Platform[] {
+  return ["linux", ...Platform.options.filter((platform) => platform !== "linux" && config.platforms[platform] !== undefined)];
 }
