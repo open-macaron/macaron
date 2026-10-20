@@ -115,7 +115,7 @@ describe("finish", () => {
 });
 
 describe("prompts", () => {
-  it("tell the agent its mode, the allowed actions, where to write, and include the schema", async () => {
+  it("tell the agent its mode, the allowed actions, where to write, how to link code, and include the schema", async () => {
     const context = RunContext.parse(JSON.parse(await readFile(paths(inputs).contextFile, "utf8")));
     const system = systemPrompt(context, "/out");
 
@@ -123,6 +123,7 @@ describe("prompts", () => {
     expect(system).toContain("Allowed actions in this mode: commit, ask, noop.");
     expect(system).toContain("`/out/result.json`");
     expect(system).toContain('"escalateTo"');
+    expect(system).toContain(`https://github.com/org-x/repo-a/blob/${baseSha}/`);
     expect(taskPrompt(context)).toContain("@alice asked");
   });
 });
