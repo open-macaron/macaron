@@ -32,7 +32,12 @@ defaults:
     reproduce: 3.00
     verify: 3.00
     retro: 0.50
-    review: 0.50
+    # The ceiling of a review's budget, which follows its rule count (reviewCost).
+    review: 1.00
+  # A review's budget: baseUsd + perRuleUsd × the rules it checks, at most budgets.review.
+  reviewCost:
+    baseUsd: 0.10
+    perRuleUsd: 0.04
   caps:
     perThreadUsd: 20.00
     perRepoMonthUsd: 150.00
