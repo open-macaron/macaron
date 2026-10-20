@@ -24,6 +24,13 @@ describe("the committed config/ tree", () => {
       budgets: { review: 0.5 },
       contribution: { dco: true },
     });
+    // The test fork shares the bot's fork with upstream, and runs Podman Desktop built from it.
+    expect(snapshot.repos.get("axel7083/podman-desktop")).toMatchObject({
+      project: "podman-desktop",
+      fork: "2elnuw-podman-desktop",
+      environment: { source: "shared", name: "podman-desktop", params: { machine: "true" } },
+      capabilities: ["gui"],
+    });
   });
 });
 

@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
+#
+# Test fork of podman-desktop/podman-desktop, to try the bot on Podman Desktop itself (building and
+# running the application, reproducing, verifying) before it comments on the real project. It shares
+# the bot's fork with the upstream entry: GitHub allows one fork per network, and pull requests from
+# it can target any repository of the network. Issue numbers here start at 1, far below upstream's,
+# so the bot's branch names don't collide.
+
+repo: axel7083/podman-desktop
+fork: 2elnuw-podman-desktop
+timeoutMinutes: 75
+environment:
+  source: shared
+  name: podman-desktop
+  params:
+    machine: "true"
+capabilities: [gui]
+budgets:
+  plan: 1.00
+  reproduce: 4.00
+  verify: 4.00
+commands:
+  build: pnpm build
+  test: pnpm test:unit
+  lint: pnpm lint:check
+contribution:
+  dco: true

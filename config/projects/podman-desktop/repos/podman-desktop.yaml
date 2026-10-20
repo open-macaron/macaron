@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
 #
-# podman-desktop/podman-desktop. The bot's fork is the one GitHub allows per fork network: it was
-# forked from axel7083/podman-desktop, so the test fork can't be enrolled at the same time.
+# podman-desktop/podman-desktop. The bot's fork is the one GitHub allows per fork network (shared
+# with the test fork axel7083/podman-desktop, enrolled next to it).
 # Commits need a DCO sign-off (CONTRIBUTING.md); LLM_POLICY.md applies to everything posted.
 
 repo: podman-desktop/podman-desktop
