@@ -25,7 +25,7 @@ export interface RuleResult {
 
 export interface ReviewVerification {
   readonly results: readonly RuleResult[];
-  /** Malformed output (unknown or repeated rule ids): the Gate refuses the run. */
+  /** Malformed or incomplete output (unknown, repeated or missing rule ids): the Gate refuses the run. */
   readonly problems: readonly string[];
 }
 
@@ -41,7 +41,8 @@ const SKIP_REASON: Readonly<Record<ReviewContext["skipped"][number]["reason"], s
  * Turns the reviewer's verdicts into the published rows. Deterministic, and the reason the reviewer
  * can't accuse anyone falsely: a violation stands only if each piece of evidence it keeps quotes a
  * line the pull request adds, at that number, in a file the rule applies to. A violation without
- * such evidence, or a rule left without a verdict, is published as ignored, never as a pass.
+ * such evidence is published as ignored, never as a pass. A rule left without a verdict is a problem:
+ * a review that doesn't account for every rule it was given isn't published.
  */
 export function verifyReview(review: Pick<ReviewContext, "rules" | "skipped">, verdicts: readonly RuleVerdict[], diff: { readonly files: readonly DiffFile[] }): ReviewVerification {
   const problems: string[] = [];
@@ -52,6 +53,8 @@ export function verifyReview(review: Pick<ReviewContext, "rules" | "skipped">, v
     else if (byRule.has(verdict.ruleId)) problems.push(`two verdicts for ${verdict.ruleId}`);
     else byRule.set(verdict.ruleId, verdict);
   }
+  const missing = review.rules.map(({ rule }) => rule.id).filter((id) => !byRule.has(id));
+  if (missing.length > 0) problems.push(`the review left rules unchecked: ${missing.join(", ")}`);
   const files = new Map(diff.files.map((file) => [file.path, file]));
 
   const results: RuleResult[] = review.rules.map(({ rule, files: ruleFiles }) => {

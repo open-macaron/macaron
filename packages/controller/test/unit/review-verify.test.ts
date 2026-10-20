@@ -68,13 +68,15 @@ describe("verifyReview", () => {
     expect(results[0]?.outcome).toBe("violation");
   });
 
-  it("shows rules left without a verdict as not checked, never as valid", () => {
-    const { results } = verifyReview(review, [], diff);
-    expect(results.slice(0, 3).every((result) => result.outcome === "ignored" && result.reason === "not checked")).toBe(true);
+  it("refuses a review that leaves a rule without a verdict, and never shows it as valid", () => {
+    const { results, problems } = verifyReview(review, [verdict({ ruleId: "sandbox/style" })], diff);
+    expect(problems).toEqual(["the review left rules unchecked: sandbox/json, sandbox/quiet"]);
+    expect(results[0]).toMatchObject({ outcome: "ignored", reason: "not checked" });
   });
 
   it("reports verdicts for unknown rules and repeated verdicts as problems", () => {
-    const { problems } = verifyReview(review, [verdict({}), verdict({}), verdict({ ruleId: "global/invented" })], diff);
+    const all = [verdict({}), verdict({ ruleId: "sandbox/style" }), verdict({ ruleId: "sandbox/quiet" })];
+    const { problems } = verifyReview(review, [...all, verdict({}), verdict({ ruleId: "global/invented" })], diff);
     expect(problems).toEqual(["two verdicts for sandbox/json", "verdict for a rule that wasn't asked: global/invented"]);
   });
 });

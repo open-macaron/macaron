@@ -78,9 +78,13 @@ describe("gate", () => {
       expect(outcome.ok && outcome.publishable.review?.map((row) => [row.id, row.outcome])).toEqual([["org-x/no-eval", "violation"]]);
     });
 
-    it("refuses file changes, verdicts for rules that weren't asked, and a missing diff", async () => {
+    it("refuses file changes, verdicts for rules that weren't asked, rules left without a verdict, and a missing diff", async () => {
       expect(await check(reviewInput({ review: [verdict] }, { changes: changes([upsert("src/a.ts", "x")]) }))).toEqual(['changes are only accepted with action "commit", got "review"']);
-      expect(await check(reviewInput({ review: [{ ...verdict, ruleId: "global/invented" }] }))).toEqual(["verdict for a rule that wasn't asked: global/invented"]);
+      expect(await check(reviewInput({ review: [{ ...verdict, ruleId: "global/invented" }] }))).toEqual([
+        "verdict for a rule that wasn't asked: global/invented",
+        "the review left rules unchecked: org-x/no-eval",
+      ]);
+      expect(await check(reviewInput({ review: [] }))).toEqual(["the review left rules unchecked: org-x/no-eval"]);
       expect(await check(reviewInput({ review: [verdict] }, { diff: undefined }))).toEqual(["a review run needs the pull request's diff"]);
     });
   });
