@@ -25,14 +25,14 @@ Related repositories: [open-macaron/runner](https://github.com/open-macaron/runn
 pnpm install
 pnpm check                      # typecheck + lint + all tests
 pnpm exec vitest run --project controller        # unit tests of one package (contracts, review, agent-cli, controller, knowledge-cli)
-pnpm test:live                  # live tests against OpenRouter/GitHub/Bifrost (~/.config/macaron/dev.env; each skipped without its variables)
+pnpm test:live                  # live tests against Bifrost/GitHub/OpenRouter (~/.config/macaron/dev.env; each skipped without its variables)
 deploy/bifrost/dev.sh up        # local Bifrost + Postgres + Caddy for the Bifrost live test (LLM_UPSTREAM_URL, LLM_UPSTREAM_KEY, BIFROST_ADMIN_PASSWORD in dev.env)
 pnpm --filter @open-macaron/controller gen:bifrost   # Bifrost admin client, when bumping the Bifrost image
 pnpm --filter @open-macaron/controller db:generate   # after changing src/db/schema.ts
 pnpm --filter @open-macaron/controller db:check
 ```
 
-Integration tests (`controller-integration`) need a container runtime (Testcontainers). Without one locally they fail to start; CI runs them.
+Integration tests (`controller-integration`) need a container runtime (Testcontainers). Without one locally they fail to start; CI runs them. With rootless Podman: `DOCKER_HOST=unix:///run/user/$UID/podman/podman.sock TESTCONTAINERS_RYUK_DISABLED=true` (if the socket file is missing, `systemctl --user restart podman.socket`).
 
 ## Code rules (enforced by lint and review)
 
@@ -81,3 +81,4 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 - Claude Code's `--json-schema` only knows draft 7: no `$schema` key.
 - Bifrost: a model without a price is charged $0 (prices are pinned in `deploy/bifrost/pricing.json`); budgets and per-key rate limits are counted after requests, so only the provider-wide concurrency cap bounds a burst; empty lists come back as `null`; virtual keys need `key_ids: ["*"]` to use the provider's keys.
 - Caddy's `path` matcher ignores case and cleans the path: rewrite matched requests to their canonical upstream path rather than forwarding the client's.
+- VPS quadlets use `UserNS=auto`: a container can get another host ID range each time it starts, so a named volume needs `:U` (Caddy once lost its certificates that way, and every TLS handshake failed).
