@@ -12,7 +12,7 @@ Companion docs:
 - We want a bot account (`macaron-bot`) that is mentioned on an issue and then plans, asks questions, or opens a PR. It also handles review loops on its own PRs.
 - Agents (claude / codex / opencode) run on GitHub-hosted runners, so we don't manage agent environments.
 - A **controller on our Fedora VPS** (rootless Podman quadlets) holds every credential and does everything deterministic: polling, webhooks, reactions, budget keys, policy checks, pushes, comments.
-- Security comes first. The agent never holds a GitHub credential. Every agent run gets its own budget-capped LLM key: an OpenRouter key, or a Bifrost virtual key over the upstream LLM key (§4 "Budgets"). Pushes are done afterwards by deterministic code that only writes to one branch.
+- Security comes first. The agent never holds a GitHub credential. Every agent run gets its own budget-capped LLM key: a Bifrost virtual key over the upstream LLM key, or an OpenRouter key (§4 "Budgets"). Pushes are done afterwards by deterministic code that only writes to one branch.
 - The bot only works for allow-listed repos and users. It reacts fast (👀), comments little, reports the cost of every action, and learns over time through a curated knowledge base.
 
 ## 2. Target architecture
@@ -156,7 +156,7 @@ interface BootstrapPayload {
 ```
 
 Behaviour notes:
-- The Router has a controller-owned OpenRouter key with `limit_reset: daily`, and its cost is recorded in the ledger. A "thanks!" therefore costs about $0.001 and never starts a runner.
+- **The Router isn't implemented yet.** Today an explicit command picks the mode, review comments on the bot's pull request mean `address_review`, and anything else (a bare mention) is a `triage` run. The plan: one tool-less call with its own small daily-capped key, its cost in the ledger, so a "thanks!" costs about $0.001 and never starts a runner.
 - Run modes:
   - `triage`: read-only, no setup step, small budget. It answers questions in a thread.
   - `plan`, `implement`, `address_review`: full environment.
@@ -242,7 +242,8 @@ class BudgetService {
 ```
 
 - **Two backends.** OpenRouter mints real keys with a limit and an expiry. Bifrost (a self-hosted gateway, `deploy/quadlets/macaron-bifrost.container`) holds the upstream LLM key and mints virtual keys over it with a budget, an expiry, an allowlist of the run's model and fast model, and a per-minute request limit. Each run records where its key was minted, so switching `LLM_BACKEND` never strands a run's key.
-- **OpenRouter keys live in one workspace** (`OPENROUTER_WORKSPACE`, default `macaron`). The controller resolves it at startup and refuses to start if it's missing. The workspace dashboard is therefore the bot's total spend, and a workspace budget can act as a hard global ceiling on top of our caps.
+- **Start-up checks.** Each configured backend checks itself when the controller starts (OpenRouter resolves its workspace, `OPENROUTER_WORKSPACE`; Bifrost loads its prices). The active backend must pass, and must price every model the configuration uses; another backend that fails is logged and left out, since it only matters for runs minted on it.
+- **OpenRouter keys live in one workspace,** so its dashboard is the bot's total spend there, and a workspace budget can act as a hard global ceiling on top of our caps.
 - **Costs are settled in two phases.** Backends report a key's usage asynchronously (OpenRouter ~25 s after the call; Bifrost writes spend every 10 s). At completion the key is frozen and the result is published immediately. A `settle-cost` job runs after the backend's `usageLagMs` (90 s for OpenRouter, 15 s for Bifrost), writes the final cost to the ledger once, deletes the key and refreshes the PR's cost table, where the loop shows "settling…" until then. A run's whole limit counts against the caps until it is settled, so nothing can overshoot in between.
 
 - Caps exist at four levels: per-run key limit, per thread, per repo per month, and global concurrency. There is also a kill switch (`MACARON_ENABLED`).
@@ -261,7 +262,7 @@ class Gate {
 class Publisher {
   /** One commit per loop, bot author, signed; FF-only push to the ledger-owned branch (never one named by the agent). */
   pushLoop(thread: ThreadRef, patch: Patch, message: string): Promise<string>;
-  /** Threaded replies first, then edit the sticky status comment, then at most 1 top-level comment. */
+  /** Threaded replies first, then the loop's own status comment (where the request was made), then at most 1 top-level comment. */
   respond(thread: ThreadRef, result: RunResult): Promise<void>;
   /** Rewrite the <!-- macaron:cost --> section of the PR body from the ledger. */
   renderCostTable(pr: PullRef): Promise<void>;
@@ -351,7 +352,7 @@ With no access, the bot can do anything a stranger can do on a public repo and n
 
 | Can do (no access needed) | Can't do | How we handle it |
 |---|---|---|
-| Comment, reply to review threads, react | Label, assign, request reviewers, set milestones | Status lives in the sticky comment. Maintainers triage as they would for any contributor |
+| Comment, reply to review threads, react | Label, assign, request reviewers, set milestones | Status lives in each loop's status comment. Maintainers triage as they would for any contributor |
 | Open PRs from its fork, edit its own PR title/body, mark draft → ready, close its own PR | Push to upstream branches, merge | Cost table and status in the PR body; humans merge |
 | Read everything public (code, issues, checks, logs) | **Run upstream CI on its PRs without approval**: fork PRs from outside contributors often need a maintainer to click "Approve and run" | The agent runs build and tests in *our* runner before publishing. The sticky comment says "upstream CI awaiting maintainer approval". The controller reads the public check runs on the head SHA and can offer a `fix-ci` loop. That loop is off by default and enabled per repo in config |
 | — | Comment on **locked** conversations or repos with **interaction limits** | Publisher treats 403/422 as "can't post here". It records this in the ledger, revokes nothing, and doesn't retry. The run's cost still lands in the ledger |
@@ -596,7 +597,7 @@ All `open-macaron` repos, the `runner` Actions logs, the images and the knowledg
 6. **Hosting (decided 2026-10-15):** a Fedora VPS running rootless Podman quadlets, replacing OpenShift. Still open: see DEPLOYMENT.md §6.
 7. **Organisation (decided 2026-10-15):** `open-macaron` owns `macaron`, `runner`, `knowledge` and `.github`; the user `macaron-bot` owns only forks. See REPOSITORIES.md.
 8. **Knowledge approval (decided 2026-10-15):** Prow-style. Per-folder `OWNERS.yaml` matched by user id; folder owners need no write access; `merge.yml` (on `main`, triggered by reviews, trusting nothing from the triggering run) merges with the repository's own token. No upstream-provided rules for now. See §6.4.
-9. **LLM backend (decided 2026-10-19):** OpenRouter stays available; Bifrost (Apache 2.0, ~200 MB) mints per-run keys over the upstream LLM key, which can't derive keys. LiteLLM was rejected for its weight. A live spike verified Claude Code through Bifrost with raw pass-through and spend matching Claude Code's own cost.
+9. **LLM backend (decided 2026-10-19):** Bifrost (Apache 2.0, ~200 MB) mints per-run keys over the upstream LLM key, which can't derive keys. LiteLLM was rejected for its weight. A live spike verified Claude Code through Bifrost with raw pass-through and spend matching Claude Code's own cost. Production runs on Bifrost only: OpenRouter's keys are disabled and it isn't configured, though the code still supports it.
 
 ## 9. Milestones
 

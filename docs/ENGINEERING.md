@@ -16,7 +16,7 @@ How the controller and the agent-side CLI are built. The system design is in [DE
 | HTTP clients | Official SDKs first, otherwise `@hey-api/openapi-ts` | Every client is **generated from an OpenAPI spec**, never handwritten (§5). Bifrost's admin API: generated from its OpenAPI document at the pinned release. OpenRouter: `@openrouter/sdk`, which OpenRouter generates from its own spec (standalone functions, Zod-validated responses, typed `Result` errors) |
 | OIDC | `jose` | JWKS from `token.actions.githubusercontent.com`, cached |
 | Infra libs | `nestjs-pino` (JSON logs, secrets redacted), `@nestjs/terminus` (probes), `nestjs-cls` (request/run correlation id) | |
-| Tests | Vitest 5, `@nestjs/testing`, Testcontainers (Postgres), `msw` (GitHub, OpenRouter and Bifrost HTTP) | Vitest is the default for ESM projects in Nest 12 |
+| Tests | Vitest 5, `@nestjs/testing`, Testcontainers (Postgres), `msw` (GitHub and Bifrost HTTP) | Vitest is the default for ESM projects in Nest 12 |
 | Prefer libraries | maintained packages over hand-rolled code | `file-type` (media sniffing), `secretlint` (credentials), `mdast-util-from-markdown` + GFM (mentions, sanitising), `markdown-table`, `@sindresorhus/slugify`, `p-retry`, `deepmerge-ts`, `@octokit/webhooks`, pg-boss. We keep our own code only for policy (Gate, caps) and GitHub-specific pacing |
 | Package manager | pnpm 12 workspace | `--frozen-lockfile`, lifecycle scripts denied except where allow-listed, `minimumReleaseAge` set to 3 days |
 
@@ -40,21 +40,22 @@ macaron/                                (open-macaron/macaron, public)
 
 ## 3. Controller modules
 
-```
-                       ┌────────────── AppModule ──────────────┐
- ConfigModule (zod env)│ DbModule (Drizzle)   TrustModule       │
-                       └───────────────────────────────────────┘
- IngestModule ──▶ RoutingModule ──▶ RunsModule ──▶ PublishModule
-   ├ NotificationsPoller             ├ RunLauncher     ├ Gate
-   ├ WebhookController               ├ BootstrapCtl    ├ Publisher
-   └ EventQueue (debounce)           ├ OidcVerifier    └ CostTable
-                                     └ Watchdog
-                 BudgetModule (RunKeysRegistry: OpenRouterKeys | BifrostKeys,
-                               BudgetService)                                ◀── Runs, Routing
-                 GitHubModule (scoped clients)                               ◀── Ingest, Runs, Publish
+The modules are declared in `src/modules.ts`, wired in `AppModule` with `EnvModule` (validated env), `DbModule` (Drizzle) and `GitHubModule` (one Octokit client per token).
+
+```mermaid
+flowchart LR
+  HTTP["HttpModule<br/>Bootstrap, Webhook, Health controllers"] --> RUNS
+  ING["IngestModule<br/>NotificationsPoller, IngestService,<br/>ThreadWorker, ContextBuilder, ThreadStates"] --> RUNS
+  RUNS["RunsModule<br/>RunLauncher, OidcVerifier,<br/>ArtifactDownloader, Housekeeping"] --> BUD["BudgetModule<br/>RunKeysRegistry (BifrostKeys, OpenRouterKeys),<br/>BudgetService"]
+  RUNS --> PUB["PublishModule<br/>Publisher, ForkCommitter, UpstreamWriter,<br/>ReactionTargets, EvidenceHost"]
+  RUNS --> REV["ReviewModule<br/>KnowledgeClient, PullDiffReader"]
+  ING --> PUB
+  ING --> REV
+  CORE["CoreModule (global)<br/>RepoConfigService, Jobs, BotIdentity,<br/>RunsRepository, EventsRepository, PollStateStore"]
 ```
 
-- **Dependencies point one way:** Ingest → Routing → Runs → Publish. Each module exports only its façade service. `dependency-cruiser` enforces the direction in CI.
+- **Routing is plain code, not a module.** `src/routing/routes.ts` (`ROUTES`, `route()`, subjects) is pure and table-tested; `ThreadStates` reads what it needs from GitHub and the ledger, and `ThreadWorker` applies it (DESIGN.md §4 "Subjects and routes").
+- **Dependencies point one way:** HTTP and ingest → runs → budget, publish, review. Each module exports only what its users need. Nothing enforces the direction automatically yet; reviews do.
 - **State lives in Postgres, not in memory.** Background work runs on [pg-boss](https://github.com/timgit/pg-boss), on the same database: per-thread debounce (`upsert` on a `stately` queue moves the pending job back), deduplicated `run-completed` jobs, and cron-scheduled `reconcile` and `sweep-keys`. The notifications poller is itself a pg-boss job (see DESIGN.md §4), so a restart loses nothing.
 - **Idempotency.** Every external effect (reaction, comment, push, dispatch) is keyed in the database by `(thread, loop, effect)`. A retried job never double-posts.
 
@@ -102,7 +103,7 @@ flowchart LR
   Z -- "@Body({ schema }), @ApiResponse({ standardSchema })" --> NEST["Controller routes<br/>/bootstrap, /webhook"]
   NEST -- "pnpm gen:openapi<br/>(SwaggerModule.createDocument, no server)" --> SPEC["packages/contracts/openapi/controller.json"]
   SPEC -- "@hey-api/openapi-ts" --> AC["agent-cli: generated client<br/>+ Zod response validation"]
-  ORS --> ORC["controller: OpenRouterKeys, Router"]
+  ORS --> ORC["controller: OpenRouterKeys"]
   BFS -- "@hey-api/openapi-ts<br/>(pnpm gen:bifrost)" --> BFC["controller: BifrostKeys<br/>types + Zod response validation"]
   Z -- "z.toJSONSchema()" --> JS["result.schema.json, context.schema.json<br/>(published with agent-cli; in the agent prompt)"]
   GHS --> OCT["controller: Octokit"]
@@ -141,7 +142,7 @@ ESLint 10 flat config uses `typescript-eslint` `strictTypeChecked` + `stylisticT
 - `consistent-type-imports` configured for decorator metadata.
 
 Code conventions:
-- **Parse, don't trust.** Data from GitHub, OpenRouter, OIDC or the agent artifact is `unknown` until a Zod schema has parsed it. No `as` casts on external data.
+- **Parse, don't trust.** Data from GitHub, Bifrost, OpenRouter, OIDC or the agent artifact is `unknown` until a Zod schema has parsed it. No `as` casts on external data.
 - **Domain errors are typed classes** (`BudgetExceeded`, `PolicyViolation`, `TicketAlreadyRedeemed`). Exception filters map them to HTTP responses at the edge only.
 - **Branded ids**, for example `type Ticket = string & { readonly __brand: "Ticket" }`, so a ticket, a key hash and a run id can't be mixed up.
 - **No `process.env` outside `ConfigModule`.** Configuration is a parsed Zod object, and the service fails fast at boot if it is invalid.
@@ -149,11 +150,10 @@ Code conventions:
 
 ## 7. Tests
 
-- **Unit tests** cover `NotificationsPoller` against a fake clock (see below), `Gate` (patch fixtures: workflow file, secret, binary, oversize), `Sanitizer`, `CostTable` rendering, `OidcVerifier` (forged, expired and wrong-repository tokens), and the Router's parsing of the model's answer.
-- **Integration tests** run against a Testcontainers Postgres, with `msw` standing in for GitHub and OpenRouter. They cover:
-  - the full loop: notification → 👀 → launch → bootstrap → `workflow_run` → publish;
-  - idempotency under retries;
-  - two workers claiming the same event.
+- **Unit tests** (`test/unit/`) cover `NotificationsPoller` against a fake clock (see below), the `Gate` (workflow files, secrets, binaries, oversize, review evidence), Markdown sanitizing and the cost table, `OidcVerifier` (forged, expired and wrong-repository tokens), the env schema, the config tree, `ROUTES` (every subject × mode, exact refusal messages), the key backends (`BifrostKeys` against `msw`, backend routing in `BudgetService`), settlement and reaction targets.
+- **Integration tests** (`test/integration/`) run against a Testcontainers Postgres: loop numbering, effects at most once, event dedupe, pg-boss debounce, effect claiming, and the evidence host with `msw` standing in for GitHub. Locally they need a container runtime; with rootless Podman, point Testcontainers at its socket (`DOCKER_HOST=unix:///run/user/$UID/podman/podman.sock`, `TESTCONTAINERS_RYUK_DISABLED=true`).
+- **Live tests** (`test/live/`, `pnpm test:live`) hit the real services with the developer's `dev.env`, each skipped without its variables: Bifrost (against `deploy/bifrost/dev.sh up`), OpenRouter, evidence uploads.
+- **Not covered yet:** the `Publisher` (its dependencies can't be faked without casts) and the full loop from notification to publish; both are checked live on the sandbox repositories.
 - **Contract tests** check that `packages/contracts` round-trips the recorded fixtures of real payloads (notifications, webhooks, `result.json` from each harness).
 - **Poll-interval tests.** The poller must never issue a request before `notBefore`. The tests check that:
   - an interval going from 60 to 300 s is obeyed immediately, including when it arrives on a 304;
@@ -162,7 +162,7 @@ Code conventions:
   - two instances produce one poller;
   - 403/429 with `Retry-After` waits at least that long;
   - an error burst never polls faster than the interval.
-- **Coverage gate:** 90 % on the `runs`, `budget` and `publish` modules, which are the security-relevant paths.
+- **Coverage** is measured (`@vitest/coverage-v8`, generated code excluded) but not gated yet.
 
 ## 8. CI gates (`ci.yml`, required on `main`)
 
