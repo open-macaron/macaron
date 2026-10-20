@@ -13,6 +13,7 @@ const validClaims = {
   workflow_ref: "open-macaron/runner/.github/workflows/run.yml@refs/heads/main",
   event_name: "workflow_dispatch",
   actor: "macaron-bot",
+  runner_environment: "github-hosted",
   run_id: "987654321",
   run_attempt: "1",
 };
@@ -62,6 +63,7 @@ describe("OidcVerifier", () => {
     ["another branch", { workflow_ref: "open-macaron/runner/.github/workflows/run.yml@refs/heads/evil" }],
     ["another trigger", { event_name: "push" }],
     ["another actor", { actor: "someone-else" }],
+    ["a self-hosted runner", { runner_environment: "self-hosted" }],
   ])("rejects a token from %s", async (_label, claims) => {
     await expect(verifier.verify(await token({ claims }))).rejects.toBeInstanceOf(OidcRejected);
   });

@@ -23,6 +23,7 @@ const ActionsClaims = z.looseObject({
   workflow_ref: z.string(),
   event_name: z.string(),
   actor: z.string(),
+  runner_environment: z.string(),
   run_id: NumericString,
   run_attempt: NumericString,
 });
@@ -34,7 +35,8 @@ export interface VerifiedRun {
 
 /**
  * Verifies a GitHub Actions OIDC token and checks it comes from our runner workflow:
- * immutable repository and owner ids, the exact workflow file on main, a workflow_dispatch by the bot.
+ * immutable repository and owner ids, the exact workflow file on main, a workflow_dispatch by the bot,
+ * on a GitHub-hosted runner.
  */
 @Injectable()
 export class OidcVerifier {
@@ -71,6 +73,8 @@ export class OidcVerifier {
       claims.workflow_ref !== this.expectedWorkflowRef && "workflow_ref",
       claims.event_name !== "workflow_dispatch" && "event_name",
       claims.actor !== this.env.GITHUB_BOT_LOGIN && "actor",
+      // A runner label in the configuration must never send a run, and its key, to a machine we don't control.
+      claims.runner_environment !== "github-hosted" && "runner_environment",
     ].filter((field): field is string => field !== false);
     if (mismatches.length > 0) throw new OidcRejected(`unexpected claims: ${mismatches.join(", ")}`);
 
