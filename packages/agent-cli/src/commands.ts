@@ -98,9 +98,10 @@ const MAX_INLINE_DIFF_CHARS = 150_000;
 
 /**
  * A review: the same engine as a local `macaron-review` (@open-macaron/review): the diff from the
- * merge base, the prompts, one read-only session over every selected rule. The rules are the ones
- * the controller selected on GitHub's diff; it verifies every claimed violation again before
- * publishing anything. This command writes result.json itself (the session can't write files).
+ * merge base, the prompts, the triage and read-only check sessions. The rules are the ones the
+ * controller selected on GitHub's diff; it verifies every claimed violation again, and that every
+ * rule has a verdict, before publishing anything. This command writes result.json itself (the
+ * sessions can't write files).
  */
 async function review(inputs: Inputs, context: RunContext, state: BootstrapState): Promise<number> {
   const p = paths(inputs);
@@ -124,9 +125,8 @@ async function review(inputs: Inputs, context: RunContext, state: BootstrapState
     annotatedDiff: scope.annotated.length <= MAX_INLINE_DIFF_CHARS ? scope.annotated : undefined,
   });
   await rm(p.keyFile, { force: true });
-  if (judgement.exitCode !== 0) core.warning(`harness exited with ${String(judgement.exitCode)}`);
   if (judgement.verdicts === undefined) {
-    core.error(`the reviewer returned no valid verdicts: ${judgement.problem ?? "no answer"}`);
+    core.error(`the review didn't complete: ${judgement.problems.join("; ")}`);
     return 1;
   }
   await writeJson(p.resultFile, {
