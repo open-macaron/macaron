@@ -26,6 +26,7 @@ import { Publisher } from "../publish/publisher.ts";
 import { PullDiffReader } from "../review/pull-diff.ts";
 import { ArtifactDownloader, ArtifactInvalid, readArtifact } from "./artifact.ts";
 import { OidcVerifier } from "./oidc-verifier.ts";
+import { runLimitUsd } from "./run-limit.ts";
 import { runUrl } from "./run-url.ts";
 import { type RunRecord, RunsRepository, type ThreadRecord } from "./runs.repository.ts";
 
@@ -91,7 +92,7 @@ export class RunLauncher {
 
     const { config, thread, route, context } = request;
     const mode = route.mode;
-    const limitUsd = config.budgets[mode];
+    const limitUsd = runLimitUsd(config, mode, context);
     const run = await this.runs.createRun({
       threadId: thread.id,
       ticket: Ticket.parse(`t_${randomBytes(32).toString("base64url")}`),
@@ -257,7 +258,7 @@ export class RunLauncher {
     const mode = request.route.mode;
     if (!this.env.MACARON_ENABLED) return { kind: "refused", reason: "the bot is paused by its maintainers" };
 
-    const limit = toMicros(config.budgets[mode]);
+    const limit = toMicros(runLimitUsd(config, mode, request.context));
     const caps = config.caps;
     if (mode === "address_review" && thread.loops >= caps.reviewLoops) {
       return { kind: "refused", reason: `this thread reached its limit of ${String(caps.reviewLoops)} review loops` };

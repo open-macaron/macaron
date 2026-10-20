@@ -11,6 +11,7 @@ const global = GlobalFile.parse({
     draftPr: true,
     timeoutMinutes: 60,
     budgets: { triage: 0.2, plan: 1, implement: 5, address_review: 2, reproduce: 3, verify: 3, retro: 0.5, review: 0.5 },
+    reviewCost: { baseUsd: 0.1, perRuleUsd: 0.04 },
     caps: { perThreadUsd: 20, perRepoMonthUsd: 150, reviewLoops: 6, botReviewLoops: 2, openPrs: 3 },
     environment: { source: "shared", name: "generic", params: {} },
     commands: {},
@@ -47,6 +48,7 @@ describe("resolveRepoConfig", () => {
     });
     expect(config.budgets.implement).toBe(8);
     expect(config.budgets.plan).toBe(1);
+    expect(resolveRepoConfig(global, project, RepoFile.parse({ ...repo, reviewCost: { perRuleUsd: 0.06 } })).reviewCost).toEqual({ baseUsd: 0.1, perRuleUsd: 0.06 });
     expect(config.contribution).toEqual({ dco: true, fixCi: false });
     expect(config.users).toEqual(["axel7083"]);
   });

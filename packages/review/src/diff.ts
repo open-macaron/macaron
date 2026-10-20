@@ -55,6 +55,18 @@ export function annotateDiff(raw: string): string {
   return parseGitDiff(raw).annotated;
 }
 
+/**
+ * The sections of an annotated diff for these paths only. Each section starts with its `### path`
+ * header; its lines all start with a marker (`+`, `-`, space) or `@@`, so a header can't be mistaken.
+ */
+export function annotatedFiles(annotated: string, paths: readonly string[]): string {
+  const wanted = new Set(paths);
+  return annotated
+    .split(/\n\n(?=### )/)
+    .filter((section) => wanted.has((section.split("\n", 1)[0] ?? "").slice("### ".length)))
+    .join("\n\n");
+}
+
 function addedLines(hunks: StructuredPatch["hunks"]): Map<number, string> {
   const added = new Map<number, string>();
   for (const hunk of hunks) {

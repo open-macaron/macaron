@@ -37,6 +37,14 @@ export const Budgets = z.strictObject({
 });
 export type Budgets = z.infer<typeof Budgets>;
 
+/**
+ * A review's budget grows with the rules it checks: `baseUsd + perRuleUsd × rules`, at most
+ * `budgets.review`. A flat budget is either too tight for a large pull request or too loose for a
+ * small one.
+ */
+export const ReviewCost = z.strictObject({ baseUsd: Usd, perRuleUsd: Usd });
+export type ReviewCost = z.infer<typeof ReviewCost>;
+
 export const Caps = z.strictObject({
   perThreadUsd: Usd,
   perRepoMonthUsd: Usd,
@@ -74,7 +82,9 @@ export const RepoSettings = z.strictObject({
   runsOn: z.string().min(1),
   draftPr: z.boolean(),
   timeoutMinutes: z.int().min(5).max(MAX_TIMEOUT_MINUTES),
+  /** USD per run, enforced by the run's LLM key. `review` is the ceiling of `reviewCost`. */
   budgets: Budgets,
+  reviewCost: ReviewCost,
   caps: Caps,
   environment: Environment,
   commands: Commands,
@@ -93,6 +103,7 @@ export const RepoSettingsPatch = z.strictObject({
   draftPr: z.boolean().optional(),
   timeoutMinutes: z.int().min(5).max(MAX_TIMEOUT_MINUTES).optional(),
   budgets: Budgets.partial().optional(),
+  reviewCost: ReviewCost.partial().optional(),
   caps: Caps.partial().optional(),
   environment: EnvironmentPatch.optional(),
   commands: Commands.optional(),

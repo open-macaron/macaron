@@ -3,7 +3,7 @@
 Check your changes against the [open-macaron/knowledge](https://github.com/open-macaron/knowledge) rules before you push, the way `@macaron-bot review` checks a pull request. It's the same engine:
 
 - rules picked by the files you changed;
-- one read-only agent session that judges them all;
+- read-only agent sessions in fixed phases: when many rules apply, a quick triage drops those your change can't concern; at most two sessions check the rest;
 - a violation kept only if it quotes a line you added.
 
 Your local agent does the judging: Claude Code, on your own subscription. There's no account and no backend, and the rules are public.
@@ -64,7 +64,7 @@ By default the review covers the net changes from the merge base with the defaul
 |---|---|
 | 0 | No violation of an `error` rule. Warnings don't fail |
 | 1 | At least one `error` rule is violated |
-| 2 | The review couldn't run: not a git worktree, the rules are unreachable, or the agent failed |
+| 2 | The review couldn't run: not a git worktree, the rules are unreachable, or the agent failed or left a rule without a verdict |
 
 ## For coding agents: `--agent`
 
@@ -78,7 +78,7 @@ Each line is one event:
 {"type":"context","repo":"podman-desktop/extension-podman-quadlet","project":"podman-desktop-extensions","base":"main","mergeBase":"26bafc8…","knowledgeCommit":"1aaf8f4…","rules":3,"skipped":0,"files":2}
 {"type":"rule","id":"podman-desktop-extensions/svelte-runes","severity":"error","result":"violation","evidence":[{"file":"src/A.svelte","line":18,"quote":"export let debugLabel: string = '';"}],"explanation":"…"}
 {"type":"rule","id":"podman-desktop-extensions/no-console-debug","severity":"warning","result":"valid","evidence":[],"explanation":"…"}
-{"type":"complete","status":"done","counts":{"violation":1,"warning":0,"valid":1,"ignored":1},"problems":[],"model":null}
+{"type":"complete","status":"done","counts":{"violation":1,"warning":0,"valid":1,"ignored":1},"problems":[],"model":null,"sessions":[{"phase":"check","rules":3,"exitCode":0,"turns":6,"costUsd":0.04,"answered":true}]}
 ```
 
 `result` is one of:
@@ -111,10 +111,11 @@ npx @open-macaron/review --show-prompts --project podman-desktop-extensions | le
 
 `@macaron-bot review` runs this engine on a GitHub Actions runner. It uses the pull request's base, the rules the controller selected, and a budget-capped key.
 
-The controller then checks the evidence again against GitHub's diff, and posts the table as a pull request review. A local review and the bot's review get the same prompts, the same read-only session and the same verification. Their verdicts can still differ by model.
+The controller then checks the evidence again against GitHub's diff, and posts the table as a pull request review. A local review and the bot's review get the same prompts, the same read-only sessions and the same verification. Their verdicts can still differ by model.
 
-The judging session can only read:
+The judging sessions can only read:
 
-- tools: `Read`, `Grep` and `Glob`, plus `Bash` restricted to `git log`, `git blame`, `git show` and `git diff`;
+- the triage session has no tools at all: the diff is in its prompt;
+- the check sessions: `Read`, `Grep` and `Glob`, plus `Bash` restricted to `git log`, `git blame`, `git show` and `git diff`; no subagents;
 - permission mode `dontAsk`;
 - no MCP servers.

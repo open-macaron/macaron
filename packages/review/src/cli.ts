@@ -1,8 +1,8 @@
 import { parseArgs } from "node:util";
 import { selectRules } from "./select.ts";
-import { judge } from "./judge.ts";
+import { judge, RULES_PER_SESSION } from "./judge.ts";
 import { DEFAULT_KNOWLEDGE_URL, KnowledgeSource } from "./knowledge.ts";
-import { reviewSystemPrompt, reviewTaskPrompt, type ReviewSubject } from "./prompts.ts";
+import { reviewSystemPrompt, reviewTaskPrompt, type ReviewSubject, triageSystemPrompt, triageTaskPrompt } from "./prompts.ts";
 import { countResults, renderText, sortResults } from "./render.ts";
 import { isWorktree, localScope, type ScopeMode } from "./scope.ts";
 import { verifyReview } from "./verify.ts";
@@ -118,13 +118,15 @@ export async function main(argv: readonly string[], dependencies: { readonly cla
   };
   const annotatedDiff = scope.annotated.length <= MAX_INLINE_DIFF_CHARS ? scope.annotated : undefined;
   if (values["show-prompts"]) {
-    process.stdout.write(`${reviewSystemPrompt(subject)}\n---\n\n${reviewTaskPrompt(subject, annotatedDiff)}`);
+    // The check prompt is shown with every rule; a run splits them across sessions after triage.
+    const triage = annotatedDiff === undefined || subject.rules.length <= RULES_PER_SESSION ? "" : `${triageSystemPrompt(subject)}\n---\n\n${triageTaskPrompt(subject, annotatedDiff)}\n===\n\n`;
+    process.stdout.write(`${triage}${reviewSystemPrompt(subject)}\n---\n\n${reviewTaskPrompt(subject, annotatedDiff)}`);
     return 0;
   }
 
   if (values.agent) emit(context);
   const judgement = await judge({ command: dependencies.claude, cwd: scope.root, model: values.model, subject, annotatedDiff });
-  if (judgement.verdicts === undefined) throw new Error(`the review didn't complete: ${judgement.problem ?? `claude exited with ${String(judgement.exitCode)}`}`);
+  if (judgement.verdicts === undefined) throw new Error(`the review didn't complete: ${judgement.problems.join("; ")}`);
   const verification = verifyReview(selection, judgement.verdicts, scope);
   const counts = countResults(verification.results);
 
@@ -132,7 +134,7 @@ export async function main(argv: readonly string[], dependencies: { readonly cla
     for (const result of sortResults(verification.results)) {
       emit({ type: "rule", id: result.id, severity: result.severity, result: result.outcome, evidence: result.evidence, explanation: result.explanation ?? result.reason ?? null });
     }
-    emit({ type: "complete", status: "done", counts, problems: verification.problems, model: values.model ?? null });
+    emit({ type: "complete", status: "done", counts, problems: verification.problems, model: values.model ?? null, sessions: judgement.sessions });
   } else {
     process.stdout.write(`${renderText(verification.results, { knowledgeCommit: knowledge.commit })}\n`);
   }

@@ -1,0 +1,7 @@
+# Pull requests copied into axel7083/podman-desktop for evaluation (head = the PR's last commit).
+# name	base	head	project	repo
+pr35-machine-settings	c18209f3bff2c96774335265757ac4adf83266c1	8be9561d7acbe88709a8f8da9e64d76c33ab6dce	podman-desktop	axel7083/podman-desktop
+pr36-17-files	da973219fed402a65a160f51c1c24a40b5e917f9	a4976162a839261cfea1306c867664bb87017df6	podman-desktop	axel7083/podman-desktop
+pr37-32-files	9d108b934940eb9079da8a6bf2150a647e24c0c5	ea086a5d5995918134645a2c83eb398d9d49f509	podman-desktop	axel7083/podman-desktop
+pr38-6-files	1f72e2d1435ba17a146703d94240ac392a3e8ae1	a49914cd452d004042ac0f510c879f8de145445a	podman-desktop	axel7083/podman-desktop
+pr39-8-files	5fcb3a262fcf8dc1aeeb39efc1f6fa143f378239	2d8890d878c7719100e1958590c5133017ac80c1	podman-desktop	axel7083/podman-desktop

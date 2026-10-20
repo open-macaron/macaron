@@ -129,11 +129,20 @@ describe("macaron-review", () => {
 
   it("drops a violation whose quote isn't on an added line (exit 0, shown as ignored)", async () => {
     const claude = await fakeClaude({
-      verdicts: [{ ruleId: "sandbox/no-eval", verdict: "violation", evidence: [{ file: "a.ts", line: 1, quote: "eval(input);" }], explanation: "" }],
+      verdicts: [
+        { ruleId: "sandbox/no-eval", verdict: "violation", evidence: [{ file: "a.ts", line: 1, quote: "eval(input);" }], explanation: "" },
+        { ruleId: "global/no-console-debug", verdict: "not_applicable", evidence: [], explanation: "" },
+      ],
     });
     expect(await main(args(), { claude })).toBe(0);
     expect(out).toContain("➖ ignored  sandbox/no-eval");
     expect(out).toContain("violation claimed without verifiable evidence");
+  });
+
+  it("fails, posting nothing, when the agent leaves a rule without a verdict", async () => {
+    const claude = await fakeClaude({ verdicts: [{ ruleId: "sandbox/no-eval", verdict: "pass", evidence: [], explanation: "" }] });
+    await expect(main(args("--agent"), { claude })).rejects.toThrow("the review didn't complete: the review left rules unchecked: global/no-console-debug");
+    expect(out).not.toContain('"type":"complete"');
   });
 
   it("skips the review when nothing applies, and can show the prompts instead of running", async () => {

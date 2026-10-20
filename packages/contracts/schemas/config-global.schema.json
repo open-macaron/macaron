@@ -109,6 +109,26 @@
           ],
           "additionalProperties": false
         },
+        "reviewCost": {
+          "type": "object",
+          "properties": {
+            "baseUsd": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "perRuleUsd": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          },
+          "required": [
+            "baseUsd",
+            "perRuleUsd"
+          ],
+          "additionalProperties": false
+        },
         "caps": {
           "type": "object",
           "properties": {
@@ -293,6 +313,7 @@
         "draftPr",
         "timeoutMinutes",
         "budgets",
+        "reviewCost",
         "caps",
         "environment",
         "commands",
