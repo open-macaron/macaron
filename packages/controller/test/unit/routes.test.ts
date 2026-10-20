@@ -1,6 +1,6 @@
 import type { Mode } from "@open-macaron/contracts";
 import { describe, expect, it } from "vitest";
-import { type Refusal, type Route, route, type Subject, subjectOf, type ThreadState } from "../../src/routing/routes.ts";
+import { platformOfRun, type Refusal, type Route, route, type Subject, subjectOf, type ThreadState } from "../../src/routing/routes.ts";
 
 const fresh: ThreadState = { number: 16, title: "Syntax highlighting for env files", ownPullRequest: undefined, branch: undefined, nextLoop: 1 };
 const withOwnPullRequest: ThreadState = { ...fresh, ownPullRequest: 17, branch: "macaron/16-syntax-highlighting-for-env-files", nextLoop: 5 };
@@ -104,5 +104,23 @@ describe("subjectOf", () => {
 
   it("treats the bot's closed pull request as anyone's", () => {
     expect(subjectOf({ kind: "pull", number: 17 }, afterClosedPullRequest)).toEqual({ kind: "pullRequest", number: 17 });
+  });
+});
+
+describe("platforms", () => {
+  it("records a platform other than Linux on the route, and nothing for Linux", () => {
+    expect(route(fresh, issue, "reproduce", "windows")).toEqual<Route>({ mode: "reproduce", subject: issue, checkout: { from: "defaultBranch" }, branch: BRANCH, platform: "windows" });
+    expect(route(withOwnPullRequest, issue, "implement", "windows")).toMatchObject({ branch: `${BRANCH}-5`, supersedes: 17, platform: "windows" });
+    expect(route(fresh, issue, "reproduce", "linux")).toEqual(route(fresh, issue, "reproduce"));
+  });
+
+  it.each<[Mode, Subject]>([["triage", issue], ["review", ownPullRequest]])("refuses %s on another platform: it doesn't set the project up", (mode, subject) => {
+    expect(route(withOwnPullRequest, subject, mode, "windows")).toEqual<Refusal>({ refused: `\`${mode}\` doesn't set the project up, so it always runs on Linux.` });
+  });
+
+  it("finds the platform of an earlier run, Linux for runs without a route", () => {
+    expect(platformOfRun({ route: route(fresh, issue, "reproduce", "windows") })).toBe("windows");
+    expect(platformOfRun({ route: route(fresh, issue, "reproduce") })).toBe("linux");
+    expect(platformOfRun({ route: null })).toBe("linux");
   });
 });

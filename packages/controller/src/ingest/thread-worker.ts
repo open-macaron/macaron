@@ -1,12 +1,12 @@
 import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
-import type { Mode, RepoConfig } from "@open-macaron/contracts";
+import { type Mode, type Platform, type RepoConfig, runnerFor } from "@open-macaron/contracts";
 import { RepoConfigService } from "../config/repo-config.service.ts";
 import { BotIdentity } from "../github/bot-identity.ts";
 import { Jobs, Queue, RunCompletedJob, ThreadReadyJob } from "../jobs/jobs.ts";
 import { repoRef } from "../github/repo-ref.ts";
 import { Publisher } from "../publish/publisher.ts";
 import { ReactionTargets, reactionTargetOf } from "../publish/reaction-targets.ts";
-import { isRefusal, route, type Route, type Subject, subjectOf, subjectOfRun, type ThreadState } from "../routing/routes.ts";
+import { isRefusal, platformOf, platformOfRun, type Route, route, type Subject, subjectOf, subjectOfRun, type ThreadState } from "../routing/routes.ts";
 import { ThreadStates } from "../routing/thread-states.ts";
 import { type Escalation, type LaunchOutcome, RunLauncher } from "../runs/run-launcher.ts";
 import { ACTIVE_STATUSES, RunsRepository, type ThreadRecord } from "../runs/runs.repository.ts";
@@ -18,11 +18,12 @@ import { decideMode, parseMention } from "./triggers.ts";
 const BUSY_RETRY_MS = 120_000;
 const NEEDS_GUI: ReadonlySet<Mode> = new Set<Mode>(["reproduce", "verify"]);
 
-/** A request to route: a mode, asked on a subject, by a trigger. */
+/** A request to route: a mode, asked on a subject, by a trigger, for a platform. */
 interface Request {
   readonly subject: Subject;
   readonly mode: Mode;
   readonly trigger: Trigger;
+  readonly platform: Platform;
 }
 
 /**
@@ -78,10 +79,10 @@ export class ThreadWorker implements OnApplicationBootstrap {
     }
   }
 
-  async escalate({ thread, from, mode }: Escalation): Promise<void> {
+  async escalate({ thread, from, mode, platform }: Escalation): Promise<void> {
     const config = this.config.repo(thread.repo);
     if (config === undefined) return;
-    const request: Request = { subject: subjectOfRun(from, thread), mode, trigger: from.context.trigger };
+    const request: Request = { subject: subjectOfRun(from, thread), mode, trigger: from.context.trigger, platform: platform ?? platformOfRun(from) };
     const outcome = await this.routeAndStart(config, thread, await this.states.read(config.repo, thread), request);
     if (outcome.kind === "refused") await this.publisher.reportRefusal(thread, request.subject, outcome.reason);
     if (outcome.kind === "queued") this.logger.warn(`escalation of ${thread.repo}#${String(thread.number)} to ${mode} dropped: ${outcome.reason}`);
@@ -104,7 +105,10 @@ export class ThreadWorker implements OnApplicationBootstrap {
     }
 
     const login = this.bot.identity.login;
-    const command = decideMode(batch.map((event) => ({ kind: eventKind(event), command: parseMention(event.body, login)?.command })));
+    const mentions = batch.map((event) => parseMention(event.body, login));
+    const command = decideMode(batch.map((event, index) => ({ kind: eventKind(event), command: mentions[index]?.command })));
+    // The platform comes with the command that won: the latest explicit one.
+    const platform = mentions.filter((mention) => mention?.command !== undefined).at(-1)?.platform;
     if (command === undefined || command === "stop") return this.events.settle(ids, "done");
 
     const state = await this.states.read(config.repo, thread);
@@ -117,7 +121,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
         return this.publisher.reportRefusal(thread, subject, "there is no failed loop to retry");
       }
       await this.reactions.adopt(thread.id, previous.loop, thread.loops + 1, upstream);
-      request = { subject: subjectOfRun(previous, thread), mode: previous.mode, trigger: previous.context.trigger };
+      request = { subject: subjectOfRun(previous, thread), mode: previous.mode, trigger: previous.context.trigger, platform: platform ?? platformOfRun(previous) };
     } else {
       const trigger: Trigger = {
         kind: eventKind(last),
@@ -125,7 +129,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
         url: last.url,
         instruction: (parseMention(last.body, login)?.instruction ?? last.body).slice(0, 4_096),
       };
-      request = { subject, mode: command, trigger };
+      request = { subject, mode: command, trigger, platform: platform ?? "linux" };
     }
 
     const outcome = await this.routeAndStart(config, thread, state, request);
@@ -142,12 +146,14 @@ export class ThreadWorker implements OnApplicationBootstrap {
 
   /** Routes a request (ROUTES), then launches the run unless the route or the repository refuses it. */
   private async routeAndStart(config: RepoConfig, thread: ThreadRecord, state: ThreadState, request: Request): Promise<LaunchOutcome> {
-    const routed = route(state, request.subject, request.mode);
+    const routed = route(state, request.subject, request.mode, request.platform);
     if (isRefusal(routed)) return { kind: "refused", reason: routed.refused };
     return this.start(config, thread, routed, request.trigger);
   }
 
   private async start(config: RepoConfig, thread: ThreadRecord, routed: Route, trigger: Trigger): Promise<LaunchOutcome> {
+    const platform = platformOf(routed);
+    if (runnerFor(config, platform) === undefined) return { kind: "refused", reason: `\`${platform}\` isn't enabled for this repository` };
     if (NEEDS_GUI.has(routed.mode) && !config.capabilities.includes("gui")) {
       return { kind: "refused", reason: `this repository's environment can't run the application yet, so \`${routed.mode}\` isn't available` };
     }

@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import type { RepoConfig, RunContext } from "@open-macaron/contracts";
+import type { Platform, RepoConfig, RunContext } from "@open-macaron/contracts";
 import { z } from "zod";
 import { describeError } from "../common/errors.ts";
 import type { UsdMicros } from "../common/money.ts";
@@ -32,6 +32,9 @@ const ReviewId = z.coerce.number().int().positive();
 const CommentId = z.coerce.number().int().positive();
 /** Effect kind holding a loop's status comment id. */
 const STATUS_EFFECT = "status";
+
+/** How the status comment names a platform other than Linux. */
+const PLATFORM_NAMES: Readonly<Record<Exclude<Platform, "linux">, string>> = { windows: "Windows", macos: "macOS" };
 
 
 function loopState(status: RunRecord["status"]): LoopState {
@@ -151,7 +154,8 @@ export class Publisher {
 
   /** A run was dispatched: the status comment and the PR's table show it, with its link, right away. */
   async reportStarted(thread: ThreadRecord, run: RunRecord, runUrl: string | null): Promise<void> {
-    await this.updateStatus(thread, subjectOfRun(run, thread), run, "⏳ Working on it.", runUrl);
+    const on = run.context.platform === "linux" ? "" : ` on ${PLATFORM_NAMES[run.context.platform]}`;
+    await this.updateStatus(thread, subjectOfRun(run, thread), run, `⏳ Working on it${on}.`, runUrl);
     await this.updateCostTable(thread);
   }
 

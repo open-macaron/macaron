@@ -100,7 +100,7 @@ sequenceDiagram
   Note over C: Publisher: commit, FF push, replies, cost table, 👀 → 👍/😕
 ```
 
-- The OIDC check requires `repository_id` and `repository_owner_id` (immutable), of `open-macaron/runner`, `workflow_ref=open-macaron/runner/.github/workflows/run.yml@refs/heads/main`, `event_name=workflow_dispatch` and `actor=macaron-bot`.
+- The OIDC check requires `repository_id` and `repository_owner_id` (immutable), of `open-macaron/runner`, `workflow_ref=open-macaron/runner/.github/workflows/run.yml@refs/heads/main`, `event_name=workflow_dispatch`, `actor=macaron-bot` and `runner_environment=github-hosted`: a runner label in the configuration can't send a key to a machine we don't control.
 - A ticket can be redeemed only once. The legitimate bootstrap step uses it before the agent starts, so an agent that mints its own OIDC token gets nothing. The environment step runs *before* bootstrap. If environment code redeems the ticket first, the real bootstrap gets a 409 and the controller revokes the key at once: at worst a failed run, never a leaked credential.
 - The agent job has no endpoint for submitting results. The controller *pulls* the artifact.
 - **With the Bifrost backend, a credential-holding service runs next to the controller.** Bifrost holds the upstream LLM key, which has no cap of its own and can't derive keys. Runners reach it only through three exact Caddy routes (messages, token counting, model list), each rewritten to its canonical path; its admin API and UI are on the internal network, used only by the controller. Its configuration file is authoritative over its database at every start, auth is enforced on inference, and stored keys are encrypted. Anyone holding the admin password can still change settings until the next restart, so that password exists only in the controller and Bifrost.
@@ -163,7 +163,8 @@ Behaviour notes:
   - `reproduce` (on the default branch) and `verify` (on the pull request): full environment, **no commit**. They reply with evidence such as screenshots and videos (see "Evidence" below). `@macaron-bot can you reproduce?` routes here.
   - A run may return `escalate`, in which case `complete()` launches the next run in the requested mode.
   - Explicit commands (`@macaron-bot implement`, `/plan`, `/stop`) skip the Router.
-  - `@macaron-bot retry` runs the thread's last failed or stopped loop again, with the same mode and trigger. It is refused when the last loop succeeded. Each failure's status comment says so.
+  - `@macaron-bot retry` runs the thread's last failed or stopped loop again, with the same mode, trigger and platform. It is refused when the last loop succeeded. Each failure's status comment says so.
+  - **Platforms.** Runs are on Linux unless the command names another platform the repo enables: `@macaron-bot reproduce on windows` (the first `on <platform>` of the mention's line). An escalation keeps the escalating run's platform unless the result sets `escalateOn`; triage is told which platforms the repo has, for issues that only happen on one. `triage` and `review` don't set the project up, so they always run on Linux. The status comment names the platform.
 - The Ingest drops events from untrusted repos, untrusted users, and the bot itself. It also caps loops: at most N review loops per PR, and a lower cap when the reviewer is a bot, so two bots can't ping-pong forever.
 - Review *summaries* don't support reactions, so 👀 goes on the PR.
 
@@ -171,7 +172,7 @@ Behaviour notes:
 
 A thread is an issue and the bot's open pull request for it, but they are separate **subjects** (GitHub's term in notifications): the issue is for understanding the problem and starting the work, a pull request for checking and continuing a change. Each request is answered on its subject: its loop's status comment, its message, its refusal.
 
-`ROUTES` (`routes.ts`) is the one table that says, per subject and mode, which commit a run starts from or why the request is refused. `route()` applies it to one request; the result is stored on the run (`runs.route`) and everything after launch follows it.
+`ROUTES` (`routes.ts`) is the one table that says, per subject and mode, which commit a run starts from or why the request is refused. `route()` applies it to one request, with its platform; the result is stored on the run (`runs.route`) and everything after launch follows it.
 
 | Subject | Mode | Checkout | Otherwise |
 |---|---|---|---|
@@ -345,6 +346,7 @@ flowchart LR
   The controller only checks magic bytes and sizes. It never decodes or transcodes media, so it doesn't parse untrusted files.
 - **Videos (later):** `ffmpeg -f x11grab` on the virtual display, uploaded the same way.
 - **Capability-gated.** A repo's config declares `capabilities: [gui]`. Without it, `reproduce` and `verify` are refused: the environment can't run the app yet.
+- **On every platform the repo enables.** One environment action covers them all, with platform-specific steps under `if: runner.os == 'Windows'`. On Windows the app runs on the runner's desktop session (no virtual display) and Podman comes with a WSL machine (redhat-actions/podman-install). Hosted macOS runners have no nested virtualization, so no Podman machine: macOS waits for a runner of our own.
 
 ### Operating as an outside contributor
 

@@ -1,5 +1,5 @@
 import slugify from "@sindresorhus/slugify";
-import type { Mode } from "@open-macaron/contracts";
+import { type Mode, Platform } from "@open-macaron/contracts";
 import { proseRanges } from "../publish/markdown-ast.ts";
 
 /** What a GitHub notification is about, as GitHub gives it. */
@@ -35,9 +35,14 @@ const ALIASES: readonly (readonly [RegExp, Command])[] = [
   [/\bretry\b|\btry again\b/i, "retry"],
 ];
 
+/** `on windows`: where the run should go, in any case. */
+const ON_PLATFORM = new RegExp(`\\bon (${Platform.options.join("|")})\\b`, "i");
+
 export interface Mention {
   /** Explicit command, if the mention carries one; otherwise the Router (triage) decides. */
   readonly command: Command | undefined;
+  /** The platform a command asks for (`@macaron-bot reproduce on windows`); the repository's default otherwise. */
+  readonly platform: Platform | undefined;
   /** The comment text addressed to the bot, for the agent's context. */
   readonly instruction: string;
 }
@@ -45,7 +50,8 @@ export interface Mention {
 /**
  * Finds a mention of `login` in prose (never in code, quotes or links' URLs, thanks to a real
  * Markdown parser). `@macaron-bot implement` and `@macaron-bot can you reproduce?` both yield a
- * command; a bare mention yields none. The instruction is the rest of the mention's line.
+ * command; a bare mention yields none. The instruction is the rest of the mention's line; its first
+ * `on <platform>` picks the platform of a command.
  */
 export function parseMention(body: string, login: string): Mention | undefined {
   const mention = new RegExp(`(?<![\\w@/-])@${RegExp.escape(login)}(?![\\w-])`, "i");
@@ -56,8 +62,9 @@ export function parseMention(body: string, login: string): Mention | undefined {
     const lineEnd = body.indexOf("\n", after);
     const rest = body.slice(after, lineEnd === -1 ? undefined : lineEnd).trim();
     const first = rest.split(/\s+/)[0]?.toLowerCase().replace(/[^a-z_]/g, "") ?? "";
-    if (isCommand(first)) return { command: first, instruction: rest };
-    return { command: ALIASES.find(([regex]) => regex.test(rest))?.[1], instruction: rest };
+    const command = isCommand(first) ? first : ALIASES.find(([regex]) => regex.test(rest))?.[1];
+    const platform = command === undefined ? undefined : Platform.safeParse(ON_PLATFORM.exec(rest)?.[1]?.toLowerCase()).data;
+    return { command, platform, instruction: rest };
   }
   return undefined;
 }

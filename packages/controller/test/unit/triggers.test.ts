@@ -31,8 +31,21 @@ describe("parseMention", () => {
   it("returns no command for a bare mention, so triage decides", () => {
     expect(parseMention("@macaron-bot what do you think about this approach?", "macaron-bot")).toEqual({
       command: undefined,
+      platform: undefined,
       instruction: "what do you think about this approach?",
     });
+  });
+
+  it.each([
+    ["@macaron-bot reproduce on windows", "reproduce", "windows"],
+    ["@macaron-bot implement on Windows, the path separator is wrong", "implement", "windows"],
+    ["hey @macaron-bot can you reproduce this on WINDOWS?", "reproduce", "windows"],
+    ["@macaron-bot verify on macos", "verify", "macos"],
+    ["@macaron-bot reproduce", "reproduce", undefined],
+    ["@macaron-bot reproduce on wsl", "reproduce", undefined],
+    ["@macaron-bot it fails on windows", undefined, undefined],
+  ])("reads the platform of %j", (body, command, platform) => {
+    expect(parseMention(body, "macaron-bot")).toMatchObject({ command, platform });
   });
 
   it("ignores mentions in code, quotes and other logins", () => {

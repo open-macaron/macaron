@@ -1,4 +1,4 @@
-import { Mode } from "@open-macaron/contracts";
+import { fullEnvironmentModes, Mode, Platform } from "@open-macaron/contracts";
 import { z } from "zod";
 import { branchFor } from "../ingest/triggers.ts";
 
@@ -32,8 +32,21 @@ export const Route = z.object({
   branch: z.string().min(1),
   /** The bot's open pull request this run supersedes: closed once the run's new pull request is open. */
   supersedes: z.int().positive().optional(),
+  /** Set when the run isn't on Linux. */
+  platform: Platform.exclude(["linux"]).optional(),
 });
 export type Route = z.infer<typeof Route>;
+
+/** The platform a route runs on. */
+export function platformOf(route: Pick<Route, "platform">): Platform {
+  return route.platform ?? "linux";
+}
+
+/** The platform an earlier run used (Linux for runs from before routes were stored): retries and escalations stay there unless asked otherwise. */
+export function platformOfRun(run: { readonly route: unknown }): Platform {
+  const parsed = Route.safeParse(run.route);
+  return parsed.success ? platformOf(parsed.data) : "linux";
+}
 
 export interface Refusal {
   /** Posted where the request was made. */
@@ -108,18 +121,21 @@ export const ROUTES: Readonly<Record<SubjectKind, Readonly<Partial<Record<Mode, 
 };
 
 /** The route for one request, or why it is refused. Pure. */
-export function route(state: ThreadState, subject: Subject, mode: Mode): Route | Refusal {
+export function route(state: ThreadState, subject: Subject, mode: Mode, platform: Platform = "linux"): Route | Refusal {
   const rule = ROUTES[subject.kind][mode];
   if (rule === undefined) return { refused: `\`${mode}\` isn't available here.` };
   if ("refuse" in rule) return { refused: rule.refuse(mode, state) };
+  // Only modes that set the project up depend on the machine.
+  if (platform !== "linux" && !fullEnvironmentModes.has(mode)) return { refused: `\`${mode}\` doesn't set the project up, so it always runs on Linux.` };
+  const on = platform === "linux" ? {} : { platform };
 
   const checkout: Checkout = rule.checkout === "pullRequestHead" ? { from: "pullRequestHead", pullRequest: subject.number } : { from: rule.checkout };
   if (mode === "implement") {
     // Never on top of earlier work: the branch is new whenever the bot already had one.
     const branch = state.branch === undefined ? branchFor(state.number, state.title) : branchFor(state.number, state.title, state.nextLoop);
-    return { mode, subject, checkout, branch, ...(state.ownPullRequest === undefined ? {} : { supersedes: state.ownPullRequest }) };
+    return { mode, subject, checkout, branch, ...(state.ownPullRequest === undefined ? {} : { supersedes: state.ownPullRequest }), ...on };
   }
-  return { mode, subject, checkout, branch: state.branch ?? branchFor(state.number, state.title) };
+  return { mode, subject, checkout, branch: state.branch ?? branchFor(state.number, state.title), ...on };
 }
 
 export function isRefusal(outcome: Route | Refusal): outcome is Refusal {

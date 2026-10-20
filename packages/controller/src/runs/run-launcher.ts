@@ -5,7 +5,9 @@ import {
   DispatchInputs,
   fullEnvironmentModes,
   type Mode,
+  type Platform,
   type RepoConfig,
+  runnerFor,
   type RunContext,
   Ticket,
 } from "@open-macaron/contracts";
@@ -48,6 +50,8 @@ export interface Escalation {
   readonly thread: ThreadRecord;
   readonly from: RunRecord;
   readonly mode: Mode;
+  /** Where the run asked the follow-up to go; the escalating run's platform when undefined. */
+  readonly platform: Platform | undefined;
 }
 
 const DispatchDetails = z.object({ workflow_run_id: z.int().positive() });
@@ -197,7 +201,7 @@ export class RunLauncher {
     }
     const { result } = verdict.publishable;
     if (result.action !== "escalate" || result.escalateTo === undefined) return undefined;
-    return { thread: await this.runs.threadById(thread.id), from: run, mode: result.escalateTo };
+    return { thread: await this.runs.threadById(thread.id), from: run, mode: result.escalateTo, platform: result.escalateOn };
   }
 
   /** /stop, watchdog, timeout: spending stops now, then the workflow is cancelled. */
@@ -281,6 +285,8 @@ export class RunLauncher {
   }
 
   private async dispatch(run: RunRecord, config: RepoConfig, context: RunContext): Promise<number> {
+    const runsOn = runnerFor(config, context.platform);
+    if (runsOn === undefined) throw new Error(`${context.platform} isn't enabled for ${config.repo}`);
     const inputs = DispatchInputs.parse({
       ticket: run.ticket,
       repo: context.repo,
@@ -288,7 +294,7 @@ export class RunLauncher {
       fork: `${this.env.GITHUB_BOT_LOGIN}/${config.fork}`,
       branch: context.branch,
       "env-json": JSON.stringify(config.environment),
-      "runs-on": config.runsOn,
+      "runs-on": runsOn,
       "timeout-minutes": String(config.timeoutMinutes),
       "full-environment": String(fullEnvironmentModes.has(run.mode)),
       harness: config.harness,

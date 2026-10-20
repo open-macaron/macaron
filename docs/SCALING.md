@@ -95,6 +95,7 @@ interface RepoConfig {
   repo: `${string}/${string}`; project: string;
   environment: { source: "shared" | "own" | "upstream"; name?: string; params: Record<string, string> };
   runsOn: string; harness: Harness; model: string;
+  platforms: { windows?: { runsOn: string }; macos?: { runsOn: string } };   // opt-in: `@macaron-bot reproduce on windows`
   commands: { build?: string; test?: string; lint?: string };   // used by env-check and given to the agent
   capabilities: readonly ("gui" | "video" | "container")[];   // proven by env-check; gates reproduce/verify
   contribution: { dco: boolean; cla?: string; fixCi: boolean };   // outside-contributor requirements (DESIGN.md)
@@ -107,7 +108,7 @@ interface RepoConfig {
 
 **Who owns what:**
 - CODEOWNERS gives each project team its own folder.
-- The platform team owns `global.yaml` and must approve any change to `budget`, `users` or `runs-on`. CI flags those fields in the PR.
+- The platform team owns `global.yaml` and must approve any change to `budget`, `users`, `runs-on` or `platforms`. CI flags those fields in the PR.
 
 ## 3. Knowledge follows the same hierarchy
 
@@ -149,7 +150,7 @@ The platform team only reviews money and trust. Everything else is owned by the 
 | Limit | Order of magnitude | Mitigation |
 |---|---|---|
 | **Reviewer attention** | The real bottleneck: humans review ~a few bot PRs per day per repo | WIP limit per repo (max open bot PRs, default 3). New `implement` requests queue with a visible position in the status comment |
-| Actions concurrency | Per org plan (e.g. 20 jobs; macOS lower) | Controller queue with global and per-project shares, fair scheduling across projects, interactive (`triage`) before batch (`implement`) |
+| Actions concurrency | Per org plan (e.g. 20 jobs; macOS lower). Windows jobs also start and set up more slowly (a Podman machine takes minutes) | Controller queue with global and per-project shares, fair scheduling across projects, interactive (`triage`) before batch (`implement`) |
 | LLM spend (OpenRouter or Bifrost) | Bounded by keys and budgets | Per-project monthly budgets; the Router keeps chit-chat at ~$0.001 |
 | GitHub API rate limits | 5,000 req/h per token | Conditional requests (304s are free), ETag caches, batched GraphQL for thread snapshots. About 50 calls per loop means roughly 100 loops/h per token before it matters |
 | Controller | One VPS | Stateless besides Postgres; a second instance is possible because pg-boss and the migration lock coordinate through Postgres. Unlikely to be needed before ~1,000 loops/day |

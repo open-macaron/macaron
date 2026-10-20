@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   GitHubLogin,
+  platformsOf,
   type RepoConfig,
   type ReviewComment,
   type ReviewContext,
@@ -16,7 +17,7 @@ import { KnowledgeClient } from "../review/knowledge-client.ts";
 import { PullDiffReader } from "../review/pull-diff.ts";
 import { selectRules } from "@open-macaron/review";
 import { RunsRepository, type ThreadRecord } from "../runs/runs.repository.ts";
-import type { Route } from "../routing/routes.ts";
+import { platformOf, type Route } from "../routing/routes.ts";
 
 export interface Trigger {
   readonly kind: "mention" | "assign" | "review" | "comment";
@@ -81,6 +82,8 @@ export class ContextBuilder {
       commands: config.commands,
       attachments: ATTACHMENTS,
       review,
+      platform: platformOf(route),
+      platforms: platformsOf(config),
     });
   }
 
