@@ -31,7 +31,9 @@ describe("the committed config/ tree", () => {
       fork: "2elnuw-podman-desktop",
       environment: { source: "shared", name: "podman-desktop", params: { machine: "true" } },
       capabilities: ["gui"],
+      platforms: { windows: { runsOn: "windows-2025" } },
     });
+    expect(snapshot.repos.get("podman-desktop/podman-desktop")?.platforms).toEqual({});
   });
 });
 

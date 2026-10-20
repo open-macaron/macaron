@@ -15,6 +15,11 @@ environment:
   params:
     machine: "true"
 capabilities: [gui]
+# `@macaron-bot reproduce on windows`: the same environment, with Podman and its WSL machine from
+# redhat-actions/podman-install.
+platforms:
+  windows:
+    runsOn: windows-2025
 budgets:
   plan: 1.00
   reproduce: 4.00
