@@ -18,4 +18,6 @@ defaults:
   budgets:
     implement: 5.00
     address_review: 2.00
-    review: 0.50
+    # Podman Desktop calls for many knowledge rules (18 on a small PR): the read-only session checks them
+    # in parallel and needed more than $0.50 (2026-10-20, axel7083/podman-desktop#35).
+    review: 1.50

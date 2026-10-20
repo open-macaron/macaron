@@ -21,7 +21,7 @@ describe("the committed config/ tree", () => {
     expect(snapshot.repos.get("podman-desktop/podman-desktop")).toMatchObject({
       project: "podman-desktop",
       capabilities: [],
-      budgets: { review: 0.5 },
+      budgets: { review: 1.5 },
       contribution: { dco: true },
     });
     // The test fork shares the bot's fork with upstream, and runs Podman Desktop built from it.
