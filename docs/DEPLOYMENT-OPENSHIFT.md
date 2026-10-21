@@ -100,7 +100,7 @@ Pinning a new controller digest changes `deploy/openshift/controller.yaml` as we
    2. `macaron`: `ssh open-macaron-vps 'sudo podman exec macaron-postgres pg_dump -Fc -U macaron -d macaron' | oc exec -i statefulset/macaron-postgres -- pg_restore --clean --if-exists --no-owner --role=macaron -d macaron`
    3. `bifrost`: the same, with `-d bifrost` on the VPS side (`macaron` is the VPS's superuser) and `--role=bifrost -d bifrost` on the OpenShift side.
    4. Start them again with `--replicas=1`.
-4. Point the open-macaron org webhook to `<PUBLIC_URL>/v1/webhook`. Runs get `PUBLIC_URL` as their `controller-url`, which is also the OIDC audience the controller checks.
+4. Point open-macaron/runner's webhook (event `workflow_run`, same secret) to `<PUBLIC_URL>/v1/webhook`: `gh api -X PATCH repos/open-macaron/runner/hooks/<id>/config -f url=…` changes the URL alone. A missed delivery is caught up by the reconcile job. Runs get `PUBLIC_URL` as their `controller-url`, which is also the OIDC audience the controller checks.
 5. Enable on OpenShift: `MACARON_ENABLED=true provision-secrets.sh`, then restart the controller.
 6. Run one test on a sandbox repository from `config/`: status comment, run, review or PR, and cost settlement.
 7. Keep the VPS stopped but intact until the new deployment has proved itself. Rollback is the webhook URL back to the VPS, then `MACARON_ENABLED=true` there.

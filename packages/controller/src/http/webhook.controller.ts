@@ -6,7 +6,7 @@ import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { Jobs } from "../jobs/jobs.ts";
 
 /**
- * GitHub webhooks (org webhook on open-macaron), through @octokit/webhooks: the signature is
+ * GitHub webhooks (open-macaron/runner's, event workflow_run), through @octokit/webhooks: the signature is
  * verified on the raw bytes and payloads are typed from GitHub's own schemas. Handlers only
  * enqueue work, so GitHub gets its answer within milliseconds.
  */
