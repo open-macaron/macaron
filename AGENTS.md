@@ -9,12 +9,12 @@ Read first: [README.md](README.md) (what the bot does), [docs/DESIGN.md](docs/DE
 | Path | What |
 |---|---|
 | `packages/contracts` | Zod schemas shared across the trust boundary (config, run context/result, knowledge). Emits `schemas/*.json` and `openapi/controller.json` |
-| `packages/controller` | NestJS 12 controller (runs on the VPS, holds every credential) |
+| `packages/controller` | NestJS 12 controller (runs on OpenShift, holds every credential) |
 | `packages/agent-cli` | `macaron-agent`, run on GitHub Actions runners (no GitHub token, one capped LLM key) |
 | `packages/review` | The review engine (rule selection, read-only judge session, evidence verification, rendering), shared by the controller and agent-cli, and the `macaron-review` CLI published to npm as `@open-macaron/review` |
 | `packages/knowledge-cli` | Validation, owner-approved merges and the Pages read API of open-macaron/knowledge |
 | `config/` | Trusted projects, repositories, users, budgets (`global.yaml` → `projects/<p>/project.yaml` → `repos/<r>.yaml`) |
-| `deploy/` | Quadlets, Caddy, Bifrost (`deploy/bifrost/`: config, pinned prices, `dev.sh`), `deploy.sh` (runs **on** the VPS); `deploy/openshift/`: the OpenShift manifests and scripts (docs/DEPLOYMENT-OPENSHIFT.md, migration in progress) |
+| `deploy/` | `deploy/openshift/`: the production manifests and their scripts (`deploy.sh`, `provision-secrets.sh`), see docs/DEPLOYMENT.md; `deploy/bifrost/`: Bifrost's config template, pinned prices, `dev.sh` |
 | `docs/` | Design documents; keep them in sync with what you change |
 
 Related repositories: [open-macaron/runner](https://github.com/open-macaron/runner) (`run.yml`, `environments/`), [open-macaron/knowledge](https://github.com/open-macaron/knowledge) (rules and lessons, its own README explains approvals).
@@ -26,7 +26,7 @@ pnpm install
 pnpm check                      # typecheck + lint + all tests
 pnpm exec vitest run --project controller        # unit tests of one package (contracts, review, agent-cli, controller, knowledge-cli)
 pnpm test:live                  # live tests against Bifrost/GitHub/OpenRouter (~/.config/macaron/dev.env; each skipped without its variables)
-deploy/bifrost/dev.sh up        # local Bifrost + Postgres + Caddy for the Bifrost live test (LLM_UPSTREAM_URL, LLM_UPSTREAM_KEY, BIFROST_ADMIN_PASSWORD in dev.env)
+deploy/bifrost/dev.sh up        # local Bifrost + Postgres behind the production edge, for the Bifrost live test (LLM_UPSTREAM_URL, LLM_UPSTREAM_KEY, BIFROST_ADMIN_PASSWORD in dev.env)
 pnpm --filter @open-macaron/controller gen:bifrost   # Bifrost admin client, when bumping the Bifrost image
 pnpm --filter @open-macaron/controller db:generate   # after changing src/db/schema.ts
 pnpm --filter @open-macaron/controller db:check
@@ -62,7 +62,7 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 - **The bot never has write access upstream:** it works from its forks. Uploads that need write access target the fork.
 - **Agent output is untrusted:** results are schema-validated and gated; review violations stand only with a quote of an added line; mentions are defused (`sanitize()`).
 - **Read-only sessions** (reviews) get `--permission-mode dontAsk`, a short tool list, and never MCP servers. They're defined once, in `packages/review` (`claudeReviewArgs`), for the bot and the local CLI alike.
-- **Secrets are never printed, logged or committed.** Scripts read them from `~/.config/macaron/dev.env` without echoing; the VPS gets them through `deploy/scripts/provision-secrets.sh` over ssh stdin.
+- **Secrets are never printed, logged or committed.** Scripts read them from `~/.config/macaron/dev.env` without echoing; the cluster gets them through `deploy/openshift/scripts/provision-secrets.sh` (pipes and a server-side apply, never a command line).
 - **Nothing from a pull request's checkout is executed in a privileged context** (open-macaron/knowledge `merge.yml`; environments that run code only on trusted branches).
 
 ## Release and deploy
@@ -70,8 +70,8 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 1. Push to `main` (small semantic commits). CI (`ci.yml`) must be green; a network flake pulling base images is retried, not ignored.
 2. `release.yml` builds the controller image; `release-agent-cli.yml` and `release-knowledge-cli.yml` publish the CLI bundles. Each has a build provenance attestation. `release-review.yml` publishes `@open-macaron/review` to npm (trusted publishing) when `packages/review`'s version changes, once the repository variable `NPM_PUBLISH` is `true`.
 3. **Verify before pinning:** `gh attestation verify` on the image digest / bundle (signer workflow on `refs/heads/main`, source digest = the commit).
-4. Pin: the image digest in `deploy/quadlets/macaron-controller.container` and `deploy/openshift/controller.yaml`; the agent-cli URL and sha256 in open-macaron/runner `run.yml`; the knowledge-cli URL and sha256 in open-macaron/knowledge workflows (a platform PR there: `.github/` is never auto-merged).
-5. Deploy **only over ssh**: `ssh open-macaron-vps 'sudo bash /opt/macaron/repo/deploy/scripts/deploy.sh'`. Never run host operations locally. If ssh says `Permission denied (publickey)` with `SSH_AUTH_SOCK` unset, the key is in the desktop agent: `export SSH_AUTH_SOCK=/run/user/$(id -u)/gcr/ssh`. On OpenShift: `MACARON_NAMESPACE=<namespace> deploy/openshift/scripts/deploy.sh` from a clean checkout of `main`, logged in with `oc`.
+4. Pin: the image digest in `deploy/openshift/controller.yaml`; the agent-cli URL and sha256 in open-macaron/runner `run.yml`; the knowledge-cli URL and sha256 in open-macaron/knowledge workflows (a platform PR there: `.github/` is never auto-merged).
+5. Deploy from a clean checkout of `main`, logged in with `oc`: `MACARON_NAMESPACE=<namespace> deploy/openshift/scripts/deploy.sh` (docs/DEPLOYMENT.md §5). It takes a dump first and rolls back a Deployment that doesn't become ready. Secrets and settings change through `provision-secrets.sh`, never `oc edit`.
 6. Check the result live (status comment, run, review/PR, cost settlement) on the sandbox repositories in `config/`, never on repositories outside it.
 
 ## Pitfalls already met
@@ -82,6 +82,8 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 - Claude Code's `--json-schema` only knows draft 7: no `$schema` key.
 - Claude Code doesn't bound MCP tool calls by default: a hung server (electron-test-mcp's `evaluate`) left a run silent until GitHub killed the job. The agent's sessions set `MCP_TOOL_TIMEOUT` (`agent-cli/src/harness.ts`).
 - Bifrost: a model without a price is charged $0 (prices are pinned in `deploy/bifrost/pricing.json`); budgets and per-key rate limits are counted after requests, so only the provider-wide concurrency cap bounds a burst; empty lists come back as `null`; virtual keys need `key_ids: ["*"]` to use the provider's keys.
-- Caddy's `path` matcher ignores case and cleans the path: rewrite matched requests to their canonical upstream path rather than forwarding the client's.
+- The edge forwards each matched request to its canonical upstream path (`proxy_pass` with a URI), never the client's: a proxy's matcher normalises paths, the upstream may not.
 - OpenShift's `restricted-v2` drops every capability with no-new-privileges: an image whose binary carries a file capability (the official Caddy image) fails with `Operation not permitted`. Prefer Red Hat images built for random UIDs (`ubi10/nginx-126`, `rhel10/postgresql-18`).
-- VPS quadlets use `UserNS=auto`: a container can get another host ID range each time it starts, so a named volume needs `:U` (Caddy once lost its certificates that way, and every TLS handshake failed).
+- Postgres refuses a TLS key readable beyond its group: the serving-certificate Secret is mounted with `defaultMode: 0640` (root-owned, group = the pod's fsGroup).
+- Kustomize takes no absolute root and no file outside its directory by default: `deploy.sh` builds with a relative path and `--load-restrictor LoadRestrictionsNone`.
+- GitHub doesn't list pings among a hook's deliveries, and deliveries can lag by 10–25 min during an incident: the reconcile job, not the webhook, guarantees that a completion is processed.

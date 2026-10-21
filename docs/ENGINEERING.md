@@ -31,7 +31,7 @@ macaron/                                (open-macaron/macaron, public)
 │   └── review/                         review engine shared by controller and agent-cli; `macaron-review` CLI on npm
 ├── harness/{claude,codex,opencode}/    thin shell adapters invoked by agent-cli
 ├── config/                             global → projects/<p> → repos/<r>; schema in packages/contracts
-├── deploy/                             quadlets + deploy script, see DEPLOYMENT.md
+├── deploy/                             openshift/ (manifests, scripts), bifrost/ (config, prices, dev.sh), see DEPLOYMENT.md
 ├── .github/workflows/                  ci.yml, release.yml  (agent workflows live in open-macaron/runner)
 └── docs/
 ```

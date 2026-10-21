@@ -22,7 +22,7 @@ export class BranchMoved extends Error {
 
 /**
  * Writes to the bot's forks through the Git Data API, with GH_PUSH only. No git binary and no
- * clone on the VPS; every update is fast-forward only, so history is never rewritten.
+ * clone in the controller; every update is fast-forward only, so history is never rewritten.
  */
 @Injectable()
 export class ForkCommitter {

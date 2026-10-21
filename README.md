@@ -28,7 +28,7 @@ Only trusted users of trusted repositories (`config/`) can trigger it. Anyone el
 
 ## How it works
 
-- A **controller** on our own VPS holds every credential. It reads the bot's GitHub notifications, decides what to do, and does everything deterministic: budget keys, policy checks, commits, comments.
+- A **controller** in our OpenShift namespace holds every credential. It reads the bot's GitHub notifications, decides what to do, and does everything deterministic: budget keys, policy checks, commits, comments.
 - **Agents** (Claude Code, Codex, opencode) run on throwaway GitHub-hosted runners in [`open-macaron/runner`](https://github.com/open-macaron/runner), with no GitHub credential and one LLM key capped at the run's budget.
 - The agent's output goes through a **Gate** (paths, sizes, secrets, media types) before the controller publishes anything.
 
