@@ -156,6 +156,7 @@ describe("prompts", () => {
     const retro = systemPrompt({ ...withLessons, mode: "retro" }, "/out");
     expect(retro).toContain("Their ids, for `updates`:\n- `global/lessons/building`: Building");
     expect(retro).toContain("set `updates` to its id");
+    expect(retro).toContain("`scope` (`project` by default");
     expect(systemPrompt({ ...context, mode: "retro" }, "/out")).toContain("This repository has no lessons yet.");
   });
 
