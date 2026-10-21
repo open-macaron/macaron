@@ -3,6 +3,15 @@ import type { Changes } from "@open-macaron/contracts";
 import { GH_PUSH, type GitHub } from "../github/github.ts";
 import { httpStatus, type RepoRef } from "../github/repo-ref.ts";
 import type { Identity } from "../github/bot-identity.ts";
+import { FORBIDDEN_PATH } from "./gate.ts";
+
+/** A commit would have written a path the bot must never change (`.github/`, `.git/`…). */
+export class ForbiddenPath extends Error {
+  constructor(readonly paths: readonly string[]) {
+    super(`refusing to commit ${paths.join(", ")}: the bot never writes these paths`);
+    this.name = "ForbiddenPath";
+  }
+}
 
 export class BranchMoved extends Error {
   constructor(readonly branch: string) {
@@ -21,9 +30,9 @@ export class ForkCommitter {
 
   /**
    * Head of `branch` on the fork, creating the branch at `baseSha` if it does not exist. The fork's
-   * `syncFrom` branch is synced from upstream first: a new ref that brings upstream commits touching
-   * `.github/workflows/` into the fork needs the Workflows permission, which GH_PUSH doesn't have,
-   * while syncing a fork needs Contents only. Once synced, the new ref brings nothing new.
+   * `syncFrom` branch is synced from upstream first, so the fork never lags. Carrying upstream's
+   * commits that touch `.github/workflows/` (sync or new ref) needs GH_PUSH's Workflows permission;
+   * Actions stay disabled on the forks, and `commit` never writes such a path itself.
    */
   async ensureBranch(fork: RepoRef, branch: string, baseSha: string, syncFrom: string): Promise<string> {
     const head = await this.head(fork, branch);
@@ -45,6 +54,10 @@ export class ForkCommitter {
 
   /** One commit with all `changes` on top of `expectedHead`. Throws BranchMoved if someone pushed meanwhile. */
   async commit(fork: RepoRef, branch: string, expectedHead: string, changes: Changes, message: string, author: Identity): Promise<string> {
+    // GH_PUSH may write workflow files, to carry upstream's own: this commit never adds any. The Gate
+    // already refused them in the run's result; this holds whatever the caller.
+    const forbidden = changes.files.map((file) => file.path).filter((path) => FORBIDDEN_PATH.test(path));
+    if (forbidden.length > 0) throw new ForbiddenPath(forbidden);
     const { data: parent } = await this.gh.rest.git.getCommit({ ...fork, commit_sha: expectedHead });
 
     const tree: { path: string; mode: "100644" | "100755"; type: "blob"; sha: string | null }[] = [];

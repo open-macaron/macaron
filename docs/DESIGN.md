@@ -274,7 +274,7 @@ The controller has three GitHub tokens, all stored as Podman secrets. Exact scop
 
 | Token | Type | Can do |
 |---|---|---|
-| `GH_PUSH` | fine-grained PAT, owner macaron-bot | Contents write on its repos, which are only forks; no Workflows permission. A fork is synced (`merge-upstream`, Contents only) before a branch is created on it: a new ref that brought upstream commits touching `.github/workflows/` into the fork would need Workflows |
+| `GH_PUSH` | fine-grained PAT, owner macaron-bot | Contents and Workflows write on its repos, which are only forks. Workflows is needed to carry upstream's own commits into a fork (sync, new branch) when they touch `.github/workflows/`, which active upstreams do weekly. It adds no reach: the forks hold no secrets and keep Actions disabled, a fork's pull request runs upstream CI as untrusted whatever it contains, and the Gate and `ForkCommitter` both refuse any bot change under `.github/` |
 | `GH_INTERACT` | classic `public_repo` PAT | Comments, reactions, PRs, notifications on upstream repos; blocked from `open-macaron` by org policy |
 | `GH_ORG` | fine-grained PAT, owner open-macaron | `runner`: Actions write (start and cancel runs); `knowledge`: Pull requests write (`remember:` proposals) |
 
@@ -570,7 +570,7 @@ One file per folder, not pre-merged: which project a repository belongs to is ma
 | Threat | Mitigation |
 |---|---|
 | Agent steals a GitHub token | There are no GitHub-side secrets; the job only has `id-token: write`, and its ticket is already redeemed |
-| Agent pushes elsewhere or rewrites history | Only the controller pushes: one ledger-owned ref, fast-forward only; `GH_PUSH` is limited to the forks, without workflows permission |
+| Agent pushes elsewhere or rewrites history | Only the controller pushes: one ledger-owned ref, fast-forward only; `GH_PUSH` is limited to the forks, and the controller never writes a path under `.github/` there (Gate, then `ForkCommitter`) |
 | Runaway spend | Per-run key limit, live watchdog, mid-run revoke, thread/repo/month caps, loop caps, `timeout-minutes`, kill switch; with Bifrost, pinned prices for allowed models only and a provider-wide cap on requests in flight |
 | The upstream LLM key leaks or is used without a run key | Only Bifrost holds it (Podman secret, encrypted at rest); inference requires a virtual key; Caddy routes three exact paths, never the admin API or UI |
 | Prompt injection via issue or review | Worst case is a bad patch in a PR that humans review; replies are sanitised (capped, @mentions defanged); knowledge updates are gated |

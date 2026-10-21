@@ -2,7 +2,8 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createGitHub } from "../../src/github/github.ts";
-import { ForkCommitter } from "../../src/publish/fork-committer.ts";
+import { Changes } from "@open-macaron/contracts";
+import { ForbiddenPath, ForkCommitter } from "../../src/publish/fork-committer.ts";
 
 const FORK_API = "https://api.github.com/repos/macaron-bot/knowledge";
 const FORK = { owner: "macaron-bot", repo: "knowledge" };
@@ -48,6 +49,22 @@ describe("ForkCommitter.ensureBranch", () => {
   it("reuses an existing branch as it is, without syncing", async () => {
     const calls = fork("9".repeat(40));
     expect(await committer().ensureBranch(FORK, "lessons/global/run-1", BASE, "main")).toBe("9".repeat(40));
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("ForkCommitter.commit", () => {
+  it("refuses to write a workflow file, before any API call, whatever the caller", async () => {
+    const calls = fork();
+    const changes = Changes.parse({
+      baseSha: BASE,
+      files: [
+        { action: "upsert", path: "global/lessons/x.md", mode: "100644", contentBase64: Buffer.from("x").toString("base64") },
+        { action: "upsert", path: ".github/workflows/x.yml", mode: "100644", contentBase64: Buffer.from("on: push").toString("base64") },
+      ],
+    });
+    const identity = { login: "macaron-bot", id: 7, email: "7+macaron-bot@users.noreply.github.com" };
+    await expect(committer().commit(FORK, "lessons/global/run-1", BASE, changes, "lesson", identity)).rejects.toBeInstanceOf(ForbiddenPath);
     expect(calls).toEqual([]);
   });
 });

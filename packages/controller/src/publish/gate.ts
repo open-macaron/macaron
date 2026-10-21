@@ -45,8 +45,8 @@ export interface Publishable {
 
 export type Verdict = { readonly ok: true; readonly publishable: Publishable } | { readonly ok: false; readonly violations: readonly string[] };
 
-/** Paths the bot must never change, whatever the repo. */
-const FORBIDDEN_PATH = /^(\.github\/|\.git\/|\.gitmodules$)|(^|\/)\.git(\/|$)/;
+/** Paths the bot must never change, whatever the repo. ForkCommitter refuses them too. */
+export const FORBIDDEN_PATH = /^(\.github\/|\.git\/|\.gitmodules$)|(^|\/)\.git(\/|$)/;
 const ATTACHMENT_REF = /attachment:([a-z0-9][a-z0-9-]{0,62})/g;
 
 /**
