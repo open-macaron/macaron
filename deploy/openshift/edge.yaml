@@ -1,0 +1,111 @@
+# The public edge: the router terminates TLS, nginx (edge/nginx.conf) keeps the routing contract.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: macaron-edge
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: macaron-edge
+spec:
+  selector:
+    app.kubernetes.io/name: macaron-edge
+  # The probe port stays off the Service.
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: macaron
+  annotations:
+    # LLM streams last as long as a model answers.
+    haproxy.router.openshift.io/timeout: 600s
+    # An API: no sticky-session cookie in responses.
+    haproxy.router.openshift.io/disable_cookies: "true"
+spec:
+  # The host is generated (<name>-<namespace>.<apps domain>); provision-secrets.sh derives PUBLIC_URL from it.
+  to:
+    kind: Service
+    name: macaron-edge
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: macaron-edge
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: macaron-edge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: macaron-edge
+        app.kubernetes.io/component: edge
+    spec:
+      serviceAccountName: macaron-edge
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: registry.access.redhat.com/ubi10/nginx-126@sha256:742a60ee14186687cbda003cb2b58a84eebeef93a0c4dd646044fb168967a297
+          command: [nginx, -e, stderr, -c, /etc/nginx-macaron/nginx.conf, -g, daemon off;]
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: probe
+              containerPort: 8081
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: probe
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: probe
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx-macaron
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: macaron-edge
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
