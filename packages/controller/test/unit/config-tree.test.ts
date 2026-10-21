@@ -19,7 +19,8 @@ describe("the committed config/ tree", () => {
     });
     expect(snapshot.repos.get("podman-desktop/podman-desktop")).toMatchObject({
       project: "podman-desktop",
-      budgets: { review: 1, implement: 5 },
+      environment: { source: "shared", name: "podman-desktop", params: { machine: "true" } },
+      budgets: { review: 1, implement: 5, verify: 4 },
       reviewCost: { baseUsd: 0.1, perRuleUsd: 0.04 },
       contribution: { dco: true },
     });

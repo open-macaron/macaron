@@ -3,9 +3,19 @@
 # podman-desktop/podman-desktop. The bot's fork is the one GitHub allows per fork network (shared
 # with the test fork axel7083/podman-desktop, enrolled next to it).
 # Commits need a DCO sign-off (CONTRIBUTING.md); LLM_POLICY.md applies to everything posted.
+# Runs Podman Desktop built from the checkout, as on the test fork (Linux only for now), so
+# `@macaron-bot verify` can show a pull request's change.
 
 repo: podman-desktop/podman-desktop
 fork: 2elnuw-podman-desktop
+timeoutMinutes: 75
+environment:
+  source: shared
+  name: podman-desktop
+  params:
+    machine: "true"
+budgets:
+  verify: 4.00
 commands:
   build: pnpm build
   test: pnpm test:unit

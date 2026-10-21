@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../packages/contracts/schemas/config-project.schema.json
 #
 # Podman Desktop itself (podman-desktop/podman-desktop): reviews against the podman-desktop rules of
-# open-macaron/knowledge, and code-only implementation (no GUI environment). Only axel7083 can
+# open-macaron/knowledge, and the other modes in the Podman Desktop environment. Only axel7083 can
 # trigger the bot, and the controller's id allowlist narrows that further.
 
 project: podman-desktop
