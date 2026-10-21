@@ -1,4 +1,4 @@
-import { type CommitSha, KnowledgeSlice, type PublishedRule } from "@open-macaron/contracts";
+import { type CommitSha, KnowledgeSlice, type PublishedLesson, type PublishedRule } from "@open-macaron/contracts";
 
 export const DEFAULT_KNOWLEDGE_URL = "https://open-macaron.github.io/knowledge/v1";
 
@@ -7,6 +7,11 @@ export interface ReviewRules {
   readonly commit: CommitSha | null;
   /** global → project → repo. Ids are unique across levels by construction (`<scope>/<slug>`). */
   readonly rules: readonly PublishedRule[];
+}
+
+/** What a repository's runs get: its rules and lessons, global → project → repo, at one commit. */
+export interface Knowledge extends ReviewRules {
+  readonly lessons: readonly PublishedLesson[];
 }
 
 /** The read API couldn't be read (HTTP error, unexpected content). */
@@ -20,6 +25,12 @@ export class KnowledgeUnavailable extends Error {
   }
 }
 
+/** Which levels to read besides `global`. Which project a repository belongs to is the caller's business. */
+export interface KnowledgeScopes {
+  readonly project?: string | undefined;
+  readonly repo?: string | undefined;
+}
+
 /**
  * open-macaron/knowledge's read API (GitHub Pages, DESIGN.md §6.5): one file per level, merged here.
  * Which project a repository belongs to isn't the knowledge repository's business: the caller says.
@@ -30,13 +41,18 @@ export class KnowledgeSource {
 
   constructor(private readonly baseUrl: string = DEFAULT_KNOWLEDGE_URL) {}
 
-  async rules(options: { readonly project?: string | undefined; readonly repo?: string | undefined }): Promise<ReviewRules> {
+  async rules(options: KnowledgeScopes): Promise<ReviewRules> {
+    const { commit, rules } = await this.knowledge(options);
+    return { commit, rules };
+  }
+
+  async knowledge(options: KnowledgeScopes): Promise<Knowledge> {
     const paths = ["global.json"];
     if (options.project !== undefined) paths.push(`projects/${options.project}.json`);
     if (options.repo !== undefined) paths.push(`repos/${options.repo}.json`);
     const slices = await Promise.all(paths.map((path) => this.slice(path)));
     const present = slices.filter((slice): slice is KnowledgeSlice => slice !== undefined);
-    return { commit: present.at(-1)?.commit ?? null, rules: present.flatMap((slice) => slice.rules) };
+    return { commit: present.at(-1)?.commit ?? null, rules: present.flatMap((slice) => slice.rules), lessons: present.flatMap((slice) => slice.lessons) };
   }
 
   /** A missing slice (404) is a level without knowledge yet, not an error. */

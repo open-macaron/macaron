@@ -42,6 +42,8 @@ export interface HarnessRun {
   readonly task: string;
   /** MCP servers the environment provides (e.g. to drive Podman Desktop). */
   readonly mcpConfigFile?: string | undefined;
+  /** A directory whose `.claude/skills/` holds the run's lessons. */
+  readonly skillsDir?: string | undefined;
 }
 
 /**
@@ -59,9 +61,11 @@ export function runHarness(run: HarnessRun): Promise<number> {
 }
 
 /** Claude Code's command line for a write session (exported for tests). */
-export function claudeArgs(run: Pick<HarnessRun, "model" | "systemPromptFile" | "mcpConfigFile">): string[] {
+export function claudeArgs(run: Pick<HarnessRun, "model" | "systemPromptFile" | "mcpConfigFile" | "skillsDir">): string[] {
   // --strict-mcp-config: only the environment's servers, never a configuration from the checkout.
   const mcp = run.mcpConfigFile === undefined ? [] : ["--mcp-config", run.mcpConfigFile, "--strict-mcp-config"];
+  // Claude Code loads the skills in an added directory's .claude/skills/.
+  const skills = run.skillsDir === undefined ? [] : ["--add-dir", run.skillsDir];
   return [
     "--print",
     "--model",
@@ -74,6 +78,7 @@ export function claudeArgs(run: Pick<HarnessRun, "model" | "systemPromptFile" | 
     "--permission-mode",
     "bypassPermissions",
     ...mcp,
+    ...skills,
   ];
 }
 

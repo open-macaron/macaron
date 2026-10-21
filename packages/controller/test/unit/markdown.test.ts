@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { renderCostTable, resolveAttachments, sanitize, spentLine, upsertCostSection, withSpentLine } from "../../src/publish/markdown.ts";
+import { CommitSha, PublishedLesson } from "@open-macaron/contracts";
+import { renderCostTable, resolveAttachments, sanitize, spentLine, statusHeader, upsertCostSection, withSpentLine } from "../../src/publish/markdown.ts";
 
 describe("sanitize", () => {
   it("keeps mentions of thread participants and defangs everyone else", () => {
@@ -63,6 +64,31 @@ describe("cost table", () => {
     expect(second.match(/macaron:cost:start/g)).toHaveLength(1);
     expect(second).toContain("$9.99");
     expect(second.endsWith("footer")).toBe(true);
+  });
+});
+
+describe("status header", () => {
+  const none = { commit: null, lessons: [] };
+  const lesson = PublishedLesson.parse({
+    id: "podman-desktop/lessons/windows-machines",
+    scope: "podman-desktop",
+    topic: "Windows machines",
+    appliesTo: null,
+    sources: ["https://github.com/axel7083/podman-desktop/issues/40"],
+    lastVerified: "2026-10-21",
+    confidence: "medium",
+    body: "Hyper-V works.",
+  });
+
+  it("names the mode, and nothing else a Linux run without lessons has", () => {
+    expect(statusHeader({ loop: 1, mode: "plan", platform: "linux", runUrl: null, knowledge: none })).toBe("**macaron-bot** · loop 1 · `plan`");
+  });
+
+  it("names another platform and the lessons the run was given, with their commit", () => {
+    const commit = CommitSha.parse("abcdef1".padEnd(40, "0"));
+    expect(statusHeader({ loop: 2, mode: "reproduce", platform: "windows", runUrl: "https://example.org/run", knowledge: { commit, lessons: [lesson] } })).toBe(
+      `**macaron-bot** · loop 2 · \`reproduce\` · Windows · [run](https://example.org/run) · 1 lesson from [open-macaron/knowledge@abcdef1](https://github.com/open-macaron/knowledge/tree/${commit})`,
+    );
   });
 });
 

@@ -1,4 +1,5 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { UpstreamError } from "../common/errors.ts";
 import {
   GitHubLogin,
   platformsOf,
@@ -6,6 +7,7 @@ import {
   type ReviewComment,
   type ReviewContext,
   RunContext,
+  type RunKnowledge,
   type ThreadComment,
 } from "@open-macaron/contracts";
 import { GH_INTERACT, type GitHub } from "../github/github.ts";
@@ -29,6 +31,8 @@ export interface Trigger {
 /** Media limits handed to the agent; the Gate enforces the same numbers. */
 const ATTACHMENTS = { maxFiles: 10, maxFileBytes: 25_000_000, maxTotalBytes: 50_000_000 };
 const MAX_COMMENTS = 100;
+/** RunKnowledge's limit: beyond it, skill descriptions alone would crowd the context. */
+const MAX_LESSONS = 200;
 
 /**
  * Builds `context.json`: exactly what the agent is told. Everything comes from GitHub at launch
@@ -36,6 +40,8 @@ const MAX_COMMENTS = 100;
  */
 @Injectable()
 export class ContextBuilder {
+  private readonly logger = new Logger(ContextBuilder.name);
+
   constructor(
     @Inject(GH_INTERACT) private readonly gh: GitHub,
     private readonly runs: RunsRepository,
@@ -84,7 +90,23 @@ export class ContextBuilder {
       review,
       platform: platformOf(route),
       platforms: platformsOf(config),
+      knowledge: review === undefined ? await this.lessons(config) : { commit: null, lessons: [] },
     });
+  }
+
+  /**
+   * The repository's lessons for a working run, at the knowledge commit they were read at. They help,
+   * they don't gate: a run starts without them when the knowledge site can't be read.
+   */
+  private async lessons(config: RepoConfig): Promise<RunKnowledge> {
+    try {
+      const { commit, lessons } = await this.knowledge.knowledgeFor(config);
+      return { commit, lessons: lessons.slice(0, MAX_LESSONS) };
+    } catch (error: unknown) {
+      if (!(error instanceof UpstreamError)) throw error;
+      this.logger.warn(`${config.repo}: running without lessons: ${error.message}`);
+      return { commit: null, lessons: [] };
+    }
   }
 
   /** The commit the route's checkout points at now. */

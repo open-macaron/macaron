@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import type { Platform, RepoConfig, RunContext } from "@open-macaron/contracts";
+import { type RepoConfig, RunContext } from "@open-macaron/contracts";
 import { z } from "zod";
 import { describeError } from "../common/errors.ts";
 import type { UsdMicros } from "../common/money.ts";
@@ -15,7 +15,7 @@ import { Route, type Subject, subjectOfRun } from "../routing/routes.ts";
 import { EvidenceHost } from "./evidence-host.ts";
 import { ForkCommitter } from "./fork-committer.ts";
 import type { Publishable } from "./gate.ts";
-import { type CostRow, type LoopState, renderCostTable, resolveAttachments, sanitize, spentLine, upsertCostSection, withSpentLine } from "./markdown.ts";
+import { type CostRow, type LoopState, renderCostTable, resolveAttachments, sanitize, spentLine, statusHeader, upsertCostSection, withSpentLine } from "./markdown.ts";
 import { ReactionTargets } from "./reaction-targets.ts";
 import { CannotPost, UpstreamWriter } from "./upstream-writer.ts";
 
@@ -33,8 +33,8 @@ const CommentId = z.coerce.number().int().positive();
 /** Effect kind holding a loop's status comment id. */
 const STATUS_EFFECT = "status";
 
-/** How the status comment names a platform other than Linux. */
-const PLATFORM_NAMES: Readonly<Record<Exclude<Platform, "linux">, string>> = { windows: "Windows", macos: "macOS" };
+/** What the status header reads from a stored context; contexts stored before these fields get their defaults. */
+const HeaderContext = z.object({ platform: RunContext.shape.platform, knowledge: RunContext.shape.knowledge });
 
 
 function loopState(status: RunRecord["status"]): LoopState {
@@ -154,8 +154,7 @@ export class Publisher {
 
   /** A run was dispatched: the status comment and the PR's table show it, with its link, right away. */
   async reportStarted(thread: ThreadRecord, run: RunRecord, runUrl: string | null): Promise<void> {
-    const on = run.context.platform === "linux" ? "" : ` on ${PLATFORM_NAMES[run.context.platform]}`;
-    await this.updateStatus(thread, subjectOfRun(run, thread), run, `⏳ Working on it${on}.`, runUrl);
+    await this.updateStatus(thread, subjectOfRun(run, thread), run, "⏳ Working on it.", runUrl);
     await this.updateCostTable(thread);
   }
 
@@ -246,7 +245,7 @@ export class Publisher {
   private async updateStatus(thread: ThreadRecord, subject: Subject, run: RunRecord, outcome: string, runUrl: string | null): Promise<void> {
     const where = subject.kind === "issue" && thread.prNumber !== null && thread.kind === "issue" ? `\n\nWork continues in #${String(thread.prNumber)}.` : "";
     const body = [
-      `**macaron-bot** · loop ${String(run.loop)} · \`${run.mode}\`${runUrl === null ? "" : ` · [run](${runUrl})`}`,
+      statusHeader({ loop: run.loop, mode: run.mode, runUrl, ...HeaderContext.parse(run.context) }),
       "",
       outcome,
       where,

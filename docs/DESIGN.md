@@ -410,7 +410,7 @@ The knowledge repository holds two kinds of content, with different authors and 
 | What | What changed code must look like ("use Svelte 5 runes") | Facts learned ("e2e tests need `xvfb-run`", "reviewers prefer small PRs") |
 | Written by | Humans (the folder's owners) | The bot proposes, the folder's owners approve |
 | Used for | Implementing, and the per-rule review (§6.3) | Context for the agent |
-| Loaded | Only rules whose globs match the files in play | Through the index; the agent opens a lesson when it needs it |
+| Loaded | Only rules whose globs match the files in play (reviews) | As skills in every working run: names and descriptions in context, a body when the agent loads it |
 | Identity | Stable id (`sandbox/no-runtime-json-read`), cited by review tables; never reused | File name |
 
 A lesson becomes a rule only when a human promotes it: the bot never writes rules, because the reviewer enforces them. Nothing is read from upstream repositories for now (beyond the harness loading their `AGENTS.md` / `CLAUDE.md` natively).
@@ -477,6 +477,8 @@ import pkg from '../package.json';
 const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 ```
 ````
+
+**Every working run gets the repository's lessons** (global → project → repo), read with the rules by the controller and pinned to their knowledge commit in the run's context (`context.knowledge`). agent-cli writes one `SKILL.md` per lesson under `$RUNNER_TEMP/macaron-knowledge/.claude/skills/` and passes that directory to Claude Code with `--add-dir`: never inside the checkout, whose every file `finish` publishes. The status comment's first line names the commit and the lesson count, as a review names its rules' commit. Reviews get rules only. A run whose knowledge can't be read starts without lessons: they help, they don't gate.
 
 Lessons carry `topic`, `description`, optional `applies_to`, `sources`, `last_verified` and `confidence`. A lesson is an [Agent Skill](https://agentskills.io): its slug is the skill's name and `description` (at most 1024 characters) says what it covers and when it matters. Claude Code, Codex and OpenCode keep only names and descriptions in context and load a lesson's body when the agent asks for it, so runs carry every lesson without growing their prompts. `description` is optional until every lesson has one; the topic stands in for it.
 

@@ -45,6 +45,8 @@ export interface Paths {
   readonly bootstrapFile: string;
   /** What the repository's environment leaves for the agent: optional `mcp.json` and `AGENTS.md`. */
   readonly environment: string;
+  /** The run's lessons as skills (`.claude/skills/`), given to the harness as an extra directory. */
+  readonly knowledge: string;
   /** What gets uploaded as the `macaron-result` artifact. */
   readonly out: string;
   readonly media: string;
@@ -64,6 +66,7 @@ export function paths(inputs: Pick<Inputs, "RUNNER_TEMP" | "GITHUB_WORKSPACE">):
     contextFile: join(state, "context.json"),
     bootstrapFile: join(state, "bootstrap.json"),
     environment: join(inputs.RUNNER_TEMP, "macaron-env"),
+    knowledge: join(inputs.RUNNER_TEMP, "macaron-knowledge"),
     out,
     media: join(out, "media"),
     resultFile: join(out, "result.json"),

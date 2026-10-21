@@ -143,6 +143,15 @@ describe("prompts", () => {
     expect(system).not.toContain("## Platform");
   });
 
+  it("tell the agent where its lessons come from, only when it has some", async () => {
+    const context = RunContext.parse(JSON.parse(await readFile(paths(inputs).contextFile, "utf8")));
+    expect(systemPrompt(context, "/out")).not.toContain("## Lessons");
+
+    const lesson = { id: "global/lessons/building", scope: "global", topic: "Building", appliesTo: null, sources: ["https://example.org/x"], lastVerified: "2026-10-21", confidence: "high", body: "b" };
+    const withLessons = RunContext.parse({ ...context, knowledge: { commit: "a".repeat(40), lessons: [lesson] } });
+    expect(systemPrompt(withLessons, "/out")).toContain(`available as 1 skill (lessons from open-macaron/knowledge@${"a".repeat(40)})`);
+  });
+
   it("tell the agent its platform, and triage where it may escalate to", async () => {
     const context = RunContext.parse(JSON.parse(await readFile(paths(inputs).contextFile, "utf8")));
 

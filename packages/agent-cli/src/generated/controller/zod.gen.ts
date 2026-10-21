@@ -120,6 +120,24 @@ export const zBootstrapResponse = z.object({
             'linux',
             'windows',
             'macos'
-        ])).min(1).default(['linux'])
+        ])).min(1).default(['linux']),
+        knowledge: z.object({
+            commit: z.string().regex(/^[0-9a-f]{40}$/).nullable(),
+            lessons: z.array(z.object({
+                id: z.string().min(1),
+                scope: z.string().regex(/^(global|[a-z0-9]+(-[a-z0-9]+)*|[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100})$/),
+                topic: z.string(),
+                description: z.string().min(1).max(1024).optional(),
+                appliesTo: z.array(z.string().min(1).max(200)).nullable(),
+                sources: z.array(z.url()),
+                lastVerified: z.iso.date().regex(/^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$/),
+                confidence: z.enum([
+                    'low',
+                    'medium',
+                    'high'
+                ]),
+                body: z.string()
+            })).max(200)
+        }).default({ commit: null, lessons: [] })
     })
 });

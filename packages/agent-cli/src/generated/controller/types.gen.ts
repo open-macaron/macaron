@@ -113,6 +113,20 @@ export type BootstrapResponses = {
             };
             platform: 'linux' | 'windows' | 'macos';
             platforms: Array<'linux' | 'windows' | 'macos'>;
+            knowledge: {
+                commit: string | null;
+                lessons: Array<{
+                    id: string;
+                    scope: string;
+                    topic: string;
+                    description?: string;
+                    appliesTo: Array<string> | null;
+                    sources: Array<string>;
+                    lastVerified: string;
+                    confidence: 'low' | 'medium' | 'high';
+                    body: string;
+                }>;
+            };
         };
     };
 };

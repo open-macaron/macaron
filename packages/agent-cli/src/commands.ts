@@ -9,6 +9,7 @@ import { changesSince, checkout, crlfIntroduced } from "./git.ts";
 import { claudeBinary, claudeEnvironment, installHarness, runHarness } from "./harness.ts";
 import { type Inputs, type Paths, paths, readInputs } from "./inputs.ts";
 import { systemPrompt, taskPrompt } from "./prompts.ts";
+import { writeSkills } from "./skills.ts";
 import { fetchPullBase } from "./review-diff.ts";
 
 /** What bootstrap hands to the later steps, apart from the key (kept in its own private file). */
@@ -72,6 +73,7 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
     systemPromptFile,
     task: taskPrompt(context),
     mcpConfigFile: environment.mcpConfigFile,
+    skillsDir: context.knowledge.lessons.length === 0 ? undefined : await writeSkills(p.knowledge, context.knowledge),
   });
   await rm(p.keyFile, { force: true });
   if (exitCode !== 0) core.warning(`harness exited with ${String(exitCode)}`);

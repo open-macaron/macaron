@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Commands } from "./config.ts";
 import { BotBranch, CommitSha, GitHubLogin, RepoSlug, Ticket, Usd } from "./ids.ts";
-import { PublishedRule } from "./knowledge.ts";
+import { PublishedLesson, PublishedRule } from "./knowledge.ts";
 import { Harness, Mode, Platform, ResultAction } from "./mode.ts";
 
 const Body = z.string().max(65_536);
@@ -62,6 +62,16 @@ export const ReviewContext = z.strictObject({
 });
 export type ReviewContext = z.infer<typeof ReviewContext>;
 
+/**
+ * The repository's lessons (global → project → repo) and the open-macaron/knowledge commit they come
+ * from: the agent gets each as a skill, loaded when it matters.
+ */
+export const RunKnowledge = z.strictObject({
+  commit: CommitSha.nullable(),
+  lessons: z.array(PublishedLesson).max(200),
+});
+export type RunKnowledge = z.infer<typeof RunKnowledge>;
+
 /** `context.json`: everything the agent is told about its task. Text fields are untrusted user content. */
 export const RunContext = z.strictObject({
   mode: Mode,
@@ -88,6 +98,8 @@ export const RunContext = z.strictObject({
   platform: Platform.default("linux"),
   /** The platforms this repository's runs can use: where a triage run may escalate to. */
   platforms: z.array(Platform).min(1).default(["linux"]),
+  /** Empty for reviews (they get rules, in `review`) and in contexts from controllers that predate it. */
+  knowledge: RunKnowledge.default({ commit: null, lessons: [] }),
 });
 export type RunContext = z.infer<typeof RunContext>;
 

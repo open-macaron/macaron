@@ -1,4 +1,4 @@
-import type { Mode } from "@open-macaron/contracts";
+import type { Mode, Platform, RunKnowledge } from "@open-macaron/contracts";
 import { markdownTable } from "markdown-table";
 import { formatUsd, type UsdMicros } from "../common/money.ts";
 import { applyEdits, htmlRanges, proseRanges } from "./markdown-ast.ts";
@@ -102,6 +102,31 @@ export function escapeCell(text: string): string {
 }
 
 /** The status comment's last line: what the thread has cost so far, ⏳ while a loop is still settling. */
+/** What a status comment's first line says about a run: mode, platform, run link, the lessons it was given. */
+export interface StatusHeader {
+  readonly loop: number;
+  readonly mode: string;
+  readonly platform: Platform;
+  readonly runUrl: string | null;
+  readonly knowledge: RunKnowledge;
+}
+
+const PLATFORM_NAMES: Readonly<Record<Platform, string>> = { linux: "Linux", windows: "Windows", macos: "macOS" };
+
+/** `**macaron-bot** · loop 2 · `reproduce` · Windows · [run](…) · 3 lessons from open-macaron/knowledge@abc1234` */
+export function statusHeader(header: StatusHeader): string {
+  const { commit, lessons } = header.knowledge;
+  const parts = [`**macaron-bot**`, `loop ${String(header.loop)}`, `\`${header.mode}\``];
+  // Linux is every run's default: only another platform is worth a word.
+  if (header.platform !== "linux") parts.push(PLATFORM_NAMES[header.platform]);
+  if (header.runUrl !== null) parts.push(`[run](${header.runUrl})`);
+  if (commit !== null && lessons.length > 0) {
+    const count = `${String(lessons.length)} lesson${lessons.length === 1 ? "" : "s"}`;
+    parts.push(`${count} from [open-macaron/knowledge@${commit.slice(0, 7)}](https://github.com/open-macaron/knowledge/tree/${commit})`);
+  }
+  return parts.join(" · ");
+}
+
 export function spentLine(spentMicros: UsdMicros, settling: boolean): string {
   return `<sub>Spent on this thread: ${formatUsd(spentMicros)}${settling ? " ⏳" : ""}.</sub>`;
 }
