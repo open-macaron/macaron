@@ -14,7 +14,7 @@ Read first: [README.md](README.md) (what the bot does), [docs/DESIGN.md](docs/DE
 | `packages/review` | The review engine (rule selection, read-only judge session, evidence verification, rendering), shared by the controller and agent-cli, and the `macaron-review` CLI published to npm as `@open-macaron/review` |
 | `packages/knowledge-cli` | Validation, owner-approved merges and the Pages read API of open-macaron/knowledge |
 | `config/` | Trusted projects, repositories, users, budgets (`global.yaml` → `projects/<p>/project.yaml` → `repos/<r>.yaml`) |
-| `deploy/` | Quadlets, Caddy, Bifrost (`deploy/bifrost/`: config, pinned prices, `dev.sh`), `deploy.sh` (runs **on** the VPS) |
+| `deploy/` | Quadlets, Caddy, Bifrost (`deploy/bifrost/`: config, pinned prices, `dev.sh`), `deploy.sh` (runs **on** the VPS); `deploy/openshift/`: the OpenShift manifests and scripts (docs/DEPLOYMENT-OPENSHIFT.md, migration in progress) |
 | `docs/` | Design documents; keep them in sync with what you change |
 
 Related repositories: [open-macaron/runner](https://github.com/open-macaron/runner) (`run.yml`, `environments/`), [open-macaron/knowledge](https://github.com/open-macaron/knowledge) (rules and lessons, its own README explains approvals).
@@ -70,8 +70,8 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 1. Push to `main` (small semantic commits). CI (`ci.yml`) must be green; a network flake pulling base images is retried, not ignored.
 2. `release.yml` builds the controller image; `release-agent-cli.yml` and `release-knowledge-cli.yml` publish the CLI bundles. Each has a build provenance attestation. `release-review.yml` publishes `@open-macaron/review` to npm (trusted publishing) when `packages/review`'s version changes, once the repository variable `NPM_PUBLISH` is `true`.
 3. **Verify before pinning:** `gh attestation verify` on the image digest / bundle (signer workflow on `refs/heads/main`, source digest = the commit).
-4. Pin: the image digest in `deploy/quadlets/macaron-controller.container`; the agent-cli URL and sha256 in open-macaron/runner `run.yml`; the knowledge-cli URL and sha256 in open-macaron/knowledge workflows (a platform PR there: `.github/` is never auto-merged).
-5. Deploy **only over ssh**: `ssh open-macaron-vps 'sudo bash /opt/macaron/repo/deploy/scripts/deploy.sh'`. Never run host operations locally. If ssh says `Permission denied (publickey)` with `SSH_AUTH_SOCK` unset, the key is in the desktop agent: `export SSH_AUTH_SOCK=/run/user/$(id -u)/gcr/ssh`.
+4. Pin: the image digest in `deploy/quadlets/macaron-controller.container` and `deploy/openshift/controller.yaml`; the agent-cli URL and sha256 in open-macaron/runner `run.yml`; the knowledge-cli URL and sha256 in open-macaron/knowledge workflows (a platform PR there: `.github/` is never auto-merged).
+5. Deploy **only over ssh**: `ssh open-macaron-vps 'sudo bash /opt/macaron/repo/deploy/scripts/deploy.sh'`. Never run host operations locally. If ssh says `Permission denied (publickey)` with `SSH_AUTH_SOCK` unset, the key is in the desktop agent: `export SSH_AUTH_SOCK=/run/user/$(id -u)/gcr/ssh`. On OpenShift: `MACARON_NAMESPACE=<namespace> deploy/openshift/scripts/deploy.sh` from a clean checkout of `main`, logged in with `oc`.
 6. Check the result live (status comment, run, review/PR, cost settlement) on the sandbox repositories in `config/`, never on repositories outside it.
 
 ## Pitfalls already met
@@ -83,4 +83,5 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 - Claude Code doesn't bound MCP tool calls by default: a hung server (electron-test-mcp's `evaluate`) left a run silent until GitHub killed the job. The agent's sessions set `MCP_TOOL_TIMEOUT` (`agent-cli/src/harness.ts`).
 - Bifrost: a model without a price is charged $0 (prices are pinned in `deploy/bifrost/pricing.json`); budgets and per-key rate limits are counted after requests, so only the provider-wide concurrency cap bounds a burst; empty lists come back as `null`; virtual keys need `key_ids: ["*"]` to use the provider's keys.
 - Caddy's `path` matcher ignores case and cleans the path: rewrite matched requests to their canonical upstream path rather than forwarding the client's.
+- OpenShift's `restricted-v2` drops every capability with no-new-privileges: an image whose binary carries a file capability (the official Caddy image) fails with `Operation not permitted`. Prefer Red Hat images built for random UIDs (`ubi10/nginx-126`, `rhel10/postgresql-18`).
 - VPS quadlets use `UserNS=auto`: a container can get another host ID range each time it starts, so a named volume needs `:U` (Caddy once lost its certificates that way, and every TLS handshake failed).

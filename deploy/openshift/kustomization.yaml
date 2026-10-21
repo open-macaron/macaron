@@ -1,0 +1,30 @@
+# macaron-bot on OpenShift (docs/DEPLOYMENT.md). Applied by scripts/deploy.sh, which adds config/ as a
+# ConfigMap; reads files outside this directory, so build with --load-restrictor LoadRestrictionsNone.
+# No namespace here: the scripts target the one given to them. Secrets are never in this tree
+# (scripts/provision-secrets.sh).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: macaron
+resources:
+  - networkpolicies.yaml
+  - postgres.yaml
+  - backup.yaml
+  - bifrost.yaml
+  - controller.yaml
+  - edge.yaml
+configMapGenerator:
+  - name: macaron-postgres-config
+    files:
+      - postgres/macaron.conf
+      - postgres/macaron.sh
+  - name: macaron-bifrost-files
+    files:
+      - ../bifrost/config.template.json
+      - ../bifrost/render-config.sh
+      - ../bifrost/pricing.json
+      - ../bifrost/model-parameters.json
+  - name: macaron-edge
+    files:
+      - edge/nginx.conf

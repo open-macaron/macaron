@@ -1,0 +1,111 @@
+# Nightly pg_dump of both databases to their own volume, kept 30 days; deploy.sh also runs one before
+# each deploy. The volume lives in the cluster: copy the dumps off it (docs/DEPLOYMENT.md).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: macaron-backup
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: macaron-backups
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: gp3-csi
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: macaron-pg-dump
+spec:
+  schedule: "17 2 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      # Jobs deploy.sh starts by hand aren't counted by the history limits.
+      ttlSecondsAfterFinished: 604800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: macaron-backup
+            app.kubernetes.io/component: backup
+        spec:
+          serviceAccountName: macaron-backup
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: pg-dump
+              # The server's image: pg_dump of the same major version.
+              image: registry.redhat.io/rhel10/postgresql-18@sha256:de4c56c764fb11859e9862f7ffdeb963bd6754879093465cfe69fff54a723f17
+              command:
+                - /bin/bash
+                - -ceu
+                - |
+                  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  for db in macaron bifrost; do
+                    # Each database is dumped by its owner: no role reads both.
+                    password_var="${db^^}_PASSWORD"
+                    PGPASSWORD="${!password_var}" pg_dump --format=custom --file="/backups/$db-$stamp.dump.partial" \
+                      "host=macaron-postgres.$POD_NAMESPACE.svc dbname=$db user=$db sslmode=verify-full sslrootcert=/etc/service-ca/service-ca.crt"
+                    mv "/backups/$db-$stamp.dump.partial" "/backups/$db-$stamp.dump"
+                    echo "$db-$stamp.dump: $(stat -c %s "/backups/$db-$stamp.dump") bytes"
+                  done
+                  find /backups -name '*.dump' -mtime +30 -print -delete
+                  find /backups -name '*.partial' -mmin +120 -print -delete
+              env:
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: MACARON_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: macaron-backup
+                      key: macaron-password
+                - name: BIFROST_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: macaron-backup
+                      key: bifrost-password
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                - name: service-ca
+                  mountPath: /etc/service-ca
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: macaron-backups
+            - name: service-ca
+              configMap:
+                name: macaron-service-ca
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi

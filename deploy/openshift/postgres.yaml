@@ -1,0 +1,158 @@
+# Postgres: the ledger, runs and pg-boss (database macaron) and Bifrost's store (database bifrost).
+# No operator runs on the cluster, so this is Red Hat's image as a single-replica StatefulSet; its
+# hooks (postgres/) add the bifrost role and database, TLS and TLS-only logins.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: macaron-postgres
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: macaron-postgres
+  annotations:
+    # OpenShift's service CA issues (and rotates) the certificate for macaron-postgres.<ns>.svc.
+    service.beta.openshift.io/serving-cert-secret-name: macaron-postgres-tls
+spec:
+  selector:
+    app.kubernetes.io/name: macaron-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+# The service CA's bundle, injected by OpenShift: what clients verify the serving certificate against.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: macaron-service-ca
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: macaron-postgres
+spec:
+  serviceName: macaron-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: macaron-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: macaron-postgres
+        app.kubernetes.io/component: database
+    spec:
+      serviceAccountName: macaron-postgres
+      automountServiceAccountToken: false
+      # A smart shutdown lets pg-boss and Bifrost's flushes finish.
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: postgres
+          image: registry.redhat.io/rhel10/postgresql-18@sha256:de4c56c764fb11859e9862f7ffdeb963bd6754879093465cfe69fff54a723f17
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRESQL_USER
+              value: macaron
+            - name: POSTGRESQL_DATABASE
+              value: macaron
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-postgres
+                  key: macaron-password
+            - name: BIFROST_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-postgres
+                  key: bifrost-password
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          startupProbe:
+            exec:
+              command: [/usr/libexec/check-container]
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: [/usr/libexec/check-container]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: [/usr/libexec/check-container, --live]
+            periodSeconds: 30
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 768Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/pgsql/data
+            # The image writes its generated settings and passwd file to HOME, and its socket to /var/run.
+            - name: home
+              mountPath: /var/lib/pgsql
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
+            - name: tls
+              mountPath: /etc/postgresql-tls
+              readOnly: true
+            - name: config
+              mountPath: /opt/app-root/src/postgresql-cfg
+              readOnly: true
+            - name: start-hooks
+              mountPath: /opt/app-root/src/postgresql-start
+              readOnly: true
+      volumes:
+        - name: home
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: run
+          emptyDir:
+            sizeLimit: 1Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: tls
+          secret:
+            secretName: macaron-postgres-tls
+            # Postgres accepts a root-owned key readable by its group (the pod's fsGroup), nothing wider.
+            defaultMode: 0640
+        - name: config
+          configMap:
+            name: macaron-postgres-config
+            items:
+              - key: macaron.conf
+                path: macaron.conf
+        - name: start-hooks
+          configMap:
+            name: macaron-postgres-config
+            items:
+              - key: macaron.sh
+                path: macaron.sh
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: gp3-csi
+        resources:
+          requests:
+            storage: 10Gi

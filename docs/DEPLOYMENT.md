@@ -1,5 +1,7 @@
 # macaron-bot — supply chain and VPS deployment
 
+> The deployment is moving to OpenShift: [DEPLOYMENT-OPENSHIFT.md](DEPLOYMENT-OPENSHIFT.md) (#24). This document describes the VPS, which stays in production until the cutover.
+
 Everything here is public: the repo, the images, and the unit files. So no secret ever lives in git or in GitHub. The VPS pulls its deployment from the public repo, and GitHub never gets SSH or any other credential to the VPS.
 
 ```mermaid

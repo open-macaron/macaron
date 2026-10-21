@@ -1,0 +1,154 @@
+# The controller: holds every credential (DESIGN.md §3). Secrets come from the macaron-controller
+# Secret, operator settings from the macaron-settings ConfigMap (both written by
+# scripts/provision-secrets.sh), config/ from a ConfigMap that scripts/deploy.sh generates.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: macaron-controller
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: macaron-controller
+spec:
+  selector:
+    app.kubernetes.io/name: macaron-controller
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: macaron-controller
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  # Migrations run under an advisory lock and pg-boss coordinates through Postgres: the new pod can
+  # start next to the old one, which keeps serving webhooks until it is ready.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: macaron-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: macaron-controller
+        app.kubernetes.io/component: controller
+    spec:
+      serviceAccountName: macaron-controller
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: controller
+          # Digest only, the same as deploy/quadlets/macaron-controller.container (AGENTS.md "Release and deploy").
+          image: ghcr.io/open-macaron/controller@sha256:8451ae1a4f4bf68c5ddebafff585414debbd7aa5a02ea8eec72015446fff9ffe
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: macaron-settings
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "8080"
+            - name: CONFIG_DIR
+              value: /opt/macaron/config
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-controller
+                  key: database-password
+            # The full service name is the one the serving certificate carries.
+            - name: DATABASE_URL
+              value: postgres://macaron:$(DATABASE_PASSWORD)@macaron-postgres.$(POD_NAMESPACE).svc:5432/macaron?sslmode=verify-full&sslrootcert=/etc/service-ca/service-ca.crt
+            - name: GH_INTERACT
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-controller
+                  key: gh-interact
+            - name: GH_PUSH
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-controller
+                  key: gh-push
+            - name: GH_ORG
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-controller
+                  key: gh-org
+            - name: WEBHOOK_HMAC
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-controller
+                  key: webhook-hmac
+            - name: BIFROST_ADMIN_URL
+              value: http://macaron-bifrost:8080
+            - name: BIFROST_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-controller
+                  key: bifrost-admin-password
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # Migrations, then each LLM backend's start-up checks, before it listens.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              memory: 768Mi
+          volumeMounts:
+            - name: config
+              mountPath: /opt/macaron/config
+              readOnly: true
+            - name: service-ca
+              mountPath: /etc/service-ca
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # deploy.sh replaces this with a generated ConfigMap whose items rebuild config/'s tree.
+        - name: config
+          configMap:
+            name: macaron-config
+        - name: service-ca
+          configMap:
+            name: macaron-service-ca
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

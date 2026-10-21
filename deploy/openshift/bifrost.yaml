@@ -1,0 +1,153 @@
+# Bifrost: per-run virtual keys over the upstream LLM key (DESIGN.md §3). Reached by the edge on its
+# three inference routes and by the controller on its admin API; nothing else.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: macaron-bifrost
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: macaron-bifrost
+spec:
+  selector:
+    app.kubernetes.io/name: macaron-bifrost
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: macaron-bifrost
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  # Spend lives in memory and reaches Postgres every 10 s: never two instances charging the same keys.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: macaron-bifrost
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: macaron-bifrost
+        app.kubernetes.io/component: llm-gateway
+    spec:
+      serviceAccountName: macaron-bifrost
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # config.json from the repository's template and the upstream's URL, which stays in the Secret.
+        - name: render-config
+          image: docker.io/maximhq/bifrost@sha256:8f37e33a8caa85faf59a875605c61d1d934738e517d8fe96e2d9fcf6f0ef9098
+          command:
+            - /bin/sh
+            - -ceu
+            - printf %s "$LLM_UPSTREAM_URL" | sh /etc/bifrost/render-config.sh /app/data/config.json
+          env:
+            - name: PG_SSL_MODE
+              value: require
+            - name: LLM_UPSTREAM_URL
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-bifrost
+                  key: llm-upstream-url
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: files
+              mountPath: /etc/bifrost
+              readOnly: true
+            - name: data
+              mountPath: /app/data
+      containers:
+        - name: bifrost
+          # transports/v2.3.0, the same digest as deploy/quadlets/macaron-bifrost.container.
+          image: docker.io/maximhq/bifrost@sha256:8f37e33a8caa85faf59a875605c61d1d934738e517d8fe96e2d9fcf6f0ef9098
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: LOG_STYLE
+              value: json
+            - name: BIFROST_ADMIN_USERNAME
+              value: macaron
+            - name: LLM_UPSTREAM_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-bifrost
+                  key: llm-upstream-key
+            - name: BIFROST_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-bifrost
+                  key: admin-password
+            - name: BIFROST_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-bifrost
+                  key: db-password
+            # Without it Bifrost stores the upstream LLM key and every virtual key in plain text in Postgres.
+            - name: BIFROST_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-bifrost
+                  key: encryption-key
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # Its first boot runs ~70 s of database migrations before it reports healthy.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: files
+              mountPath: /etc/bifrost
+              readOnly: true
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: files
+          configMap:
+            name: macaron-bifrost-files
+        # Bifrost wants a writable APP_DIR; everything it keeps lives in Postgres.
+        - name: data
+          emptyDir:
+            sizeLimit: 64Mi
