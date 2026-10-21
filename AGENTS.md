@@ -80,6 +80,7 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 - A merge by the knowledge repository's `GITHUB_TOKEN` fails (403) when the branch is behind `main` on `.github/workflows/`.
 - GitHub user-attachments: the upload endpoint needs write access to `repository_id` (404 otherwise) and an asset is private until a saved comment references it.
 - Claude Code's `--json-schema` only knows draft 7: no `$schema` key.
+- Claude Code doesn't bound MCP tool calls by default: a hung server (electron-test-mcp's `evaluate`) left a run silent until GitHub killed the job. The agent's sessions set `MCP_TOOL_TIMEOUT` (`agent-cli/src/harness.ts`).
 - Bifrost: a model without a price is charged $0 (prices are pinned in `deploy/bifrost/pricing.json`); budgets and per-key rate limits are counted after requests, so only the provider-wide concurrency cap bounds a burst; empty lists come back as `null`; virtual keys need `key_ids: ["*"]` to use the provider's keys.
 - Caddy's `path` matcher ignores case and cleans the path: rewrite matched requests to their canonical upstream path rather than forwarding the client's.
 - VPS quadlets use `UserNS=auto`: a container can get another host ID range each time it starts, so a named volume needs `:U` (Caddy once lost its certificates that way, and every TLS handshake failed).

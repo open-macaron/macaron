@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CommitSha, PublishedLesson, RunKnowledge } from "@open-macaron/contracts";
 import { afterEach, describe, expect, it } from "vitest";
-import { claudeArgs } from "../src/harness.ts";
+import { claudeArgs, claudeEnvironment } from "../src/harness.ts";
 import { skillName, writeSkills } from "../src/skills.ts";
 
 const lesson = (scope: string, slug: string, description?: string) =>
@@ -65,5 +65,12 @@ describe("claudeArgs", () => {
   it("adds the skills directory only when the run has lessons", () => {
     expect(claudeArgs({ model: "m", systemPromptFile: "/p.md", skillsDir: "/tmp/macaron-knowledge" }).slice(-2)).toEqual(["--add-dir", "/tmp/macaron-knowledge"]);
     expect(claudeArgs({ model: "m", systemPromptFile: "/p.md" })).not.toContain("--add-dir");
+  });
+});
+
+describe("claudeEnvironment", () => {
+  it("bounds every MCP tool call, so a hung server can't stall the run", () => {
+    const env = claudeEnvironment({ baseUrl: "https://llm.example", key: "k", fastModel: "f" }, "m");
+    expect(env["MCP_TOOL_TIMEOUT"]).toBe("120000");
   });
 });

@@ -15,6 +15,14 @@ const CLAUDE_CODE_VERSION = "2.1.296";
 const MAX_OUTPUT_TOKENS = "16000";
 
 /**
+ * Bound on one MCP tool call, in ms. Claude Code's default is effectively unbounded, and an
+ * environment's server can hang (electron-test-mcp's `evaluate` awaits the page's promise with no
+ * deadline): the job then sits silent until GitHub kills it. Timed out, the agent gets an error and
+ * carries on.
+ */
+const MCP_TOOL_TIMEOUT_MS = "120000";
+
+/**
  * Installs the harness into the run's private tools directory, not globally: the repository's
  * environment may switch Node.js versions afterwards, and must not change which harness runs.
  */
@@ -103,6 +111,7 @@ export function claudeEnvironment(llm: LlmAccess, model: string): NodeJS.Process
     ANTHROPIC_DEFAULT_HAIKU_MODEL: llm.fastModel,
     CLAUDE_CODE_SUBAGENT_MODEL: model,
     CLAUDE_CODE_MAX_OUTPUT_TOKENS: MAX_OUTPUT_TOKENS,
+    MCP_TOOL_TIMEOUT: MCP_TOOL_TIMEOUT_MS,
     DISABLE_AUTOUPDATER: "1",
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
   };
