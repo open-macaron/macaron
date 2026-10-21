@@ -16,7 +16,6 @@ import { decideMode, parseMention } from "./triggers.ts";
 
 /** How long a thread waits when every runner slot is taken. */
 const BUSY_RETRY_MS = 120_000;
-const NEEDS_GUI: ReadonlySet<Mode> = new Set<Mode>(["reproduce", "verify"]);
 
 /** A request to route: a mode, asked on a subject, by a trigger, for a platform. */
 interface Request {
@@ -154,9 +153,6 @@ export class ThreadWorker implements OnApplicationBootstrap {
   private async start(config: RepoConfig, thread: ThreadRecord, routed: Route, trigger: Trigger): Promise<LaunchOutcome> {
     const platform = platformOf(routed);
     if (runnerFor(config, platform) === undefined) return { kind: "refused", reason: `\`${platform}\` isn't enabled for this repository` };
-    if (NEEDS_GUI.has(routed.mode) && !config.capabilities.includes("gui")) {
-      return { kind: "refused", reason: `this repository's environment can't run the application yet, so \`${routed.mode}\` isn't available` };
-    }
     const context = await this.contexts.build(config, thread, routed, trigger);
     // Nothing to check: no runner, no cost.
     if (context.review?.rules.length === 0) {

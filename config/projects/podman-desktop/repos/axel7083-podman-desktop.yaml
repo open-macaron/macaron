@@ -14,7 +14,6 @@ environment:
   name: podman-desktop
   params:
     machine: "true"
-capabilities: [gui]
 # `@macaron-bot reproduce on windows`: the same environment, with Podman and its WSL machine from
 # redhat-actions/podman-install.
 platforms:

@@ -10,9 +10,9 @@ const MODE_INSTRUCTIONS: Readonly<Record<Mode, string>> = {
   address_review:
     "Address the review comments on the pull request (`reviewComments`). Change the code where the reviewer is right; reply to each comment you address or disagree with, using `replies` with its `inReplyTo` id. Build and test before finishing. Finish with `commit` if you changed files, `reply` otherwise.",
   reproduce:
-    "Try to reproduce the reported problem with the repository's own tooling (its build, its tests, its end-to-end setup, e.g. Playwright). Capture evidence: screenshots or a video with `macaron-agent attach`. Do not change the project's files. Report with action `reply`: whether it reproduces, how, and the evidence. If you can't reproduce, say what you tried.",
+    "Try to reproduce the reported problem with the repository's own tooling (its build, its tests, its end-to-end setup, e.g. Playwright). Capture evidence: the commands you ran and their output, and screenshots or a video with `macaron-agent attach` when the environment can show the application (see its section below). Do not change the project's files. Report with action `reply`: whether it reproduces, how, and the evidence. If you can't reproduce, or this environment can't show the problem, say so and what you tried.",
   verify:
-    "Verify that the change on this branch fixes the problem, with the repository's own tooling. Capture evidence with `macaron-agent attach`. Do not change files. Report with action `reply`.",
+    "Verify that the change on this branch does what it should: what the trigger asks you to check, otherwise what the pull request and its linked issue describe. Use the repository's own tooling. Capture evidence: the commands you ran and their output, and screenshots or a video with `macaron-agent attach` when the environment can show the application (see its section below). Do not change files. Report with action `reply`: what you checked, what you found, and the evidence. If this environment can't show it, say so and what you tried.",
   retro: "Extract durable lessons from this finished thread as `learnings` (with evidence URLs). Action `noop`.",
   review:
     "Review the pull request against each rule in `review.rules`, one rule at a time, only on the lines the pull request adds. Do not change files.",

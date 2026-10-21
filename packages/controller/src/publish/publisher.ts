@@ -224,7 +224,7 @@ export class Publisher {
     await this.reactions.finish(thread.id, run.loop, upstream, "+1");
   }
 
-  /** No run happened (a route, caps, pause, missing capability): a reply where it was asked, 😕. */
+  /** No run happened (a route, caps, pause): a reply where it was asked, 😕. */
   async reportRefusal(thread: ThreadRecord, subject: Subject, reason: string): Promise<void> {
     const upstream = repoRef(thread.repo);
     await this.post(() => this.writer.comment(upstream, subject.number, `**macaron-bot** · not started\n\n😕 ${reason}`));

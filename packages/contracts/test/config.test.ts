@@ -15,7 +15,6 @@ const global = GlobalFile.parse({
     caps: { perThreadUsd: 20, perRepoMonthUsd: 150, reviewLoops: 6, botReviewLoops: 2, openPrs: 3 },
     environment: { source: "shared", name: "generic", params: {} },
     commands: {},
-    capabilities: [],
     contribution: { dco: false, fixCi: false },
   },
   routerModel: "anthropic/claude-haiku-5.5",

@@ -6,15 +6,12 @@ export type Mode = z.infer<typeof Mode>;
 export const Harness = z.enum(["claude", "codex", "opencode"]);
 export type Harness = z.infer<typeof Harness>;
 
-export const Capability = z.enum(["gui", "video", "container"]);
-
 /**
  * The operating system a run's machine has. Linux is every repository's default; the others are
  * opt-in per repository, for issues that only happen there.
  */
 export const Platform = z.enum(["linux", "windows", "macos"]);
 export type Platform = z.infer<typeof Platform>;
-export type Capability = z.infer<typeof Capability>;
 
 /**
  * Actions a run may return, and which modes may return them. The Gate enforces this table.

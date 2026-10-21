@@ -1,7 +1,7 @@
 import { deepmergeCustom } from "deepmerge-ts";
 import { z } from "zod";
 import { GitHubLogin, RepoSlug, Slug, Usd } from "./ids.ts";
-import { Capability, Harness, Mode, Platform } from "./mode.ts";
+import { Harness, Mode, Platform } from "./mode.ts";
 
 const Params = z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/), z.string());
 
@@ -100,7 +100,6 @@ export const RepoSettings = z.strictObject({
   caps: Caps,
   environment: Environment,
   commands: Commands,
-  capabilities: z.array(Capability),
   contribution: Contribution,
 });
 export type RepoSettings = z.infer<typeof RepoSettings>;
@@ -120,7 +119,6 @@ export const RepoSettingsPatch = z.strictObject({
   caps: Caps.partial().optional(),
   environment: EnvironmentPatch.optional(),
   commands: Commands.optional(),
-  capabilities: z.array(Capability).optional(),
   contribution: Contribution.partial().optional(),
 });
 export type RepoSettingsPatch = z.infer<typeof RepoSettingsPatch>;

@@ -14,13 +14,11 @@ describe("the committed config/ tree", () => {
     expect(snapshot.repos.get("axel7083/extension-podman-quadlet")).toMatchObject({
       project: "podman-desktop-extensions",
       runsOn: "ubuntu-26.04",
-      capabilities: ["gui"],
       environment: { source: "shared", name: "podman-desktop-extensions" },
       models: { review: "claude-sonnet-5-5" },
     });
     expect(snapshot.repos.get("podman-desktop/podman-desktop")).toMatchObject({
       project: "podman-desktop",
-      capabilities: [],
       budgets: { review: 1, implement: 5 },
       reviewCost: { baseUsd: 0.1, perRuleUsd: 0.04 },
       contribution: { dco: true },
@@ -30,7 +28,6 @@ describe("the committed config/ tree", () => {
       project: "podman-desktop",
       fork: "2elnuw-podman-desktop",
       environment: { source: "shared", name: "podman-desktop", params: { machine: "true" } },
-      capabilities: ["gui"],
       platforms: { windows: { runsOn: "windows-2025" } },
     });
     expect(snapshot.repos.get("podman-desktop/podman-desktop")?.platforms).toEqual({});

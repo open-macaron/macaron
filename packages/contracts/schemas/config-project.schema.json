@@ -262,17 +262,6 @@
           },
           "additionalProperties": false
         },
-        "capabilities": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [
-              "gui",
-              "video",
-              "container"
-            ]
-          }
-        },
         "contribution": {
           "type": "object",
           "properties": {

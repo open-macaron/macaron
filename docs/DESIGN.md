@@ -160,7 +160,7 @@ Behaviour notes:
 - Run modes:
   - `triage`: read-only, no setup step, small budget. It answers questions in a thread.
   - `plan`, `implement`, `address_review`: full environment.
-  - `reproduce` (on the default branch) and `verify` (on the pull request): full environment, **no commit**. They reply with evidence such as screenshots and videos (see "Evidence" below). `@macaron-bot can you reproduce?` routes here.
+  - `reproduce` (on the default branch) and `verify` (on the pull request): full environment, **no commit**. They reply with evidence: commands and their output, and screenshots or videos where the environment can show the application (see "Evidence" below). `@macaron-bot can you reproduce?` routes here.
   - A run may return `escalate`, in which case `complete()` launches the next run in the requested mode.
   - Explicit commands (`@macaron-bot implement`, `/plan`, `/stop`) skip the Router.
   - `@macaron-bot retry` runs the thread's last failed or stopped loop again, with the same mode, trigger and platform. It is refused when the last loop succeeded. Each failure's status comment says so.
@@ -345,7 +345,7 @@ flowchart LR
 
   The controller only checks magic bytes and sizes. It never decodes or transcodes media, so it doesn't parse untrusted files.
 - **Videos (later):** `ffmpeg -f x11grab` on the virtual display, uploaded the same way.
-- **Capability-gated.** A repo's config declares `capabilities: [gui]`. Without it, `reproduce` and `verify` are refused: the environment can't run the app yet.
+- **On every repository.** `reproduce` and `verify` aren't gated on what an environment can show: a CLI needs no display, and each environment's action decides what it sets up. The environment's instructions tell the agent what it can show, and the agent says so when it can't show the problem.
 - **On every platform the repo enables.** One environment action covers them all, with platform-specific steps under `if: runner.os == 'Windows'`. On Windows the app runs on the runner's desktop session (no virtual display) and Podman comes with a WSL machine (redhat-actions/podman-install). Hosted macOS runners have no nested virtualization, so no Podman machine: macOS waits for a runner of our own.
 
 ### Operating as an outside contributor

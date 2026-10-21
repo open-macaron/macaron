@@ -97,7 +97,6 @@ interface RepoConfig {
   runsOn: string; harness: Harness; model: string;
   platforms: { windows?: { runsOn: string }; macos?: { runsOn: string } };   // opt-in: `@macaron-bot reproduce on windows`
   commands: { build?: string; test?: string; lint?: string };   // used by env-check and given to the agent
-  capabilities: readonly ("gui" | "video" | "container")[];   // proven by env-check; gates reproduce/verify
   contribution: { dco: boolean; cla?: string; fixCi: boolean };   // outside-contributor requirements (DESIGN.md)
   budgets: Record<Mode, number>; caps: Caps;
   users: readonly string[]; bots: readonly string[];
