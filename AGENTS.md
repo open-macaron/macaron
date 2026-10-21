@@ -41,6 +41,7 @@ Integration tests (`controller-integration`) need a container runtime (Testconta
 - **Dependencies** go in the `catalog:` of `pnpm-workspace.yaml`, pinned. `minimumReleaseAge` is 3 days: a version younger than that fails the install, so pick the newest that has matured.
 - **Comments** explain why, at the density of the surrounding code. No narration of what the code does.
 - **`process.env`** is read only in the validated env modules (`config/env.ts`, `agent-cli/src/inputs.ts`).
+- **Leave the code better, within scope.** Never include a fix outside your task. When you find a problem, something to improve or an idea, open an issue on open-macaron/macaron (`gh issue create`) with the matching label (`bug`, `enhancement`, `documentation`).
 
 ## Generated code (CI fails on drift)
 
