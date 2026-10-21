@@ -28,7 +28,7 @@ value() {
 }
 
 # A key of an existing Secret, or nothing.
-current() { oc get secret "$1" -o "jsonpath={.data.$2}" 2>/dev/null | base64 -d; }
+current() { { oc get secret "$1" -o "jsonpath={.data.$2}" 2>/dev/null || true; } | base64 -d; }
 
 # name, then key=file pairs (process substitutions).
 apply_secret() {
