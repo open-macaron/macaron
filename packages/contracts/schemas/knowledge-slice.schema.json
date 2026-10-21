@@ -106,6 +106,11 @@
           "topic": {
             "type": "string"
           },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
           "appliesTo": {
             "anyOf": [
               {

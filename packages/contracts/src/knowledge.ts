@@ -54,9 +54,16 @@ export type RuleFrontMatter = z.infer<typeof RuleFrontMatter>;
 /** The level-2 headings every rule has, in this order: what the reviewing model is given. */
 export const RULE_SECTIONS = ["Check", "Violation", "Not a violation", "Examples"] as const;
 
-/** Front matter of `lessons/<slug>.md`. */
+/**
+ * What a lesson covers and when it matters: an Agent Skill's `description`, from which harnesses decide
+ * to load the lesson. Optional while lessons without one exist; the topic stands in for it.
+ */
+export const LessonDescription = z.string().min(1).max(1_024);
+
+/** Front matter of `lessons/<slug>.md`. A lesson is an Agent Skill: its slug is the skill's name. */
 export const LessonFrontMatter = z.strictObject({
   topic: z.string().min(1).max(120),
+  description: LessonDescription.optional(),
   applies_to: z.array(Glob).min(1).optional(),
   /** Evidence: a lesson without a source can't be reviewed. */
   sources: z.array(HttpsUrl).min(1),
@@ -86,6 +93,7 @@ export const PublishedLesson = z.strictObject({
   id: z.string().min(1),
   scope: KnowledgeScope,
   topic: z.string(),
+  description: LessonDescription.optional(),
   appliesTo: z.array(Glob).nullable(),
   sources: z.array(HttpsUrl),
   lastVerified: z.iso.date(),
@@ -117,7 +125,7 @@ export const KnowledgeIndex = z.strictObject({
       /** Relative to the index, e.g. `projects/sandbox.json`. */
       path: z.string(),
       rules: z.array(PublishedRule.pick({ id: true, title: true, severity: true, appliesTo: true })),
-      lessons: z.array(PublishedLesson.pick({ id: true, topic: true })),
+      lessons: z.array(PublishedLesson.pick({ id: true, topic: true, description: true })),
     }),
   ),
 });

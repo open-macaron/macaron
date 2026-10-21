@@ -26,7 +26,7 @@ export async function publish(tree: KnowledgeTree, commit: CommitSha, outDir: st
       kind: folder.kind,
       path,
       rules: slice.rules.map(({ id, title, severity, appliesTo }) => ({ id, title, severity, appliesTo })),
-      lessons: slice.lessons.map(({ id, topic }) => ({ id, topic })),
+      lessons: slice.lessons.map(({ id, topic, description }) => ({ id, topic, description })),
     });
   }
   await write("v1/index.json", KnowledgeIndex.parse({ version: 1, commit, slices }));
@@ -61,6 +61,7 @@ function sliceOf(folder: Folder, commit: CommitSha): KnowledgeSlice {
     id: lesson.id,
     scope: folder.scope,
     topic: lesson.frontMatter.topic,
+    description: lesson.frontMatter.description,
     appliesTo: lesson.frontMatter.applies_to ?? null,
     sources: lesson.frontMatter.sources,
     lastVerified: lesson.frontMatter.last_verified,

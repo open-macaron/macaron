@@ -478,7 +478,7 @@ const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 ```
 ````
 
-Lessons carry `topic`, optional `applies_to`, `sources`, `last_verified` and `confidence`.
+Lessons carry `topic`, `description`, optional `applies_to`, `sources`, `last_verified` and `confidence`. A lesson is an [Agent Skill](https://agentskills.io): its slug is the skill's name and `description` (at most 1024 characters) says what it covers and when it matters. Claude Code, Codex and OpenCode keep only names and descriptions in context and load a lesson's body when the agent asks for it, so runs carry every lesson without growing their prompts. `description` is optional until every lesson has one; the topic stands in for it.
 
 ### 6.3 Using rules
 

@@ -31,6 +31,7 @@ const pkg = JSON.parse(await readFile('package.json', 'utf8'));
 `;
 const LESSON = `---
 topic: Building
+description: How to build the project, and what the build checks. Use before running or changing the build.
 sources: ["https://github.com/axel7083/foobar-tmp-demo/pull/2"]
 last_verified: 2026-10-15
 confidence: high
@@ -71,6 +72,17 @@ describe("loadTree", () => {
     expect(loaded.folders.map((folder) => folder.path)).toEqual(["global", "projects/sandbox", "repos/axel7083/foobar-tmp-demo"]);
     expect(loaded.folders[1]?.rules.map((rule) => rule.id).sort()).toEqual(["sandbox/no-runtime-json-read", "sandbox/tests/prefer-reset-all-mocks"]);
     expect(loaded.folders[2]?.lessons.map((lesson) => lesson.id)).toEqual(["axel7083/foobar-tmp-demo/lessons/building"]);
+  });
+
+  it("accepts lessons without a description, and refuses one longer than a skill's", async () => {
+    const withoutDescription = LESSON.replace(/^description: .*\n/m, "");
+    const loaded = await loadTree(await tree({ ...valid, "repos/axel7083/foobar-tmp-demo/lessons/building.md": withoutDescription }));
+    expect(loaded.problems).toEqual([]);
+    expect(loaded.folders[2]?.lessons[0]?.frontMatter.description).toBeUndefined();
+
+    const tooLong = LESSON.replace(/^description: .*$/m, `description: ${"x".repeat(1_025)}`);
+    const refused = await loadTree(await tree({ ...valid, "repos/axel7083/foobar-tmp-demo/lessons/building.md": tooLong }));
+    expect(refused.problems.map((problem) => problem.path)).toEqual(["repos/axel7083/foobar-tmp-demo/lessons/building.md"]);
   });
 
   it("reports every problem with its file", async () => {
@@ -141,5 +153,9 @@ describe("publish", () => {
     const repo = KnowledgeSlice.parse(JSON.parse(await readFile(join(out, "v1/repos/axel7083/foobar-tmp-demo.json"), "utf8")));
     expect(repo.overview).toBe("# foobar-tmp-demo");
     expect(repo.lessons[0]?.body).toBe("`npm run build` type-checks with tsc before bundling.");
+    expect(repo.lessons[0]?.description).toBe("How to build the project, and what the build checks. Use before running or changing the build.");
+    expect(index.slices.find((slice) => slice.kind === "repo")?.lessons).toEqual([
+      { id: "axel7083/foobar-tmp-demo/lessons/building", topic: "Building", description: "How to build the project, and what the build checks. Use before running or changing the build." },
+    ]);
   });
 });
