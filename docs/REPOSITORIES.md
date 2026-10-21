@@ -50,7 +50,7 @@ How `run.yml` gets the agent-cli:
 | Token (on the VPS) | Type and owner | Permissions | Used for |
 |---|---|---|---|
 | `GH_INTERACT` | classic PAT of macaron-bot | `public_repo`, `notifications` | Comments, reactions, PRs and notifications on **upstream** repos. The org blocks classic PATs, so this token can't touch `open-macaron/*` |
-| `GH_PUSH` | fine-grained, owner `macaron-bot`, all repositories | Contents: write | `git push` to forks only (macaron-bot owns nothing else). No Workflows or Administration permission |
+| `GH_PUSH` | fine-grained, owner `macaron-bot`, all repositories | Contents: write | `git push` to forks only (macaron-bot owns nothing else), including `macaron-bot/knowledge`. No Workflows or Administration permission: the controller syncs a fork before branching on it, so a new branch never brings upstream workflow changes into the fork |
 | `GH_ORG` | fine-grained, owner `open-macaron`, repositories `runner` and `knowledge`, approved by an org owner | `runner`: Actions read and write. `knowledge`: Pull requests read and write | Start and cancel runs; open and update the `remember:` proposals from `macaron-bot/knowledge` (the org blocks the classic `GH_INTERACT`). Artifacts use `GH_INTERACT` (public reads). A GitHub App could replace this token later, to avoid manual renewal |
 
 Forking and disabling Actions on a fork happen at onboarding (§5). `GH_INTERACT` can do both, because the bot owns its forks; GitHub enables Actions on new forks, so onboarding must switch them off.

@@ -19,18 +19,17 @@ export class BranchMoved extends Error {
 export class ForkCommitter {
   constructor(@Inject(GH_PUSH) private readonly gh: GitHub) {}
 
-  /** Head of `branch` on the fork, creating the branch at `baseSha` if it does not exist. */
+  /**
+   * Head of `branch` on the fork, creating the branch at `baseSha` if it does not exist. The fork's
+   * `syncFrom` branch is synced from upstream first: a new ref that brings upstream commits touching
+   * `.github/workflows/` into the fork needs the Workflows permission, which GH_PUSH doesn't have,
+   * while syncing a fork needs Contents only. Once synced, the new ref brings nothing new.
+   */
   async ensureBranch(fork: RepoRef, branch: string, baseSha: string, syncFrom: string): Promise<string> {
     const head = await this.head(fork, branch);
     if (head !== undefined) return head;
-    try {
-      await this.gh.rest.git.createRef({ ...fork, ref: `refs/heads/${branch}`, sha: baseSha });
-    } catch (error: unknown) {
-      // The fork may not have the base commit yet: sync its default branch, then retry once.
-      if (httpStatus(error) !== 422) throw error;
-      await this.gh.rest.repos.mergeUpstream({ ...fork, branch: syncFrom });
-      await this.gh.rest.git.createRef({ ...fork, ref: `refs/heads/${branch}`, sha: baseSha });
-    }
+    await this.gh.rest.repos.mergeUpstream({ ...fork, branch: syncFrom });
+    await this.gh.rest.git.createRef({ ...fork, ref: `refs/heads/${branch}`, sha: baseSha });
     return baseSha;
   }
 

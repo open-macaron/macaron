@@ -79,6 +79,7 @@ function github(options: { existing?: readonly string[]; changed?: readonly stri
       return HttpResponse.json({});
     }),
     http.get(`${FORK}/git/ref/*`, () => HttpResponse.json({ message: "Not Found" }, { status: 404 })),
+    http.post(`${FORK}/merge-upstream`, () => HttpResponse.json({ merge_type: "fast-forward" })),
     http.post(`${FORK}/git/refs`, async ({ request }) => {
       const { ref } = z.object({ ref: z.string() }).parse(await request.json());
       recorded.refs.push(ref);
