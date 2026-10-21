@@ -128,7 +128,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
         url: last.url,
         instruction: (parseMention(last.body, login)?.instruction ?? last.body).slice(0, 4_096),
       };
-      request = { subject, mode: command, trigger, platform: platform ?? "linux" };
+      request = { subject, mode: command === "remember" ? "retro" : command, trigger, platform: platform ?? "linux" };
     }
 
     const outcome = await this.routeAndStart(config, thread, state, request);

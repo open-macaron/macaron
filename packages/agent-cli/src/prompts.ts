@@ -13,7 +13,8 @@ const MODE_INSTRUCTIONS: Readonly<Record<Mode, string>> = {
     "Try to reproduce the reported problem with the repository's own tooling (its build, its tests, its end-to-end setup, e.g. Playwright). Capture evidence: the commands you ran and their output, and screenshots or a video with `macaron-agent attach` when the environment can show the application (see its section below). Do not change the project's files. Report with action `reply`: whether it reproduces, how, and the evidence. If you can't reproduce, or this environment can't show the problem, say so and what you tried.",
   verify:
     "Verify that the change on this branch does what it should: what the trigger asks you to check, otherwise what the pull request and its linked issue describe. Use the repository's own tooling. Capture evidence: the commands you ran and their output, and screenshots or a video with `macaron-agent attach` when the environment can show the application (see its section below). Do not change files. Report with action `reply`: what you checked, what you found, and the evidence. If this environment can't show it, say so and what you tried.",
-  retro: "Extract durable lessons from this finished thread as `learnings` (with evidence URLs). Action `noop`.",
+  retro:
+    "A trusted user asked you to remember something for future work on this project (the trigger, `remember: …`). Check the claim against the code, the thread and the existing lessons. Then propose it as `learnings`, each a complete lesson future runs will load as a skill: `topic`; `description` (what it covers and when it matters, front-loading the words a future task would match, at most 1024 characters); `text` (the lesson in concise Markdown: the facts, and how to check them again); `evidence` (the trigger's URL, or a better source you found); `scope` (`repo` for this repository only, `project` for every repository of the project, `global` for any project). Revise rather than duplicate: when an existing lesson covers the topic, load it and set `updates` to its id, with its whole revised text. Leave out what the code or its documentation already says plainly. If the claim is wrong or can't be checked, propose nothing and explain why in `summary`. Do not change files. Action `noop`; `summary` says what you proposed.",
   review:
     "Review the pull request against each rule in `review.rules`, one rule at a time, only on the lines the pull request adds. Do not change files.",
 };
@@ -34,9 +35,9 @@ function platformChoice(context: RunContext): string {
 /** Where the lessons come from: their bodies are skills, loaded when their description matches. */
 function knowledgeSection(context: RunContext): string {
   const { commit, lessons } = context.knowledge;
-  if (lessons.length === 0) return "";
+  if (lessons.length === 0) return context.mode === "retro" ? "\n## Lessons\nThis repository has no lessons yet.\n" : "";
   const origin = commit === null ? "open-macaron/knowledge" : `open-macaron/knowledge@${commit}`;
-  return `\n## Lessons\nWhat earlier work on this project taught is available as ${String(lessons.length)} skill${lessons.length === 1 ? "" : "s"} (lessons from ${origin}). Load one when its description matches what you are doing, and trust the code over a lesson that disagrees with it.\n`;
+  return `\n## Lessons\nWhat earlier work on this project taught is available as ${String(lessons.length)} skill${lessons.length === 1 ? "" : "s"} (lessons from ${origin}). Load one when its description matches what you are doing, and trust the code over a lesson that disagrees with it.\n${context.mode === "retro" ? `Their ids, for \`updates\`:\n${lessons.map((lesson) => `- \`${lesson.id}\`: ${lesson.topic}`).join("\n")}\n` : ""}`;
 }
 
 /** Appended to the harness's own system prompt. */

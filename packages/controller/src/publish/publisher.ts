@@ -13,6 +13,7 @@ import { renderReview, withReviewCost } from "../review/render.ts";
 import type { RuleResult } from "@open-macaron/review";
 import { Route, type Subject, subjectOfRun } from "../routing/routes.ts";
 import { EvidenceHost } from "./evidence-host.ts";
+import { KnowledgeProposer } from "../knowledge/knowledge-proposer.ts";
 import { ForkCommitter } from "./fork-committer.ts";
 import type { Publishable } from "./gate.ts";
 import { type CostRow, type LoopState, renderCostTable, resolveAttachments, sanitize, spentLine, statusHeader, upsertCostSection, withSpentLine } from "./markdown.ts";
@@ -73,6 +74,7 @@ export class Publisher {
     private readonly bot: BotIdentity,
     private readonly reactions: ReactionTargets,
     private readonly evidence: EvidenceHost,
+    private readonly proposer: KnowledgeProposer,
   ) {}
 
   async publish(input: PublishInput): Promise<void> {
@@ -138,9 +140,30 @@ export class Publisher {
       await this.post(() => this.runs.once(thread.id, run.loop, "message", () => this.writer.comment(upstream, subject.number, clean(message))));
     }
 
-    await this.updateStatus(thread, subject, run, `✅ ${clean(result.summary)}`, input.runUrl);
+    const proposed = run.mode === "retro" && result.learnings.length > 0 ? await this.proposeLessons(input) : "";
+    await this.updateStatus(thread, subject, run, `✅ ${clean(result.summary)}${proposed}`, input.runUrl);
     await this.updateCostTable(thread);
     await this.reactions.finish(thread.id, run.loop, upstream, "+1");
+  }
+
+  /**
+   * A `remember:` run's learnings, proposed to open-macaron/knowledge once per loop; learnings of
+   * other runs are ignored. Returns the status comment's line about it. A failure there doesn't undo
+   * the run: the status says so.
+   */
+  private async proposeLessons(input: PublishInput): Promise<string> {
+    const { run, thread, config, publishable } = input;
+    try {
+      const urls =
+        (await this.runs.once(thread.id, run.loop, "knowledge", async () => {
+          const proposed = await this.proposer.propose({ context: run.context, config, learnings: publishable.result.learnings, runUrl: input.runUrl, runId: run.id });
+          return proposed.join(" ");
+        })) ?? (await this.runs.effect(thread.id, run.loop, "knowledge"));
+      return urls === null || urls === undefined || urls === "" ? "" : `\n\nProposed to open-macaron/knowledge: ${urls.split(" ").join(", ")}`;
+    } catch (error: unknown) {
+      this.logger.error(`proposing the lessons of run ${run.id} failed: ${describeError(error)}`);
+      return "\n\n⚠️ The lessons couldn't be proposed to open-macaron/knowledge; maintainers have been notified.";
+    }
   }
 
   /** The run failed or was refused: say so briefly in the status comment, react 😕. */

@@ -150,6 +150,13 @@ describe("prompts", () => {
     const lesson = { id: "global/lessons/building", scope: "global", topic: "Building", appliesTo: null, sources: ["https://example.org/x"], lastVerified: "2026-10-21", confidence: "high", body: "b" };
     const withLessons = RunContext.parse({ ...context, knowledge: { commit: "a".repeat(40), lessons: [lesson] } });
     expect(systemPrompt(withLessons, "/out")).toContain(`available as 1 skill (lessons from open-macaron/knowledge@${"a".repeat(40)})`);
+    expect(systemPrompt(withLessons, "/out")).not.toContain("Their ids");
+
+    // remember: needs the ids to revise a lesson, and says so when there is none yet.
+    const retro = systemPrompt({ ...withLessons, mode: "retro" }, "/out");
+    expect(retro).toContain("Their ids, for `updates`:\n- `global/lessons/building`: Building");
+    expect(retro).toContain("set `updates` to its id");
+    expect(systemPrompt({ ...context, mode: "retro" }, "/out")).toContain("This repository has no lessons yet.");
   });
 
   it("tell the agent its platform, and triage where it may escalate to", async () => {

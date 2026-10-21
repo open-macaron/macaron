@@ -94,6 +94,8 @@ const pullRequestOnly: Rule = {
 export const ROUTES: Readonly<Record<SubjectKind, Readonly<Partial<Record<Mode, Rule>>>>> = {
   issue: {
     triage: fromDefaultBranch,
+    // `remember:`: the code as its users have it, to check the claim against.
+    retro: fromDefaultBranch,
     plan: fromDefaultBranch,
     reproduce: fromDefaultBranch,
     // A fresh attempt: a new branch from the default branch, superseding the bot's open pull request.
@@ -103,6 +105,7 @@ export const ROUTES: Readonly<Record<SubjectKind, Readonly<Partial<Record<Mode, 
   },
   ownPullRequest: {
     triage: fromBotBranch,
+    retro: fromBotBranch,
     address_review: fromBotBranch,
     verify: fromBotBranch,
     review: fromPullRequestHead,
@@ -112,6 +115,7 @@ export const ROUTES: Readonly<Record<SubjectKind, Readonly<Partial<Record<Mode, 
   },
   pullRequest: {
     triage: fromPullRequestHead,
+    retro: fromPullRequestHead,
     verify: fromPullRequestHead,
     review: fromPullRequestHead,
     implement: issueOnly,

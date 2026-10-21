@@ -37,6 +37,8 @@ const RawEnv = z.object({
   RUNNER_REPO_ID: z.coerce.number().int().positive(),
   RUNNER_OWNER_ID: z.coerce.number().int().positive(),
   RUNNER_WORKFLOW: z.string().regex(/^[a-z0-9-]+\.ya?ml$/).default("run.yml"),
+  /** Where `remember:` proposals go, as pull requests from the bot's fork of it. */
+  KNOWLEDGE_REPO: RepoSlug.default(RepoSlug.parse("open-macaron/knowledge")),
   /** open-macaron/knowledge's read API on GitHub Pages (DESIGN.md §6.5). */
   KNOWLEDGE_URL: z.url({ protocol: /^https$/ }).default("https://open-macaron.github.io/knowledge/v1"),
 

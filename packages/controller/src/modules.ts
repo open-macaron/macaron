@@ -21,6 +21,7 @@ import { Jobs } from "./jobs/jobs.ts";
 import { EvidenceHost } from "./publish/evidence-host.ts";
 import { ForkCommitter } from "./publish/fork-committer.ts";
 import { Publisher } from "./publish/publisher.ts";
+import { KnowledgeProposer } from "./knowledge/knowledge-proposer.ts";
 import { ReactionTargets } from "./publish/reaction-targets.ts";
 import { UpstreamWriter } from "./publish/upstream-writer.ts";
 import { KnowledgeClient } from "./review/knowledge-client.ts";
@@ -68,7 +69,7 @@ export class BudgetModule {}
 
 /** Everything that writes to GitHub. */
 @Module({
-  providers: [ForkCommitter, UpstreamWriter, ReactionTargets, EvidenceHost, Publisher],
+  providers: [ForkCommitter, UpstreamWriter, ReactionTargets, EvidenceHost, KnowledgeProposer, Publisher],
   exports: [ForkCommitter, UpstreamWriter, ReactionTargets, Publisher],
 })
 export class PublishModule {}

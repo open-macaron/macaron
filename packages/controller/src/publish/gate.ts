@@ -71,6 +71,12 @@ export async function gate(input: GateInput): Promise<Verdict> {
     violations.push(`changes are only accepted with action "commit", got "${result.action}"`);
   }
 
+  // A revision may only target a lesson the run was given.
+  const lessons = new Set(context.knowledge.lessons.map((lesson) => lesson.id));
+  for (const learning of result.learnings) {
+    if (learning.updates !== undefined && !lessons.has(learning.updates)) violations.push(`learning updates unknown lesson ${learning.updates}`);
+  }
+
   // Replies may only target comments the agent was shown.
   const known = new Set([...context.thread.map((comment) => comment.id), ...context.reviewComments.map((comment) => comment.id)]);
   for (const reply of result.replies) {

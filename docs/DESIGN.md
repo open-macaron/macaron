@@ -276,7 +276,7 @@ The controller has three GitHub tokens, all stored as Podman secrets. Exact scop
 |---|---|---|
 | `GH_PUSH` | fine-grained PAT, owner macaron-bot | Contents write on its repos, which are only forks; no Workflows permission |
 | `GH_INTERACT` | classic `public_repo` PAT | Comments, reactions, PRs, notifications on upstream repos; blocked from `open-macaron` by org policy |
-| `GH_ORG` | fine-grained PAT, owner open-macaron | `runner` only: Actions write (start and cancel runs) |
+| `GH_ORG` | fine-grained PAT, owner open-macaron | `runner`: Actions write (start and cancel runs); `knowledge`: Pull requests write (`remember:` proposals) |
 
 ### Harness contract (`harness/<name>/run.sh`, `packages/contracts`)
 
@@ -562,8 +562,8 @@ One file per folder, not pre-merged: which project a repository belongs to is ma
 
 ### 6.6 Gathering lessons
 
-- **Gather:** every run emits `learnings[]`, each with evidence such as a review comment URL. A `retro` run starts when a PR is merged or closed and extracts lessons from the full review thread; reviewer corrections are the highest-signal input. Trusted users can also write `@macaron-bot remember: …`.
-- **Propose:** agent output is untrusted, and a poisoned knowledge base would be a persistent attack, so learnings are never written directly. The Publisher appends them to a PR from `macaron-bot/knowledge` per folder, and that folder's owners approve it (§6.4). A weekly `garden` run proposes dedupes, prunes stale lessons and suggests promotions to rules, in the same PRs.
+- **Gather: only when asked.** A knowledge pull request costs a folder owner's review, so the bot proposes lessons only when a trusted user writes `@macaron-bot remember: …`. That starts a `retro` run (Linux, no project setup, the `retro` budget) with the instruction, the thread, the code where it was asked and the repository's lessons. It checks the claim and returns `learnings`, each a complete lesson (`topic`, `description`, `text`, `evidence`, a level), or, with `updates`, the whole revised text of a lesson it was given: the bot revises rather than duplicates. The Gate refuses an `updates` id the run wasn't given. Learnings of every other run, reviews included, are ignored. Later, once these proposals prove worth the owners' time: a `retro` run when a bot pull request is merged or closed.
+- **Propose:** agent output is untrusted, and a poisoned knowledge base would be a persistent attack, so learnings are never written directly. `KnowledgeProposer` writes them as lesson files to a branch of `macaron-bot/knowledge` (GH_PUSH, fast-forward only) and opens one pull request per owned folder (GH_ORG: the org blocks the classic GH_INTERACT); a folder with an open proposal gets a new commit on it instead. A new branch starts at upstream `main`, so it is never behind on `.github/workflows/`. A revision keeps the lesson's globs and confidence, adds the new sources and is verified that day; if the lesson changed on `main` since the run read it, the pull request says so. The status comment links the pull request, and that folder's owners approve it (§6.4). A weekly `garden` run proposes dedupes, prunes stale lessons and suggests promotions to rules, in the same PRs.
 
 ## 7. Security invariants
 

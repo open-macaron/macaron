@@ -85,11 +85,19 @@ describe("routes from another pull request", () => {
   });
 });
 
-describe("modes no one can request", () => {
-  it.each<[Subject]>([[issue], [ownPullRequest], [pullRequest]])("retro is refused on %o", (subject) => {
-    expect(route(withOwnPullRequest, subject, "retro")).toEqual<Refusal>({ refused: "`retro` isn't available here." });
+describe("retro (remember:)", () => {
+  it("reads the code where it was asked: default branch, bot's branch, or pull request head", () => {
+    expect(route(withOwnPullRequest, issue, "retro")).toMatchObject({ checkout: { from: "defaultBranch" } });
+    expect(route(withOwnPullRequest, ownPullRequest, "retro")).toMatchObject({ checkout: { from: "botBranch" } });
+    expect(route(humanPullRequest, pullRequest, "retro")).toMatchObject({ checkout: { from: "pullRequestHead", pullRequest: 40 } });
   });
 
+  it("always runs on Linux: it doesn't set the project up", () => {
+    expect(route(fresh, issue, "retro", "windows")).toEqual<Refusal>({ refused: "`retro` doesn't set the project up, so it always runs on Linux." });
+  });
+});
+
+describe("modes no one can request", () => {
   it("address_review is refused on the issue", () => {
     expect(route(withOwnPullRequest, issue, "address_review")).toEqual<Refusal>({ refused: "`address_review` isn't available here." });
   });

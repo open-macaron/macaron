@@ -17,7 +17,8 @@ export const Glob = z
 /** File name of a rule or lesson, without `.md`. */
 export const KnowledgeSlug = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "expected kebab-case").max(64);
 
-const HttpsUrl = z.url({ protocol: /^https$/ });
+/** A source link: https only. */
+export const HttpsUrl = z.url({ protocol: /^https$/ });
 
 /** `<folder>/OWNERS.yaml`. Owners are matched by id: a login can be renamed and re-registered. */
 export const OwnersFile = z.strictObject({

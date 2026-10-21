@@ -14,12 +14,13 @@ export type GitHub = InstanceType<typeof MacaronOctokit>;
  */
 export const GH_INTERACT = Symbol("GH_INTERACT"); // comments, reactions, PRs, notifications; reads public repos (artifacts)
 export const GH_PUSH = Symbol("GH_PUSH"); // git data writes on the bot's forks only
-export const GH_ORG = Symbol("GH_ORG"); // open-macaron/runner only: start and cancel workflow runs
+export const GH_ORG = Symbol("GH_ORG"); // open-macaron/runner: start and cancel workflow runs; open-macaron/knowledge: proposal PRs
 
 /** Endpoints whose retries we control ourselves (X-Poll-Interval must win over any auto-retry). */
 const SELF_PACED = /\/notifications(\/|$|\?)/;
 
-export function createGitHub(name: string, token: string, apiVersion: string): GitHub {
+/** `throttled: false` is for tests against a fake API: the plugin spaces writes a second apart. */
+export function createGitHub(name: string, token: string, apiVersion: string, { throttled = true }: { readonly throttled?: boolean } = {}): GitHub {
   const logger = new Logger(`GitHub:${name}`);
   return new MacaronOctokit({
     auth: token,
@@ -38,6 +39,7 @@ export function createGitHub(name: string, token: string, apiVersion: string): G
       },
     },
     throttle: {
+      enabled: throttled,
       onRateLimit: (retryAfter, options, _octokit, retryCount) => {
         logger.warn(`rate limited on ${options.method} ${options.url}, retry after ${String(retryAfter)}s`);
         return !SELF_PACED.test(options.url) && retryCount < 1 && retryAfter <= 60;

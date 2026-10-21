@@ -89,6 +89,15 @@ describe("gate", () => {
     });
   });
 
+  it("accepts revisions of lessons the run was given, and refuses others", async () => {
+    const lesson = { id: "org-x/repo-a/lessons/building", scope: "org-x/repo-a", topic: "Building", appliesTo: null, sources: ["https://example.org/x"], lastVerified: "2026-10-21", confidence: "high", body: "b" };
+    const context = runContext({ mode: "retro", knowledge: { commit: null, lessons: [lesson] } });
+    const learning = { scope: "repo", topic: "Building", text: "npm run build type-checks.", evidence: "https://example.org/y" };
+    const result = (updates: string) => runResult({ action: "noop", commitMessage: undefined, pr: undefined, learnings: [{ ...learning, updates }] });
+    expect(await check({ mode: "retro", context, result: result("org-x/repo-a/lessons/building"), changes: undefined })).toEqual([]);
+    expect(await check({ mode: "retro", context, result: result("global/lessons/other"), changes: undefined })).toEqual(["learning updates unknown lesson global/lessons/other"]);
+  });
+
   it("refuses replies to comments the agent was never shown", async () => {
     const result = runResult({ action: "reply", replies: [{ inReplyTo: 999, body: "done" }], commitMessage: undefined, pr: undefined });
     expect(await check({ mode: "address_review", result, changes: undefined })).toEqual(["reply targets unknown comment 999"]);

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Commands } from "./config.ts";
 import { BotBranch, CommitSha, GitHubLogin, RepoSlug, Ticket, Usd } from "./ids.ts";
-import { PublishedLesson, PublishedRule } from "./knowledge.ts";
+import { LessonDescription, PublishedLesson, PublishedRule } from "./knowledge.ts";
 import { Harness, Mode, Platform, ResultAction } from "./mode.ts";
 
 const Body = z.string().max(65_536);
@@ -150,11 +150,20 @@ export const Reply = z.strictObject({
   body: Body.min(1),
 });
 
+/**
+ * A lesson a `remember:` run proposes to open-macaron/knowledge: a new one in the folder of `scope`,
+ * or, with `updates`, a revision of a lesson the run was given (its whole new text). Learnings of
+ * other runs are ignored.
+ */
 export const Learning = z.strictObject({
   scope: z.enum(["global", "project", "repo"]),
   topic: z.string().min(1).max(120),
+  /** The lesson's skill description; the topic stands in for it when absent. */
+  description: LessonDescription.optional(),
   text: z.string().min(1).max(4_096),
   evidence: z.url(),
+  /** The id of the lesson this revises (`<scope>/lessons/<slug>`), from `context.knowledge`. */
+  updates: z.string().min(1).max(300).optional(),
 });
 export type Learning = z.infer<typeof Learning>;
 

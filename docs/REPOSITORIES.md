@@ -10,7 +10,7 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 │ macaron      controller + contracts + agent-cli + harness adapters + config + deploy + docs │──release──▶ ghcr.io/open-macaron/controller
 │              CI, release.yml (images, agent-cli tarball, attestations)                    │             agent-cli-<v>.tgz (GitHub release)
 │ runner       run.yml + environments/ + env-check.yml — where agents execute                │◀─ start / cancel runs (GH_ORG), artifacts (GH_INTERACT)
-│ knowledge    rules + lessons; folder owners approve, merge.yml merges; Pages read API      │◀─ PR from macaron-bot/knowledge (GH_INTERACT)
+│ knowledge    rules + lessons; folder owners approve, merge.yml merges; Pages read API      │◀─ PR from macaron-bot/knowledge (GH_ORG)
 │ .github      org profile, SECURITY.md, CONTRIBUTING.md, issue templates                   │
 └───────────────────────────────────────────────────────────────────────────────────────────┘
           runner repository webhook (workflow_run) ─────────────────────▶ VPS controller /v1/webhook
@@ -51,7 +51,7 @@ How `run.yml` gets the agent-cli:
 |---|---|---|---|
 | `GH_INTERACT` | classic PAT of macaron-bot | `public_repo`, `notifications` | Comments, reactions, PRs and notifications on **upstream** repos. The org blocks classic PATs, so this token can't touch `open-macaron/*` |
 | `GH_PUSH` | fine-grained, owner `macaron-bot`, all repositories | Contents: write | `git push` to forks only (macaron-bot owns nothing else). No Workflows or Administration permission |
-| `GH_ORG` | fine-grained, owner `open-macaron`, repository `runner` only, approved by an org owner | Actions: read and write | Start and cancel runs. Artifacts and the knowledge PR use `GH_INTERACT` (public repos, no write needed). A GitHub App could replace this token later, to avoid manual renewal |
+| `GH_ORG` | fine-grained, owner `open-macaron`, repositories `runner` and `knowledge`, approved by an org owner | `runner`: Actions read and write. `knowledge`: Pull requests read and write | Start and cancel runs; open and update the `remember:` proposals from `macaron-bot/knowledge` (the org blocks the classic `GH_INTERACT`). Artifacts use `GH_INTERACT` (public reads). A GitHub App could replace this token later, to avoid manual renewal |
 
 Forking and disabling Actions on a fork happen at onboarding (§5). `GH_INTERACT` can do both, because the bot owns its forks; GitHub enables Actions on new forks, so onboarding must switch them off.
 
