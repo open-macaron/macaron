@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
+#
+# podman-desktop/extension-layers-explorer.
+
+repo: podman-desktop/extension-layers-explorer
+fork: 2h5h6u-extension-layers-explorer
+commands:
+  build: pnpm build
+  test: pnpm test
+  lint: pnpm lint:check

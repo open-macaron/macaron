@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
+#
+# podman-desktop/extension-grype.
+
+repo: podman-desktop/extension-grype
+fork: bg1vvl-extension-grype
+commands:
+  build: pnpm build
+  test: pnpm test:unit
+  lint: pnpm lint:check

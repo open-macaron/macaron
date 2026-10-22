@@ -1,8 +1,9 @@
 # yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
 #
-# Test fork of podman-desktop/extension-podman-quadlet (synced with upstream on 2026-10-16).
+# podman-desktop/extension-podman-quadlet. The bot's fork already exists: it served the test fork
+# axel7083/extension-podman-quadlet, in the same fork network.
 
-repo: axel7083/extension-podman-quadlet
+repo: podman-desktop/extension-podman-quadlet
 fork: fvqkrq-extension-podman-quadlet
 commands:
   build: pnpm build

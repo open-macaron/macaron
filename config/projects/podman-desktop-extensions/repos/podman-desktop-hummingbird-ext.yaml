@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
+#
+# redhat-developer/podman-desktop-hummingbird-ext.
+
+repo: redhat-developer/podman-desktop-hummingbird-ext
+fork: 8dedic-podman-desktop-hummingbird-ext
+commands:
+  build: pnpm build
+  test: pnpm test:unit
+  lint: pnpm lint:check
