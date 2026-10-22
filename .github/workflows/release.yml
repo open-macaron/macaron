@@ -43,12 +43,21 @@ jobs:
         with:
           node-version-file: .node-version
       - run: pnpm install --frozen-lockfile
+      # A one-hour token of the org's open-macaron-release app, limited to this repository and to
+      # what changesets needs. GitHub runs no workflow on a PR opened or updated with GITHUB_TOKEN,
+      # so without the app the Version Packages PR gets CI only when run by hand.
+      - id: app-token
+        if: vars.RELEASE_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - id: changesets
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          # RELEASE_TOKEN when it exists: GitHub runs no workflow on a PR opened or updated with
-          # GITHUB_TOKEN, so without it the Version Packages PR gets CI only when run by hand.
-          github-token: ${{ secrets.RELEASE_TOKEN || github.token }}
+          github-token: ${{ steps.app-token.outputs.token || github.token }}
           # Required in v2, or nothing is tagged. Private packages are only tagged.
           publish-script: pnpm changeset publish
           create-github-releases: true
