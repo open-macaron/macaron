@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { publish } from "../src/publish.ts";
 import { loadRepository } from "../src/tree.ts";
 
-const committedConfig = join(import.meta.dirname, "..", "..", "..", "config");
+const committedConfig = join(import.meta.dirname, "..", "..", "contracts", "test", "fixtures", "config");
 const OWNERS = "owners:\n  - login: axel7083\n    id: 42176370\n";
 
 let dir: string | undefined;

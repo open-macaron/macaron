@@ -61,14 +61,15 @@ Podman Desktop itself uses `source: upstream`. Its maintainers keep `.github/mac
 
 ## 2. Configuration: a hierarchy, not one `trust.yaml`
 
-One flat file doesn't scale in either direction. Every team would edit the same file, and every extension would repeat the same 15 lines. `config/` in `open-macaron/macaron` becomes a tree, merged **global → project → repo**, with the most specific value winning:
+One flat file doesn't scale in either direction. Every team would edit the same file, and every extension would repeat the same 15 lines. The configuration is a tree in its own repository, [`open-macaron/config`](https://github.com/open-macaron/config), merged **global → project → repo**, with the most specific value winning:
 
 ```
-config/
+open-macaron/config
 ├── global.yaml                          defaults: harness, model, mode budgets, caps, concurrency
 └── projects/
     ├── podman-desktop/
-    │   ├── project.yaml                 users, bots, monthly budget, default environment, CODEOWNERS team
+    │   ├── OWNERS.yaml                  who approves changes in this folder
+    │   ├── project.yaml                 users, bots, monthly budget, default environment
     │   └── repos/
     │       ├── podman-desktop.yaml      environment: { source: upstream }, runs-on, budget overrides
     │       ├── extension-a.yaml         {}                     ← inherits pd-extension from the project
@@ -77,7 +78,7 @@ config/
 ```
 
 ```yaml
-# config/projects/podman-desktop/project.yaml
+# projects/podman-desktop/project.yaml
 project: podman-desktop
 owners: "@open-macaron/podman-desktop"          # CODEOWNERS for this folder
 users: [alice, bob]                             # who may trigger, across the project's repos
@@ -106,8 +107,8 @@ interface RepoConfig {
 **The project is the unit we "don't work for free" for.** It has a budget, a list of trusted users and a concurrency share. Costs roll up repo → project → global in the ledger and the reports.
 
 **Who owns what:**
-- CODEOWNERS gives each project team its own folder.
-- The platform team owns `global.yaml` and must approve any change to `budget`, `users`, `runs-on` or `platforms`. CI flags those fields in the PR.
+- Each project folder's `OWNERS.yaml` gives its team its own folder: their approval merges it (`merge.yml` with `config-cli`, like knowledge).
+- The platform team owns `global.yaml` and merges by hand any change to who can trigger the bot or what it may spend or run on: `users`, `bots`, `budget`, `concurrency`, `budgets`, `caps`, `reviewCost`, `runsOn`, `platforms`. `config-cli` detects them and leaves such PRs to it.
 
 ## 3. Knowledge follows the same hierarchy
 
@@ -136,9 +137,9 @@ A red env-check pauses the repo. The controller answers "environment broken, mai
 ## 5. Onboarding becomes self-service
 
 ```
- project team: PR to macaron  config/projects/<p>/repos/<r>.yaml   (+ environment if own/upstream)
+ project team: PR to open-macaron/config  projects/<p>/repos/<r>.yaml   (+ environment if own/upstream)
    CI: schema ✓  upstream public ✓  environment exists ✓  env-check dispatched ✓  budget/users diff flagged
-   review: project CODEOWNERS (+ platform team if budget/users/runs-on changed)
+   review: the folder's OWNERS.yaml owners; the platform team merges by hand if users/budgets/runners changed
  merge → maintainer runs onboard-repo.sh (fork, Actions off) → deploy.sh delivers config → live
 ```
 
@@ -158,5 +159,5 @@ The platform team only reviews money and trust. Everything else is owned by the 
 ## 7. What changes in the other docs
 
 - `runner` holds one `run.yml`, `environments/` and `env-check.yml`. The `run-<profile>.yml` files are gone.
-- `config/trust.yaml` becomes `config/` (§2).
+- `config/trust.yaml` becomes a tree in its own repository, open-macaron/config (§2).
 - `knowledge` gains a `projects/` level (§3).

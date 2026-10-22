@@ -15,39 +15,6 @@ log() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 die() { echo "error: $*" >&2; exit 1; }
 oc() { command oc --namespace "$NS" "$@"; }
 
-# config/ as a ConfigMap whose items rebuild its tree in the controller (keys can't hold "/").
-config_overlay() {
-  local dir="$1" file key rel
-  # Kustomize takes no absolute roots.
-  rel="$(realpath --relative-to="$dir" "$ROOT")"
-  {
-    echo "apiVersion: kustomize.config.k8s.io/v1beta1"
-    echo "kind: Kustomization"
-    echo "resources: [$rel/deploy/openshift]"
-    echo "labels: [{pairs: {app.kubernetes.io/part-of: macaron}}]"
-    echo "configMapGenerator:"
-    echo "  - name: macaron-config"
-    echo "    files:"
-    while IFS= read -r file; do
-      key="${file//\//__}"
-      echo "      - $key=$rel/config/$file"
-    done < <(git -C "$ROOT/config" ls-files)
-    echo "patches:"
-    echo "  - path: config-items.yaml"
-  } >"$dir/kustomization.yaml"
-  {
-    echo "apiVersion: apps/v1"
-    echo "kind: Deployment"
-    echo "metadata: {name: macaron-controller}"
-    echo "spec: {template: {spec: {volumes: [{name: config, configMap: {name: macaron-config, items: ["
-    while IFS= read -r file; do
-      key="${file//\//__}"
-      echo "  {key: $key, path: $file},"
-    done < <(git -C "$ROOT/config" ls-files)
-    echo "]}}]}}}"
-  } >"$dir/config-items.yaml"
-}
-
 # The generation an object would have after the apply, as the server computes it: it moves only
 # when the spec changes.
 next_generation() { # kind/name
@@ -93,8 +60,7 @@ main() {
 
   BUILD="$(mktemp -d)"
   trap 'rm -rf "$BUILD"' EXIT
-  config_overlay "$BUILD"
-  command oc kustomize --load-restrictor LoadRestrictionsNone "$BUILD" >"$BUILD/manifests.yaml"
+  command oc kustomize --load-restrictor LoadRestrictionsNone "$ROOT/deploy/openshift" >"$BUILD/manifests.yaml"
   local image
   image="$(controller_image)"
   echo "   controller: ${image#*@}"
@@ -105,6 +71,11 @@ main() {
   log "prerequisites"
   local missing=() object
   for object in "${REQUIRED[@]}"; do oc get "$object" >/dev/null 2>&1 || missing+=("$object"); done
+  # The controller's configuration is open-macaron/config's published snapshot: without it, nothing to start on.
+  if [[ ! " ${missing[*]} " =~ " configmap/macaron-settings " ]]; then
+    [[ -n "$(oc get configmap/macaron-settings -o jsonpath='{.data.CONFIG_URL}')" ]] ||
+      die "macaron-settings has no CONFIG_URL: run deploy/openshift/scripts/provision-secrets.sh"
+  fi
 
   if oc get statefulset/macaron-postgres >/dev/null 2>&1 && [[ "$(oc get statefulset/macaron-postgres -o jsonpath='{.status.readyReplicas}')" == 1 ]]; then
     # Bifrost keeps spend in memory and writes it to Postgres every 10 s: restarting it while a run is

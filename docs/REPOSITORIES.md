@@ -27,7 +27,8 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 
 | Repo | Contents | Who writes | Why separate |
 |---|---|---|---|
-| `open-macaron/macaron` (this repo) | `packages/controller`, `packages/{contracts,agent-cli}`, `harness/`, `config/` (global → project → repo), `deploy/`, `docs/` | Humans via PR | Source of truth for code and trust config. `deploy/openshift/scripts/deploy.sh` applies a clean checkout of `main` |
+| `open-macaron/macaron` (this repo) | `packages/controller`, `packages/{contracts,agent-cli,review,owners,knowledge-cli,config-cli}`, `harness/`, `deploy/`, `docs/` | Humans via PR | Source of truth for code. Releases through changesets; the controller rolls out from its ImageStream |
+| `open-macaron/config` | `global.yaml`, `projects/<p>/project.yaml`, `projects/<p>/repos/<r>.yaml`, each project folder with `OWNERS.yaml` | Humans via PR, from forks. Project owners approve (no write access needed); `merge.yml` merges; the platform team merges `global.yaml` and reserved settings (users, budgets, runners) by hand | Trust config changes on its own cadence and goes live without a deploy: Pages publishes a snapshot the controller reloads on the deployment's webhook (DEPLOYMENT.md §6) |
 | `open-macaron/runner` | `.github/workflows/run.yml` (the only agent workflow), `env-check.yml`, `environments/` (shared + own, CODEOWNERS per folder), plus a `README` describing the contract (SCALING.md §1) | Humans via PR; the bot only *dispatches* | Gives agent runs their own `repository_id` (the OIDC check pins it) and their own public run history. The token that dispatches runs can't trigger `macaron`'s `release.yml` |
 | `open-macaron/knowledge` | `global/`, `projects/<p>/`, `repos/<owner>/<repo>/`, each with `OWNERS.yaml`, `rules/`, `lessons/` (DESIGN.md §6) | Humans write rules; the bot proposes lessons from its fork. Folder owners approve (no write access needed); `merge.yml` merges | High-churn, bot-authored content stays out of the code repo. Knowledge is versioned independently of controller releases |
 | `open-macaron/.github` | Org profile, default community health files | Humans | GitHub convention |
@@ -79,7 +80,7 @@ The `macaron-bot` account itself: 2FA on; the profile says it's a bot and links 
 ## 5. Onboarding an upstream repo (`deploy/scripts/onboard-repo.sh`, run by a maintainer)
 
 ```
- PR to macaron: config/projects/<p>/repos/repo-a.yaml   (project CODEOWNERS; platform team for budget/users)
+ PR to open-macaron/config: projects/<p>/repos/repo-a.yaml   (project owners; platform team for budget/users/runners)
                  includes `fork: <6 random chars>-repo-a` (onboard-repo.sh --suggest prints one)
         │ merge
         ▼
@@ -92,7 +93,7 @@ The `macaron-bot` account itself: 2FA on; the profile says it's a bot and links 
    └ scaffold knowledge/repos/org-x/repo-a/overview.md  → PR to knowledge
         │
         ▼
- controller (after deploy.sh picks up config/): refuses work on a trusted repo whose fork is missing
+ controller (reloads on the Pages deployment): refuses work on a trusted repo whose fork is missing
 ```
 
 ## 6. Bootstrap checklist

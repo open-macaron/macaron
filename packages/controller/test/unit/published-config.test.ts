@@ -12,7 +12,7 @@ import { testEnv } from "../support/env.ts";
 const BASE = "https://config.example.test/v1";
 const ONE = CommitSha.parse("1".repeat(40));
 const TWO = CommitSha.parse("2".repeat(40));
-const repoConfigDir = join(import.meta.dirname, "..", "..", "..", "..", "config");
+const repoConfigDir = join(import.meta.dirname, "..", "..", "..", "contracts", "test", "fixtures", "config");
 const files = Object.fromEntries(await readConfigFiles(repoConfigDir));
 
 const server = setupServer();

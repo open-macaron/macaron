@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
+# yaml-language-server: $schema=../../../../../../schemas/config-repo.schema.json
 #
 # Test fork of podman-desktop/podman-desktop, to try the bot on Podman Desktop itself (building and
 # running the application, reproducing, verifying) before it comments on the real project. It shares

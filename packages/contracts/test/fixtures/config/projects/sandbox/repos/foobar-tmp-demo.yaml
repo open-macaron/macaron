@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
+# yaml-language-server: $schema=../../../../../../schemas/config-repo.schema.json
 #
 # Sandbox upstream for end-to-end tests: a Podman Desktop extension template.
 

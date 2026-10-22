@@ -302,7 +302,7 @@ interface RunResult {
 }
 ```
 
-`config/` lives in `open-macaron/macaron`. Changes need CODEOWNERS review; `deploy.sh` delivers them as a ConfigMap, which rolls the controller. It holds, per global/project/repo level, the users and bots allowed to trigger, harness and model, environment, budgets and caps (SCALING.md §2).
+The configuration lives in its own repository, [`open-macaron/config`](https://github.com/open-macaron/config). Each project folder's owners approve its changes (`OWNERS.yaml`, merged by `config-cli` like knowledge), and the platform team approves changes to who can trigger the bot and what it may spend or run on. A merge publishes a snapshot on GitHub Pages; the controller reloads it on the Pages deployment's webhook, without a deploy, and applies it only if it's valid (DEPLOYMENT.md §6). It holds, per global/project/repo level, the users and bots allowed to trigger, harness and model, environment, budgets and caps (SCALING.md §2).
 
 ### Environments and configuration
 
@@ -311,7 +311,7 @@ There is one workflow, `open-macaron/runner/.github/workflows/run.yml`. Each rep
 - **own:** a folder in `runner` owned by the repo's team;
 - **upstream:** shipped in the upstream repo and read at the base SHA, for example Podman Desktop itself.
 
-Configuration is a hierarchy, `config/global.yaml` → `projects/<p>/project.yaml` → `projects/<p>/repos/<r>.yaml`. The project is the unit for budget, trusted users and ownership. The full reasoning, examples and scaling limits are in [SCALING.md](SCALING.md).
+Configuration is a hierarchy, `global.yaml` → `projects/<p>/project.yaml` → `projects/<p>/repos/<r>.yaml` in open-macaron/config. The project is the unit for budget, trusted users and ownership. The full reasoning, examples and scaling limits are in [SCALING.md](SCALING.md).
 
 ### Evidence: screenshots and videos
 
@@ -425,7 +425,7 @@ knowledge/
 │   ├── OWNERS.yaml              the platform team
 │   ├── rules/<slug>.md          every repo (commit messages, PR etiquette)
 │   └── lessons/<topic>.md       working with macaron, harness tips
-├── projects/<project>/          same names as macaron's config/projects/<project>
+├── projects/<project>/          same names as open-macaron/config's projects/<project>
 │   ├── OWNERS.yaml
 │   ├── rules/<slug>.md
 │   ├── rules/<category>/<slug>.md   optional grouping: tests/, svelte/, …
