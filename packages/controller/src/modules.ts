@@ -7,6 +7,7 @@ import { RunKeysRegistry } from "./budget/run-keys.registry.ts";
 import { APP_ENV, type AppEnv } from "./config/env.ts";
 import { ConfigSnapshotStore, DrizzleConfigSnapshotStore } from "./config/config-snapshots.store.ts";
 import type { ConfigSnapshot } from "./config/config-tree.ts";
+import { ConfigUpdates } from "./config/config-updates.ts";
 import { PublishedConfigClient } from "./config/published-config.client.ts";
 import { RepoConfigService } from "./config/repo-config.service.ts";
 import { BotIdentity } from "./github/bot-identity.ts";
@@ -43,13 +44,14 @@ import { ThreadStates } from "./routing/thread-states.ts";
     RepoConfigService,
     PublishedConfigClient,
     { provide: ConfigSnapshotStore, useClass: DrizzleConfigSnapshotStore },
+    ConfigUpdates,
     Jobs,
     BotIdentity,
     RunsRepository,
     EventsRepository,
     { provide: PollStateStore, useClass: DrizzlePollStateStore },
   ],
-  exports: [RepoConfigService, Jobs, BotIdentity, RunsRepository, EventsRepository, PollStateStore],
+  exports: [RepoConfigService, ConfigUpdates, Jobs, BotIdentity, RunsRepository, EventsRepository, PollStateStore],
 })
 export class CoreModule {}
 
