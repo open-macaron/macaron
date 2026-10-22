@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { ConfigTreeError, loadConfigTree } from "../../src/config/config-tree.ts";
+import { ConfigTreeError, loadConfigTree, parseConfigTree, readConfigFiles } from "../../src/config/config-tree.ts";
 
 const repoConfigDir = join(import.meta.dirname, "..", "..", "..", "..", "config");
 
@@ -105,5 +105,41 @@ describe("loadConfigTree", () => {
     const found = await problems({ "projects/a/project.yaml": `${project("a")}concurrency: 2\n` });
 
     expect(found).toEqual([expect.stringContaining("projects/a/project.yaml")]);
+  });
+});
+
+describe("parseConfigTree", () => {
+  const project = `project: a\nowners: "@o/t"\nusers: [alice]\nbudget: { monthUsd: 10 }\nconcurrency: 1\n`;
+
+  function problems(files: Readonly<Record<string, string>>): readonly string[] {
+    try {
+      parseConfigTree(new Map(Object.entries(files)));
+    } catch (error: unknown) {
+      if (error instanceof ConfigTreeError) return error.problems;
+      throw error;
+    }
+    return [];
+  }
+
+  it("gives a published snapshot the same result as the directory it was made from", async () => {
+    const files = await readConfigFiles(repoConfigDir);
+
+    expect(parseConfigTree(files)).toEqual(await loadConfigTree(repoConfigDir));
+  });
+
+  it("rejects files outside the layout", async () => {
+    const global = (await readConfigFiles(repoConfigDir)).get("global.yaml") ?? "";
+
+    expect(problems({ "global.yaml": global, "projects/a/project.yaml": project, "projects/a/notes.md": "x", "README.md": "x" })).toEqual([
+      expect.stringMatching(/^README\.md: not a configuration file/),
+      expect.stringMatching(/^projects\/a\/notes\.md: not a configuration file/),
+    ]);
+  });
+
+  it("reports a repository whose project file is missing, and a missing global.yaml", () => {
+    expect(problems({ "projects/a/repos/x.yaml": "repo: o/x\nfork: abc123-x\n" })).toEqual([
+      "global.yaml: missing",
+      "projects/a/project.yaml: missing",
+    ]);
   });
 });
