@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { GH_INTERACT, type GitHub } from "../github/github.ts";
 import { httpStatus, type RepoRef } from "../github/repo-ref.ts";
 
-export type ReactionContent = "eyes" | "+1" | "confused" | "rocket";
+export type ReactionContent = "eyes" | "+1" | "-1" | "confused" | "rocket";
 export type ReactionTarget =
   | { readonly kind: "issue"; readonly number: number }
   | { readonly kind: "issue-comment"; readonly id: number }

@@ -6,7 +6,7 @@
 
 ## What the bot can do
 
-Only trusted users of trusted repositories (`config/`) can trigger it. Anyone else is ignored: no reaction, no reply, no cost. It answers with 👀 within a minute, then 👍 or 😕, and answers each request where it was asked: a status comment with a link to its run, edited until the run's cost settles. `implement`, `plan` and `reproduce` work from an issue; `verify` and `review` on a pull request.
+Only trusted users of trusted repositories (`config/`) can trigger it. Anyone else who mentions it on a trusted repository gets 👎 and nothing more: no reply, no cost. It answers with 👀 within a minute, then 👍 or 😕, and answers each request where it was asked: a status comment with a link to its run, edited until the run's cost settles. `implement`, `plan` and `reproduce` work from an issue; `verify` and `review` on a pull request.
 
 | Comment | What happens |
 |---|---|
