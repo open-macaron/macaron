@@ -1,26 +1,79 @@
 name: release
 
-# Every push to main publishes the controller image, addressed by digest, with a signed build
-# provenance attestation (Sigstore, keyless through GitHub OIDC). deploy.sh only installs digests
-# whose attestation was produced by this workflow on main.
+# Every push to main runs this, and changesets decides what happens (.changeset/README.md):
+#   - Changesets are pending → changesets/action opens or updates the "Version Packages" PR,
+#     which bumps versions, writes CHANGELOG.md and bumps dependents. Nothing is built.
+#   - That PR was merged → `changeset publish` tags each released package
+#     (`@open-macaron/<package>@<version>`; every package is private, so npm is untouched) and the
+#     action writes its GitHub release. The jobs below then build only what was released, each with
+#     a build provenance attestation, and attach it to that release.
+# Builds run here rather than on the tags: tags and releases made with GITHUB_TOKEN trigger no
+# workflow, and a separate one would need a token for that alone.
 on:
   push:
     branches: [main]
-    paths:
-      - packages/contracts/**
-      - packages/controller/**
-      - packages/review/**
-      - pnpm-lock.yaml
-      - .github/workflows/release.yml
+  workflow_dispatch:
 
 permissions: {}
 
 concurrency:
   group: release
+  # Never cancelled: a half-finished release is worse than a queued one.
   cancel-in-progress: false
 
 jobs:
+  changesets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      released: ${{ steps.released.outputs.names }}
+      versions: ${{ steps.changesets.outputs.published-packages || '[]' }}
+    steps:
+      # Full history and tags: `changeset publish` tags only versions that have no tag yet.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      # No dependency cache in a job that can write to the repository (cache poisoning).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      # A one-hour token of the org's open-macaron-release app, limited to this repository and to
+      # what changesets needs. GitHub runs no workflow on a PR opened or updated with GITHUB_TOKEN,
+      # so without the app the Version Packages PR gets CI only when run by hand.
+      - id: app-token
+        if: vars.RELEASE_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - id: changesets
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          github-token: ${{ steps.app-token.outputs.token || github.token }}
+          # Required in v2, or nothing is tagged. Private packages are only tagged.
+          publish-script: pnpm changeset publish
+          create-github-releases: true
+          pr-title: "chore(release): version packages"
+          commit-message: "chore(release): version packages"
+      - id: released
+        env:
+          PUBLISHED: ${{ steps.changesets.outputs.published-packages || '[]' }}
+        run: |
+          names="$(jq -c '[.[].name]' <<< "$PUBLISHED")"
+          echo "names=$names" >> "$GITHUB_OUTPUT"
+          echo "released: $PUBLISHED"
+
   controller-image:
+    needs: changesets
+    if: contains(fromJSON(needs.changesets.outputs.released), '@open-macaron/controller')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -35,16 +88,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - id: version
+        env:
+          VERSIONS: ${{ needs.changesets.outputs.versions }}
+        run: echo "version=$(jq -r '.[] | select(.name == "@open-macaron/controller") | .version' <<< "$VERSIONS")" >> "$GITHUB_OUTPUT"
+      # Three tags: `:<version>` matches the git tag and the release, `:sha-<commit>` records what
+      # was built, and `:latest` is the moving pointer production follows.
       - id: build
         uses: redhat-actions/buildah-build@719e3c40d8af9790c23eca13f7daa339f2867034 # v3.1.0
         with:
           image: controller
-          tags: sha-${{ github.sha }}
+          tags: ${{ steps.version.outputs.version }} sha-${{ github.sha }} latest
           containerfiles: packages/controller/Containerfile
           context: .
           oci: true
           build-args: |
-            VERSION=sha-${{ github.sha }}
+            VERSION=${{ steps.version.outputs.version }}
             REVISION=${{ github.sha }}
       - uses: redhat-actions/podman-login@50c2d9a331bb67c8fdab99b86455fad05e2e3252 # v2.0
         with:
@@ -65,4 +124,105 @@ jobs:
       - name: summary
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
-        run: echo "Published \`${IMAGE}@${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
+          VERSION: ${{ steps.version.outputs.version }}
+        run: echo "Published \`${IMAGE}:${VERSION}\` (\`${IMAGE}@${DIGEST}\`)" >> "$GITHUB_STEP_SUMMARY"
+
+  # The CLIs downstream repositories pin by URL and sha256 (open-macaron/runner, open-macaron/knowledge,
+  # open-macaron/config), attached to the release changesets wrote.
+  bundles:
+    needs: changesets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    strategy:
+      matrix:
+        include:
+          - { package: "@open-macaron/agent-cli", file: packages/agent-cli/dist/macaron-agent.mjs }
+          - { package: "@open-macaron/knowledge-cli", file: packages/knowledge-cli/dist/knowledge-cli.mjs }
+          - { package: "@open-macaron/config-cli", file: packages/config-cli/dist/config-cli.mjs }
+    steps:
+      - id: released
+        env:
+          VERSIONS: ${{ needs.changesets.outputs.versions }}
+          PACKAGE: ${{ matrix.package }}
+        run: echo "version=$(jq -r --arg name "$PACKAGE" '.[] | select(.name == $name) | .version' <<< "$VERSIONS")" >> "$GITHUB_OUTPUT"
+      - if: steps.released.outputs.version != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: steps.released.outputs.version != ''
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - if: steps.released.outputs.version != ''
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - if: steps.released.outputs.version != ''
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          pnpm install --frozen-lockfile --filter "${PACKAGE}..."
+          pnpm --filter "$PACKAGE" build
+      - if: steps.released.outputs.version != ''
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ matrix.file }}
+      - if: steps.released.outputs.version != ''
+        name: attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FILE: ${{ matrix.file }}
+          TAG: ${{ matrix.package }}@${{ steps.released.outputs.version }}
+        run: |
+          sha256="$(sha256sum "$FILE" | cut -d' ' -f1)"
+          gh release upload "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/$(jq -rn --arg tag "$TAG" '$tag | @uri')/$(basename "$FILE")"
+          {
+            echo "### ${TAG}"
+            echo "URL: ${url}"
+            echo "sha256: \`${sha256}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # macaron-review on npm as @open-macaron/review: trusted publishing (OIDC, no token) with
+  # provenance, and the same bundle on its release. Off until the trusted publisher is configured
+  # on npmjs.com and the repository variable NPM_PUBLISH is "true".
+  review-npm:
+    needs: changesets
+    if: vars.NPM_PUBLISH == 'true' && contains(fromJSON(needs.changesets.outputs.released), '@open-macaron/review')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          registry-url: https://registry.npmjs.org
+      - id: version
+        env:
+          VERSIONS: ${{ needs.changesets.outputs.versions }}
+        run: echo "version=$(jq -r '.[] | select(.name == "@open-macaron/review") | .version' <<< "$VERSIONS")" >> "$GITHUB_OUTPUT"
+      - run: pnpm install --frozen-lockfile --filter @open-macaron/review...
+      - working-directory: packages/review
+        run: |
+          pnpm bundle
+          pnpm npm-package
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: packages/review/dist-npm/macaron-review.mjs
+      # Trusted publishing: npm exchanges the job's OIDC token, and attaches provenance itself.
+      - working-directory: packages/review/dist-npm
+        run: npm publish --access public
+      - name: attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: "@open-macaron/review@${{ steps.version.outputs.version }}"
+        run: gh release upload "$TAG" packages/review/dist-npm/macaron-review.mjs --repo "$GITHUB_REPOSITORY"

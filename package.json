@@ -17,9 +17,11 @@
     "test:watch": "vitest",
     "gen": "pnpm --recursive run gen",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
-    "test:live": "node --env-file=${MACARON_ENV_FILE:-$HOME/.config/macaron/dev.env} node_modules/vitest/vitest.mjs run --project controller-live"
+    "test:live": "node --env-file=${MACARON_ENV_FILE:-$HOME/.config/macaron/dev.env} node_modules/vitest/vitest.mjs run --project controller-live",
+    "changeset": "changeset"
   },
   "devDependencies": {
+    "@changesets/cli": "catalog:",
     "@eslint/js": "catalog:",
     "@swc/core": "catalog:",
     "@types/node": "catalog:",

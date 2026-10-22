@@ -30,6 +30,7 @@ deploy/bifrost/dev.sh up        # local Bifrost + Postgres behind the production
 pnpm --filter @open-macaron/controller gen:bifrost   # Bifrost admin client, when bumping the Bifrost image
 pnpm --filter @open-macaron/controller db:generate   # after changing src/db/schema.ts
 pnpm --filter @open-macaron/controller db:check
+pnpm changeset                  # what this PR releases (pnpm changeset --empty: nothing)
 ```
 
 Integration tests (`controller-integration`) need a container runtime (Testcontainers). Without one locally they fail to start; CI runs them. With rootless Podman: `DOCKER_HOST=unix:///run/user/$UID/podman/podman.sock TESTCONTAINERS_RYUK_DISABLED=true` (if the socket file is missing, `systemctl --user restart podman.socket`).
@@ -67,10 +68,17 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 
 ## Release and deploy
 
-1. Push to `main` (small semantic commits). CI (`ci.yml`) must be green; a network flake pulling base images is retried, not ignored.
-2. `release.yml` builds the controller image; `release-agent-cli.yml` and `release-knowledge-cli.yml` publish the CLI bundles. Each has a build provenance attestation. `release-review.yml` publishes `@open-macaron/review` to npm (trusted publishing) when `packages/review`'s version changes, once the repository variable `NPM_PUBLISH` is `true`.
+1. Every PR that changes a package carries a changeset: `pnpm changeset` (packages, bump, a summary for the changelog), or `pnpm changeset --empty` when there is nothing to release. CI (`changeset status`) fails otherwise. Small semantic commits; CI (`ci.yml`) must be green, and a network flake pulling base images is retried, not ignored.
+2. `release.yml` keeps a "Version Packages" PR up to date with the pending changesets: versions, `CHANGELOG.md`, and dependents bumped. **Merging it is the release** (.changeset/README.md):
+   - changesets tags each released package (`@open-macaron/<package>@<version>`) and writes its GitHub release;
+   - `release.yml` builds what was released, each with a build provenance attestation: the controller image (`:<version>`, `:sha-<commit>`, `:latest`), the agent-cli, knowledge-cli and config-cli bundles attached to their release, and `@open-macaron/review` on npm (trusted publishing, once the repository variable `NPM_PUBLISH` is `true`).
+   
+   The Version Packages PR is opened by the org's `open-macaron-release` GitHub App: a one-hour token from `RELEASE_APP_CLIENT_ID` (variable) and `RELEASE_APP_PRIVATE_KEY` (secret), limited to this repository, Contents and Pull requests write. It needs the app because GitHub runs no workflow on a PR opened with `GITHUB_TOKEN`. Without it, run CI on that PR by hand: `gh workflow run ci.yml --ref changeset-release/main`. `main`'s ruleset requires the `check` and `image` jobs and a PR for every change.
 3. **Verify before pinning:** `gh attestation verify` on the image digest / bundle (signer workflow on `refs/heads/main`, source digest = the commit).
-4. Pin: the image digest in `deploy/openshift/controller.yaml`; the agent-cli URL and sha256 in open-macaron/runner `run.yml`; the knowledge-cli URL and sha256 in open-macaron/knowledge workflows (a platform PR there: `.github/` is never auto-merged).
+4. Pin:
+   - the image digest in `deploy/openshift/controller.yaml`;
+   - the agent-cli URL (`…/releases/download/%40open-macaron%2Fagent-cli%40<version>/macaron-agent.mjs`) and its sha256 in open-macaron/runner `run.yml`;
+   - the knowledge-cli and config-cli URLs and sha256 in open-macaron/knowledge's and open-macaron/config's workflows. That's a platform PR there: `.github/` is never auto-merged.
 5. Deploy from a clean checkout of `main`, logged in with `oc`: `MACARON_NAMESPACE=<namespace> deploy/openshift/scripts/deploy.sh` (docs/DEPLOYMENT.md §5). It takes a dump first and rolls back a Deployment that doesn't become ready. Secrets and settings change through `provision-secrets.sh`, never `oc edit`.
 6. Check the result live (status comment, run, review/PR, cost settlement) on the sandbox repositories in `config/`, never on repositories outside it.
 
