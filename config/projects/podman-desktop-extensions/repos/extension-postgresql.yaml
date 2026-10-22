@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
+#
+# podman-desktop/extension-postgresql.
+
+repo: podman-desktop/extension-postgresql
+fork: 8zf5dh-extension-postgresql
+commands:
+  build: pnpm build
+  test: pnpm test:unit
+  lint: pnpm lint:check

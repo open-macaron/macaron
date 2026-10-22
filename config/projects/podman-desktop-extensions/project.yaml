@@ -1,7 +1,10 @@
 # yaml-language-server: $schema=../../../packages/contracts/schemas/config-project.schema.json
 #
-# Podman Desktop extensions. For now only a test fork, to exercise the GUI environment
-# (podman-desktop-extensions in open-macaron/runner): no upstream repository is enrolled yet.
+# Podman Desktop extensions (podman-desktop/gh-extensions-actions#4), and the test fork
+# axel7083/extension-podman-quadlet. Only the modern ones: a root Containerfile that installs and
+# builds the extension with pnpm in a multi-stage build (podman-desktop/gh-extensions-actions#5),
+# which is what the podman-desktop-extensions environment (open-macaron/runner) builds and runs.
+# The others join once their Containerfile follows those guidelines.
 
 project: podman-desktop-extensions
 owners: "@open-macaron/maintainers"
@@ -24,3 +27,6 @@ defaults:
     verify: 3.00
     address_review: 2.00
     review: 0.50
+  # The DCO check runs on these repositories' pull requests.
+  contribution:
+    dco: true

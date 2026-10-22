@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
+#
+# podman-desktop/extension-kubernetes-dashboard.
+
+repo: podman-desktop/extension-kubernetes-dashboard
+fork: gtntaw-extension-kubernetes-dashboard
+commands:
+  build: pnpm build
+  test: pnpm test
+  lint: pnpm lint:check
