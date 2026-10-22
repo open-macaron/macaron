@@ -73,7 +73,7 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
    - changesets tags each released package (`@open-macaron/<package>@<version>`) and writes its GitHub release;
    - `release.yml` builds what was released, each with a build provenance attestation: the controller image (`:<version>`, `:sha-<commit>`, `:latest`), the agent-cli, knowledge-cli and config-cli bundles attached to their release, and `@open-macaron/review` on npm (trusted publishing, once the repository variable `NPM_PUBLISH` is `true`).
    
-   The Version Packages PR gets CI only with the `RELEASE_TOKEN` secret, since GitHub runs no workflow on a PR opened with `GITHUB_TOKEN`. Without it, run CI on that PR by hand.
+   The Version Packages PR gets CI only with the `RELEASE_TOKEN` secret, since GitHub runs no workflow on a PR opened with `GITHUB_TOKEN`. Without it, run CI on that PR by hand: `gh workflow run ci.yml --ref changeset-release/main`. `main`'s ruleset requires the `check` and `image` jobs and a PR for every change.
 3. **Verify before pinning:** `gh attestation verify` on the image digest / bundle (signer workflow on `refs/heads/main`, source digest = the commit).
 4. Pin:
    - the image digest in `deploy/openshift/controller.yaml`;

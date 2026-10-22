@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # The Version Packages PR, when it was opened with GITHUB_TOKEN (no RELEASE_TOKEN): GitHub runs no
+  # workflow for it, and main's ruleset requires these checks. Run this on its branch.
+  workflow_dispatch:
 
 permissions: {}
 
