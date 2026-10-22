@@ -1,6 +1,10 @@
 import { OwnersFile } from "@open-macaron/contracts";
 import { describe, expect, it } from "vitest";
-import { type ApprovalInput, decide, type Review, touchedFolders } from "../src/approval.ts";
+import { type ApprovalInput, decide as decideWith, type Review, touchedFolders as touchedWith } from "@open-macaron/owners";
+import { knowledgeLayout } from "../src/layout.ts";
+
+const decide = (input: ApprovalInput) => decideWith(input, knowledgeLayout);
+const touchedFolders = (files: Parameters<typeof touchedWith>[0]) => touchedWith(files, knowledgeLayout);
 
 const HEAD = "a".repeat(40);
 const OLD = "b".repeat(40);
@@ -30,6 +34,7 @@ describe("decide", () => {
       ready: true,
       formatValid: true,
       unownedFiles: 0,
+      platformFiles: 0,
       folders: [{ folder: "projects/sandbox", state: "approved", by: ["axel7083"] }],
     });
   });

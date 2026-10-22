@@ -573,6 +573,9 @@ importers:
       '@open-macaron/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@open-macaron/owners':
+        specifier: workspace:*
+        version: link:../owners
       mdast-util-from-markdown:
         specifier: 'catalog:'
         version: 2.1.0
@@ -588,9 +591,6 @@ importers:
       picomatch:
         specifier: 'catalog:'
         version: 4.0.7
-      yaml:
-        specifier: 'catalog:'
-        version: 2.9.1
       zod:
         specifier: 'catalog:'
         version: 4.6.6
@@ -604,6 +604,21 @@ importers:
       esbuild:
         specifier: 'catalog:'
         version: 0.28.2
+
+  packages/owners:
+    dependencies:
+      '@octokit/rest':
+        specifier: 'catalog:'
+        version: 22.0.1
+      '@open-macaron/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.1
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.6
 
   packages/review:
     dependencies:

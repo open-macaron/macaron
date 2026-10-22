@@ -2,13 +2,36 @@ import { type CommitSha, OwnersFile } from "@open-macaron/contracts";
 import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
 import { type ChangedFile, decide, type Review, touchedFolders } from "./approval.ts";
-import { parseYamlStrict } from "./document.ts";
-import { type MergeOutcome, renderStatus, STATUS_MARKER } from "./status.ts";
-import type { KnowledgeTree, Problem } from "./tree.ts";
+import type { OwnersLayout } from "./layout.ts";
+import { type MergeOutcome, renderStatus } from "./status.ts";
+import { parseYamlStrict } from "./yaml.ts";
 
 export interface Repository {
   readonly owner: string;
   readonly repo: string;
+}
+
+export interface Problem {
+  readonly path: string;
+  readonly message: string;
+}
+
+/** What `platformPaths` may look at: the PR's files and refs, to read their content through the API. */
+export interface PullContext {
+  readonly octokit: Octokit;
+  readonly repository: Repository;
+  readonly files: readonly ChangedFile[];
+  readonly headSha: CommitSha;
+  readonly defaultBranch: string;
+}
+
+/** How a repository's owner-approved merges work. */
+export interface MergePolicy {
+  readonly layout: OwnersLayout;
+  /** First line of the one status comment kept up to date on each PR. */
+  readonly statusMarker: string;
+  /** Paths whose change the platform team merges by hand, whatever their folder's owners say. */
+  platformPaths?(pull: PullContext): Promise<readonly string[]>;
 }
 
 /** The comment author when merge.yml writes with the repository's GITHUB_TOKEN. */
@@ -19,7 +42,14 @@ const ACTIONS_BOT = "github-actions[bot]";
  * (reviews, files, OWNERS.yaml on the default branch) and merged at exactly that commit if owners
  * approved it. `headSha` only says which PRs to look at; it is never evidence of anything.
  */
-export async function mergeApproved(octokit: Octokit, repository: Repository, headSha: CommitSha, formatValid: boolean, runUrl: string): Promise<number[]> {
+export async function mergeApproved(
+  octokit: Octokit,
+  repository: Repository,
+  headSha: CommitSha,
+  formatValid: boolean,
+  runUrl: string,
+  policy: MergePolicy,
+): Promise<number[]> {
   const { data: repo } = await octokit.rest.repos.get({ ...repository });
   const pulls = await octokit.paginate(octokit.rest.pulls.list, { ...repository, state: "open", per_page: 100 });
   const merged: number[] = [];
@@ -33,9 +63,10 @@ export async function mergeApproved(octokit: Octokit, repository: Repository, he
       review.user === null ? [] : [{ userId: review.user.id, login: review.user.login, state: review.state, commitId: review.commit_id }],
     );
     const ownersOnMain = new Map<string, OwnersFile | undefined>();
-    for (const folder of touchedFolders(files).folders) ownersOnMain.set(folder, await ownersAt(octokit, repository, folder, repo.default_branch));
+    for (const folder of touchedFolders(files, policy.layout).folders) ownersOnMain.set(folder, await ownersAt(octokit, repository, folder, repo.default_branch));
+    const platformPaths = (await policy.platformPaths?.({ octokit, repository, files, headSha, defaultBranch: repo.default_branch })) ?? [];
 
-    const decision = decide({ headSha, authorId: pull.user?.id ?? 0, files, reviews, ownersOnMain, formatValid });
+    const decision = decide({ headSha, authorId: pull.user?.id ?? 0, files, reviews, ownersOnMain, formatValid, platformPaths }, policy.layout);
     let outcome: MergeOutcome = { kind: "not_ready" };
     if (decision.ready && (await behindOnWorkflows(octokit, repository, headSha, repo.default_branch))) {
       outcome = { kind: "outdated" };
@@ -50,7 +81,7 @@ export async function mergeApproved(octokit: Octokit, repository: Repository, he
         console.error(`merging #${String(pull.number)} failed: ${outcome.reason}`);
       }
     }
-    await upsertStatus(octokit, repository, pull.number, renderStatus(decision, outcome, headSha, runUrl));
+    await upsertStatus(octokit, repository, pull.number, policy.statusMarker, renderStatus(decision, outcome, headSha, runUrl, policy.statusMarker));
   }
   return merged;
 }
@@ -65,7 +96,7 @@ async function behindOnWorkflows(octokit: Octokit, repository: Repository, headS
 }
 
 /** `<folder>/OWNERS.yaml` on `ref`, or undefined when it doesn't exist or isn't valid there. */
-async function ownersAt(octokit: Octokit, repository: Repository, folder: string, ref: string): Promise<OwnersFile | undefined> {
+export async function ownersAt(octokit: Octokit, repository: Repository, folder: string, ref: string): Promise<OwnersFile | undefined> {
   let content: unknown;
   try {
     const response = await octokit.rest.repos.getContent({ ...repository, path: `${folder}/OWNERS.yaml`, ref, mediaType: { format: "raw" } });
@@ -85,17 +116,20 @@ async function ownersAt(octokit: Octokit, repository: Repository, folder: string
   }
 }
 
-async function upsertStatus(octokit: Octokit, repository: Repository, number: number, body: string): Promise<void> {
+async function upsertStatus(octokit: Octokit, repository: Repository, number: number, marker: string, body: string): Promise<void> {
   const comments = await octokit.paginate(octokit.rest.issues.listComments, { ...repository, issue_number: number, per_page: 100 });
-  const ours = comments.find((comment) => comment.user?.login === ACTIONS_BOT && (comment.body ?? "").startsWith(STATUS_MARKER));
+  const ours = comments.find((comment) => comment.user?.login === ACTIONS_BOT && (comment.body ?? "").startsWith(marker));
   if (ours === undefined) await octokit.rest.issues.createComment({ ...repository, issue_number: number, body });
   else if (ours.body !== body) await octokit.rest.issues.updateComment({ ...repository, comment_id: ours.id, body });
 }
 
 /** check.yml: each owner's login must still be the login of their account id (renames are caught here). */
-export async function checkOwnerLogins(octokit: Octokit, tree: KnowledgeTree): Promise<Problem[]> {
+export async function checkOwnerLogins(
+  octokit: Octokit,
+  folders: readonly { readonly path: string; readonly owners: OwnersFile | undefined }[],
+): Promise<Problem[]> {
   const problems: Problem[] = [];
-  for (const folder of tree.folders) {
+  for (const folder of folders) {
     for (const owner of folder.owners?.owners ?? []) {
       const path = `${folder.path}/OWNERS.yaml`;
       try {
@@ -114,7 +148,7 @@ export async function checkOwnerLogins(octokit: Octokit, tree: KnowledgeTree): P
 
 const HttpError = z.object({ status: z.number(), response: z.object({ data: z.object({ message: z.string() }).optional() }).optional() });
 
-function statusOf(error: unknown): number | undefined {
+export function statusOf(error: unknown): number | undefined {
   const parsed = HttpError.safeParse(error);
   return parsed.success ? parsed.data.status : undefined;
 }

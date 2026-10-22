@@ -19,12 +19,12 @@
     "@actions/core": "catalog:",
     "@octokit/rest": "catalog:",
     "@open-macaron/contracts": "workspace:*",
+    "@open-macaron/owners": "workspace:*",
     "mdast-util-from-markdown": "catalog:",
     "mdast-util-frontmatter": "catalog:",
     "mdast-util-to-string": "catalog:",
     "micromark-extension-frontmatter": "catalog:",
     "picomatch": "catalog:",
-    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

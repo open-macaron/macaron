@@ -1,3 +1,5 @@
+import type { OwnersLayout } from "@open-macaron/owners";
+
 /**
  * The repository's layout (DESIGN.md §6.1), as pure functions over repository-relative paths.
  * Shared by validation (what may exist) and approval (which folder's owners a file belongs to).
@@ -59,3 +61,6 @@ export function entryOf(folder: OwnedFolder, rest: string): Entry | undefined {
 export function isRepositoryFile(path: string): boolean {
   return path === "README.md" || path === "LICENSE" || path === ".gitignore" || path === ".editorconfig" || path.startsWith(".github/");
 }
+
+/** Owned folders for owner-approved merges (`@open-macaron/owners`). */
+export const knowledgeLayout: OwnersLayout = { folderOf };

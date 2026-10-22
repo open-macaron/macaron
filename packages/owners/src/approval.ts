@@ -1,9 +1,10 @@
 import type { OwnersFile } from "@open-macaron/contracts";
-import { folderOf } from "./layout.ts";
+import type { OwnersLayout } from "./layout.ts";
 
 /**
  * Whether a PR may be merged (DESIGN.md §6.4). Pure: every input comes from GitHub's API or from
- * `main`, never from the PR's content or the event that woke the workflow up.
+ * `main`, never from the event that woke the workflow up. Only `platformPaths` may be derived from
+ * the PR's content, and it can only keep a PR from merging, never make it mergeable.
  */
 
 export interface ChangedFile {
@@ -31,6 +32,8 @@ export interface ApprovalInput {
   readonly ownersOnMain: ReadonlyMap<string, OwnersFile | undefined>;
   /** The format check of this exact head, by the CLI pinned on the default branch. */
   readonly formatValid: boolean;
+  /** Paths the repository reserves for the platform team whatever their folder (e.g. who may trigger the bot). */
+  readonly platformPaths?: readonly string[];
 }
 
 export type FolderStatus =
@@ -44,15 +47,17 @@ export interface Decision {
   readonly folders: readonly FolderStatus[];
   /** Files outside any owned folder that exists on the default branch: only the platform team merges those. */
   readonly unownedFiles: number;
+  /** Files whose change the repository reserves for the platform team: it merges those by hand too. */
+  readonly platformFiles: number;
 }
 
 /** Owned folders a PR touches, and how many of its paths fall outside them. */
-export function touchedFolders(files: readonly ChangedFile[]): { readonly folders: readonly string[]; readonly outside: number } {
+export function touchedFolders(files: readonly ChangedFile[], layout: OwnersLayout): { readonly folders: readonly string[]; readonly outside: number } {
   const folders = new Set<string>();
   let outside = 0;
   for (const file of files) {
     for (const path of file.previousPath === undefined ? [file.path] : [file.path, file.previousPath]) {
-      const folder = folderOf(path);
+      const folder = layout.folderOf(path);
       if (folder === undefined) outside++;
       else folders.add(folder.path);
     }
@@ -69,8 +74,8 @@ function standingReviews(reviews: readonly Review[]): Map<number, Review> {
   return standing;
 }
 
-export function decide(input: ApprovalInput): Decision {
-  const { folders, outside } = touchedFolders(input.files);
+export function decide(input: ApprovalInput, layout: OwnersLayout): Decision {
+  const { folders, outside } = touchedFolders(input.files, layout);
   const standing = [...standingReviews(input.reviews).values()].filter((review) => review.userId !== input.authorId);
 
   let unownedFiles = outside;
@@ -79,7 +84,9 @@ export function decide(input: ApprovalInput): Decision {
     const owners = input.ownersOnMain.get(folder);
     if (owners === undefined) {
       // A new folder, or one whose OWNERS.yaml on main is broken: the platform team decides.
-      unownedFiles += input.files.filter((file) => folderOf(file.path)?.path === folder || (file.previousPath !== undefined && folderOf(file.previousPath)?.path === folder)).length;
+      unownedFiles += input.files.filter(
+        (file) => layout.folderOf(file.path)?.path === folder || (file.previousPath !== undefined && layout.folderOf(file.previousPath)?.path === folder),
+      ).length;
       continue;
     }
     const ownerIds = new Set(owners.owners.map((owner) => owner.id));
@@ -91,6 +98,8 @@ export function decide(input: ApprovalInput): Decision {
     else statuses.push({ folder, state: "waiting", owners: owners.owners.map((owner) => owner.login) });
   }
 
-  const ready = input.formatValid && unownedFiles === 0 && statuses.length > 0 && statuses.every((status) => status.state === "approved");
-  return { ready, formatValid: input.formatValid, folders: statuses, unownedFiles };
+  const platformFiles = new Set(input.platformPaths ?? []).size;
+  const ready =
+    input.formatValid && unownedFiles === 0 && platformFiles === 0 && statuses.length > 0 && statuses.every((status) => status.state === "approved");
+  return { ready, formatValid: input.formatValid, folders: statuses, unownedFiles, platformFiles };
 }
