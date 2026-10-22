@@ -11,11 +11,12 @@ describe("the committed config/ tree", () => {
     const snapshot = await loadConfigTree(repoConfigDir);
 
     expect(snapshot.repos.get("axel7083/foobar-tmp-demo")?.budgets.implement).toBe(2);
-    expect(snapshot.repos.get("axel7083/extension-podman-quadlet")).toMatchObject({
+    expect(snapshot.repos.get("podman-desktop/extension-podman-quadlet")).toMatchObject({
       project: "podman-desktop-extensions",
       runsOn: "ubuntu-26.04",
       environment: { source: "shared", name: "podman-desktop-extensions" },
       models: { review: "claude-sonnet-5-5" },
+      contribution: { dco: true },
     });
     expect(snapshot.repos.get("podman-desktop/podman-desktop")).toMatchObject({
       project: "podman-desktop",

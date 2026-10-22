@@ -1,8 +1,7 @@
 # yaml-language-server: $schema=../../../../packages/contracts/schemas/config-repo.schema.json
 #
-# podman-desktop/extension-podman-quadlet. The bot's fork is the one GitHub allows per fork network
-# (shared with the test fork axel7083/extension-podman-quadlet, enrolled next to it).
-# Runs Podman Desktop with the extension built from the checkout, as on the test fork.
+# podman-desktop/extension-podman-quadlet. The bot's fork already exists: it served the test fork
+# axel7083/extension-podman-quadlet, in the same fork network.
 
 repo: podman-desktop/extension-podman-quadlet
 fork: fvqkrq-extension-podman-quadlet

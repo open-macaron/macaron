@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=../../../packages/contracts/schemas/config-project.schema.json
 #
-# Podman Desktop extensions (podman-desktop/gh-extensions-actions#4), and the test fork
-# axel7083/extension-podman-quadlet. Only the modern ones: a root Containerfile that installs and
-# builds the extension with pnpm in a multi-stage build (podman-desktop/gh-extensions-actions#5),
-# which is what the podman-desktop-extensions environment (open-macaron/runner) builds and runs.
+# Podman Desktop extensions (podman-desktop/gh-extensions-actions#4), upstream repositories only.
+# Only the modern ones: a root Containerfile that installs and builds the extension with pnpm in a
+# multi-stage build (podman-desktop/gh-extensions-actions#5), which is what the
+# podman-desktop-extensions environment (open-macaron/runner) builds and runs.
 # The others join once their Containerfile follows those guidelines.
 
 project: podman-desktop-extensions
