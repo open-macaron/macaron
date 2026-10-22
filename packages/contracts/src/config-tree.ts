@@ -1,14 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  CONFIG_FILE_PATH,
-  GlobalFile,
-  ProjectFile,
-  type RepoConfig,
-  RepoFile,
-  type RepoSlug,
-  resolveRepoConfig,
-} from "@open-macaron/contracts";
+import { CONFIG_FILE_PATH, GlobalFile, ProjectFile, type RepoConfig, RepoFile, resolveRepoConfig } from "./config.ts";
+import type { RepoSlug } from "./ids.ts";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 

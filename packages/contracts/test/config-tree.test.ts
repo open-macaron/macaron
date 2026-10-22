@@ -2,9 +2,9 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { ConfigTreeError, loadConfigTree, parseConfigTree, readConfigFiles } from "../../src/config/config-tree.ts";
+import { ConfigTreeError, loadConfigTree, parseConfigTree, readConfigFiles } from "@open-macaron/contracts";
 
-const repoConfigDir = join(import.meta.dirname, "..", "..", "..", "..", "config");
+const repoConfigDir = join(import.meta.dirname, "..", "..", "..", "config");
 
 describe("the committed config/ tree", () => {
   it("is valid", async () => {
