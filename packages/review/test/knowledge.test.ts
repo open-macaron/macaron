@@ -28,4 +28,13 @@ describe("KnowledgeSource", () => {
     expect(knowledge.lessons.map((lesson) => lesson.id)).toEqual(["global/lessons/harness", "o/r/lessons/building"]);
     expect(await source.rules({ project: "p", repo: "o/r" })).toEqual({ commit: COMMIT, rules: knowledge.rules });
   });
+
+  it("names what doesn't match when a slice fails to parse", async () => {
+    const drifted = { ...slice("p", "x"), unexpected: true };
+    vi.stubGlobal("fetch", (url: string) =>
+      Promise.resolve(url.endsWith("projects/p.json") ? new Response(JSON.stringify(drifted), { status: 200 }) : new Response("", { status: 404 })),
+    );
+
+    await expect(new KnowledgeSource("https://k/v1").knowledge({ project: "p" })).rejects.toThrow(/projects\/p\.json: not a knowledge slice:[\s\S]*unexpected/);
+  });
 });

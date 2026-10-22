@@ -1,4 +1,5 @@
 import { type CommitSha, KnowledgeSlice, type PublishedLesson, type PublishedRule } from "@open-macaron/contracts";
+import { z } from "zod";
 
 export const DEFAULT_KNOWLEDGE_URL = "https://open-macaron.github.io/knowledge/v1";
 
@@ -67,7 +68,8 @@ export class KnowledgeSource {
     }
     if (!response.ok) throw new KnowledgeUnavailable(`${path}: HTTP ${String(response.status)}`, response.status);
     const parsed = KnowledgeSlice.safeParse(await response.json());
-    if (!parsed.success) throw new KnowledgeUnavailable(`${path}: not a knowledge slice`, response.status);
+    // Slices are parsed strictly: a field added to the read API after this release lands here, and the issue says which.
+    if (!parsed.success) throw new KnowledgeUnavailable(`${path}: not a knowledge slice:\n${z.prettifyError(parsed.error)}`, response.status);
     const etag = response.headers.get("etag");
     if (etag !== null) this.cache.set(url, { etag, slice: parsed.data });
     return parsed.data;
