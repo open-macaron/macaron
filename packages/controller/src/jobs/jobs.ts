@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
 import { PgBoss } from "pg-boss";
+import { CommitSha } from "@open-macaron/contracts";
 import { z } from "zod";
 import { describeError } from "../common/errors.ts";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
@@ -18,6 +19,8 @@ export const Queue = {
   reconcile: "reconcile",
   /** Periodic: delete leftover `macaron-run-*` OpenRouter keys. */
   sweepKeys: "sweep-keys",
+  /** open-macaron/config's Pages deployment succeeded: reload, retried until Pages serves that commit. */
+  configPublished: "config-published",
 } as const;
 export type QueueName = (typeof Queue)[keyof typeof Queue];
 
@@ -27,6 +30,7 @@ export const ThreadReadyJob = z.object({ threadId: z.uuid() });
 export const NoPayload = z.unknown();
 export const SettleCostJob = z.object({ runId: z.uuid(), previousMicros: z.int().nonnegative().optional() });
 export const RunCompletedJob = z.object({ ghRunId: z.int().positive(), conclusion: z.string().nullable() });
+export const ConfigPublishedJob = z.object({ commit: CommitSha });
 
 /**
  * pg-boss, on the same Postgres. It creates and migrates its own `pgboss` schema at startup.
@@ -52,6 +56,8 @@ export class Jobs implements OnModuleInit, OnApplicationShutdown {
     await this.boss.createQueue(Queue.settleCost, { policy: "short", retryLimit: 10, retryDelay: 60, retryBackoff: true, expireInSeconds: 600 });
     await this.boss.createQueue(Queue.reconcile, { policy: "singleton", expireInSeconds: 300 });
     await this.boss.createQueue(Queue.sweepKeys, { policy: "singleton", expireInSeconds: 300 });
+    // Pages' CDN can take a few minutes to serve a new deployment everywhere.
+    await this.boss.createQueue(Queue.configPublished, { policy: "short", retryLimit: 8, retryDelay: 15, retryBackoff: true, expireInSeconds: 120 });
     await this.boss.schedule(Queue.reconcile, "*/2 * * * *");
     await this.boss.schedule(Queue.sweepKeys, "17 * * * *");
   }
@@ -82,6 +88,11 @@ export class Jobs implements OnModuleInit, OnApplicationShutdown {
   /** Deduplicated by run id: the webhook and reconcile may both report the same completion. */
   async runCompleted(ghRunId: number, conclusion: string | null): Promise<void> {
     await this.boss.send(Queue.runCompleted, { ghRunId, conclusion }, { singletonKey: String(ghRunId) });
+  }
+
+  /** Deduplicated by commit: GitHub may deliver a deployment status twice. */
+  async configPublished(commit: CommitSha): Promise<void> {
+    await this.boss.send(Queue.configPublished, { commit }, { singletonKey: commit });
   }
 
   /** Settles a run's cost after `delayMs`; deduplicated by run id. */

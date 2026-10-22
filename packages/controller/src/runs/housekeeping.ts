@@ -4,6 +4,7 @@ import { BudgetService, RUN_KEY_PREFIX } from "../budget/budget.service.ts";
 import { Clock } from "../common/clock.ts";
 import { describeError } from "../common/errors.ts";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
+import { ConfigUpdates } from "../config/config-updates.ts";
 import { RepoConfigService } from "../config/repo-config.service.ts";
 import { GH_ORG, type GitHub } from "../github/github.ts";
 import { repoRef } from "../github/repo-ref.ts";
@@ -25,7 +26,8 @@ export const KEY_MAX_AGE_MS = (MAX_TIMEOUT_MINUTES + KEY_GRACE_MINUTES + 60) * 6
 
 /**
  * Safety nets, scheduled by pg-boss (one instance runs each tick):
- * - reconcile: completions missed while the controller was down, runs that never started, timeouts;
+ * - reconcile: completions missed while the controller was down, runs that never started, timeouts,
+ *   and a published configuration whose deployment webhook didn't arrive;
  * - sweep: run keys that outlived their run, on every configured backend (keys also expire on their own).
  */
 @Injectable()
@@ -40,6 +42,7 @@ export class Housekeeping implements OnApplicationBootstrap {
     private readonly launcher: RunLauncher,
     private readonly budget: BudgetService,
     private readonly config: RepoConfigService,
+    private readonly configUpdates: ConfigUpdates,
     private readonly clock: Clock,
   ) {}
 
@@ -50,6 +53,7 @@ export class Housekeeping implements OnApplicationBootstrap {
   }
 
   async reconcile(): Promise<void> {
+    await this.configUpdates.revalidate();
     // Finished runs whose cost isn't in the ledger get a settle-cost job (deduplicated by run id),
     // in case one was lost.
     for (const run of await this.runs.unsettled()) {

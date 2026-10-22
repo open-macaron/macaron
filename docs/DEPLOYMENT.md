@@ -104,6 +104,7 @@ The settings ConfigMap `macaron-settings` holds:
 - `PUBLIC_URL`, taken from the Route's generated host, and `BIFROST_PUBLIC_URL` (`<PUBLIC_URL>/llm/anthropic`);
 - `MACARON_ENABLED`, `MACARON_ALLOWED_USER_IDS` and `LOG_LEVEL`, which keep their values unless given in the environment. A fresh namespace starts disabled, and refuses to start without `MACARON_ALLOWED_USER_IDS` given (empty means no restriction);
 - `RUNNER_REPO_ID` and `RUNNER_OWNER_ID`;
+- `CONFIG_URL` and `CONFIG_REPO_ID`, once `config/` is published by open-macaron/config (§6, "Configuration"). Unset, the controller reads the `config/` ConfigMap;
 - `LLM_BACKEND=bifrost`.
 
 Pods read Secrets and settings when they start: `oc rollout restart deployment/macaron-controller deployment/macaron-bifrost` after a change.
@@ -132,6 +133,11 @@ A `config/` change is a deploy: its ConfigMap gets a new name, which rolls the c
 - **Kill switch:** `MACARON_ENABLED=false deploy/openshift/scripts/provision-secrets.sh`, then restart the controller. The controller stops ingesting, refuses to launch runs and revokes open keys. `oc scale deployment/macaron-controller --replicas=0` is the hard stop: open keys still expire on their own, and the sweeper deletes them on the next start.
 - **User allowlist:** `MACARON_ALLOWED_USER_IDS=<id>,<id>` limits who can trigger the bot to those numeric GitHub user ids, whatever `config/` trusts. Ids rather than logins, because a login can be renamed and re-registered. Set it through `provision-secrets.sh`, then restart the controller.
 - **LLM backend:** production uses Bifrost over the upstream LLM key (`LLM_BACKEND=bifrost`). Models must be priced in `deploy/bifrost/pricing.json`. The controller refuses to start when the active backend can't price a configured model, and refuses to mint keys for one after a config reload. A configured backend that isn't active and fails its start-up check is logged and left out.
+- **Configuration:** with `CONFIG_URL` set, the controller reads open-macaron/config's snapshot (`<CONFIG_URL>/config.json`, schema `config-published`), not `CONFIG_DIR`.
+  - **When it changes:** a successful Pages deployment of `CONFIG_REPO_ID` sends `deployment_status` to `/v1/webhook`, and the controller reloads that commit, retrying until Pages serves it. The two-minute reconcile also revalidates the snapshot (a 304 when unchanged), in case a delivery is delayed or lost.
+  - **What it accepts:** a snapshot replaces the live one only if it is valid and the active LLM backend prices every model it configures. Otherwise the controller logs `configuration … rejected` and keeps the live one.
+  - **Boot:** the controller starts on the published snapshot. If Pages can't serve a valid one, it starts on the snapshot it applied last, which is stored in `config_snapshots`, also the record of which commit was live when. With neither, it refuses to start.
+  - **Which commit is live:** `oc exec statefulset/macaron-postgres -- psql -d macaron -c 'select commit, applied_at from config_snapshots order by applied_at desc limit 5'`.
 - **psql:** `oc exec -it statefulset/macaron-postgres -- psql -d macaron`, as the superuser over the local socket.
 - **Off-cluster copy of the database:** the `macaron-backups` volume is in the same cluster. Until an object store is available, pull a dump to the operator's machine: `oc exec statefulset/macaron-postgres -- pg_dump --format=custom -d macaron > macaron.dump`, and the same for `bifrost`. Keep the dumps encrypted at rest.
 - **Restore** (the procedure used for the migration):

@@ -1,14 +1,15 @@
 import { Controller, Headers, HttpCode, HttpStatus, Inject, Logger, Post, type RawBodyRequest, Req, UnauthorizedException } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 import { Webhooks } from "@octokit/webhooks";
+import { CommitSha } from "@open-macaron/contracts";
 import type { Request } from "express";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { Jobs } from "../jobs/jobs.ts";
 
 /**
- * GitHub webhooks (open-macaron/runner's, event workflow_run), through @octokit/webhooks: the signature is
- * verified on the raw bytes and payloads are typed from GitHub's own schemas. Handlers only
- * enqueue work, so GitHub gets its answer within milliseconds.
+ * GitHub webhooks (open-macaron/runner's workflow_run, open-macaron/config's deployment_status),
+ * through @octokit/webhooks: the signature is verified on the raw bytes and payloads are typed from
+ * GitHub's own schemas. Handlers only enqueue work, so GitHub gets its answer within milliseconds.
  */
 @ApiExcludeController()
 @Controller("v1/webhook")
@@ -28,12 +29,21 @@ export class WebhookController {
       this.logger.log(`workflow run ${String(run.id)} completed (${run.conclusion ?? "no conclusion"})`);
       await jobs.runCompleted(run.id, run.conclusion);
     });
+    this.webhooks.on("deployment_status.created", async ({ payload }) => {
+      // Only open-macaron/config's Pages deployments matter: a new configuration is live.
+      if (payload.repository.id !== env.publishedConfig?.repoId) return;
+      if (payload.deployment.environment !== "github-pages" || payload.deployment_status.state !== "success") return;
+      const commit = CommitSha.safeParse(payload.deployment.sha);
+      if (!commit.success) return;
+      this.logger.log(`configuration ${commit.data} published`);
+      await jobs.configPublished(commit.data);
+    });
   }
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
   async receive(
-    @Req() request: RawBodyRequest<Request>,
+    @Req() request: Pick<RawBodyRequest<Request>, "rawBody">,
     @Headers("x-github-delivery") id: string | undefined,
     @Headers("x-github-event") name: string | undefined,
     @Headers("x-hub-signature-256") signature: string | undefined,

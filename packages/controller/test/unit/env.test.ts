@@ -57,3 +57,22 @@ describe("LLM backends", () => {
     expect(() => testEnv({ ...bifrost, BIFROST_PUBLIC_URL: "http://macaron.example.test/llm/anthropic" })).toThrow(/BIFROST_PUBLIC_URL/);
   });
 });
+
+describe("published configuration", () => {
+  it("reads config/ from a directory when CONFIG_URL is unset", () => {
+    expect(testEnv().publishedConfig).toBeUndefined();
+  });
+
+  it("needs CONFIG_URL and CONFIG_REPO_ID together", () => {
+    expect(testEnv({ CONFIG_URL: "https://open-macaron.github.io/config/v1", CONFIG_REPO_ID: "1234" }).publishedConfig).toEqual({
+      url: "https://open-macaron.github.io/config/v1",
+      repoId: 1234,
+    });
+    expect(() => testEnv({ CONFIG_URL: "https://open-macaron.github.io/config/v1" })).toThrow(/CONFIG_REPO_ID: required/);
+    expect(() => testEnv({ CONFIG_REPO_ID: "1234" })).toThrow(/CONFIG_URL: required/);
+  });
+
+  it("refuses a plain-HTTP URL", () => {
+    expect(() => testEnv({ CONFIG_URL: "http://open-macaron.github.io/config/v1", CONFIG_REPO_ID: "1" })).toThrow(/CONFIG_URL/);
+  });
+});

@@ -12,8 +12,12 @@ const RawEnv = z.object({
   /** Public base URL (the Route to the edge); also the OIDC audience runners must request. */
   PUBLIC_URL: z.url({ protocol: /^https$/ }),
   DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, "expected a postgres:// URL"),
-  /** Directory holding global.yaml and projects/ (delivered by deploy.sh). */
+  /** Directory holding global.yaml and projects/: local runs and tests, used when CONFIG_URL is unset. */
   CONFIG_DIR: z.string().min(1).default("/opt/macaron/config"),
+  /** open-macaron/config's snapshot on GitHub Pages (its `config.json` directory), e.g. https://open-macaron.github.io/config/v1. */
+  CONFIG_URL: z.url({ protocol: /^https$/ }).optional(),
+  /** open-macaron/config's immutable id: only its Pages deployments trigger a reload. */
+  CONFIG_REPO_ID: z.coerce.number().int().positive().optional(),
   /** Kill switch: when false, nothing is ingested and every open key is revoked. */
   MACARON_ENABLED: z.stringbool().default(true),
   /**
@@ -76,6 +80,11 @@ export interface OpenRouterEnv {
   readonly routerKey: string;
 }
 
+export interface PublishedConfigEnv {
+  readonly url: string;
+  readonly repoId: number;
+}
+
 export interface BifrostEnv {
   readonly adminUrl: string;
   readonly publicUrl: string;
@@ -124,7 +133,12 @@ export const Env = RawEnv.transform((raw, ctx) => {
       };
     }
   }
-  return { ...raw, openRouter, bifrost };
+  let publishedConfig: PublishedConfigEnv | undefined;
+  if (raw.CONFIG_URL !== undefined || raw.CONFIG_REPO_ID !== undefined) {
+    missing({ CONFIG_URL: raw.CONFIG_URL, CONFIG_REPO_ID: raw.CONFIG_REPO_ID }, "for the published configuration");
+    if (raw.CONFIG_URL !== undefined && raw.CONFIG_REPO_ID !== undefined) publishedConfig = { url: raw.CONFIG_URL, repoId: raw.CONFIG_REPO_ID };
+  }
+  return { ...raw, openRouter, bifrost, publishedConfig };
 });
 export type AppEnv = z.output<typeof Env>;
 

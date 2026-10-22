@@ -1,6 +1,6 @@
 import { deepmergeCustom } from "deepmerge-ts";
 import { z } from "zod";
-import { GitHubLogin, RepoSlug, Slug, Usd } from "./ids.ts";
+import { CommitSha, GitHubLogin, RepoSlug, Slug, Usd } from "./ids.ts";
 import { Harness, Mode, Platform } from "./mode.ts";
 
 const Params = z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/), z.string());
@@ -198,3 +198,17 @@ export function runnerFor(config: Pick<RepoSettings, "runsOn" | "platforms">, pl
 export function platformsOf(config: Pick<RepoSettings, "platforms">): Platform[] {
   return ["linux", ...Platform.options.filter((platform) => platform !== "linux" && config.platforms[platform] !== undefined)];
 }
+
+/** Every file the configuration is made of; anything else in a published snapshot is rejected. */
+export const CONFIG_FILE_PATH = /^(?:global\.yaml|projects\/[a-z0-9]+(?:-[a-z0-9]+)*\/(?:project\.yaml|repos\/[A-Za-z0-9._-]{1,100}\.ya?ml))$/;
+
+/**
+ * The configuration as open-macaron/config publishes it on GitHub Pages (`v1/config.json`): its
+ * files verbatim, at one commit. The controller validates them exactly as a local `config/` tree.
+ */
+export const PublishedConfig = z.strictObject({
+  version: z.literal(1),
+  commit: CommitSha,
+  files: z.record(z.string().regex(CONFIG_FILE_PATH, "not a configuration file"), z.string().max(65_536)),
+});
+export type PublishedConfig = z.infer<typeof PublishedConfig>;
