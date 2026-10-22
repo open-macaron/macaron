@@ -23,6 +23,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: macaron-controller
+  annotations:
+    # A new digest in the macaron-controller ImageStream rolls the controller out.
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"macaron-controller:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"controller\")].image"}]'
 spec:
   replicas: 1
   revisionHistoryLimit: 5
@@ -50,8 +53,9 @@ spec:
           type: RuntimeDefault
       containers:
         - name: controller
-          # Digest only, verified before pinning (AGENTS.md "Release and deploy"); deploy.sh refuses anything else.
-          image: ghcr.io/open-macaron/controller@sha256:8451ae1a4f4bf68c5ddebafff585414debbd7aa5a02ea8eec72015446fff9ffe
+          # Set from the macaron-controller ImageStream: by the image trigger on each release, and by
+          # deploy.sh to the digest the stream holds, so a deploy never moves the controller.
+          image: ghcr.io/open-macaron/controller:latest
           ports:
             - name: http
               containerPort: 8080

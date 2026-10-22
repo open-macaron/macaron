@@ -6,15 +6,15 @@ Everything here is public: the repo, the images and the manifests. So no secret 
 flowchart LR
   subgraph GH["GitHub (open-macaron/macaron)"]
     CI["ci.yml<br/>typecheck, lint, tests, drift"] --> MAIN["main"]
-    MAIN --> REL["release.yml<br/>buildah build → ghcr.io/open-macaron/controller<br/>build provenance attestation"]
+    MAIN --> VP["Version Packages PR<br/>(changesets, merges itself once CI is green)"]
+    VP --> REL["release.yml<br/>tags, releases, controller image :version and :latest<br/>build provenance attestation"]
   end
-  REL --> VER["maintainer: gh attestation verify<br/>(release.yml on main, source = commit)"]
-  VER --> PIN["commit on main: pin the digest<br/>in deploy/openshift/controller.yaml"]
-  PIN --> DEP["operator machine<br/>deploy/openshift/scripts/deploy.sh"]
-  DEP -.->|oc| NS
+  REL -->|"ghcr.io/open-macaron/controller:latest"| IS
+  DEP["operator machine<br/>deploy.sh: manifests, config/, Bifrost, nginx, Postgres"] -.->|oc| NS
   GHW[GitHub webhooks] -->|443| Route
   R[Actions runners] -->|443| Route
   subgraph NS["OpenShift namespace (restricted-v2, default-deny NetworkPolicies)"]
+    IS["ImageStream macaron-controller:latest<br/>scheduled import"] -->|image trigger| Ctl
     Route["Route macaron<br/>edge TLS, HTTP → HTTPS"] --> Edge["macaron-edge (nginx)<br/>exact routes, body limits, 404 otherwise"]
     Edge --> Ctl["macaron-controller"]
     Edge --> Bf["macaron-bifrost<br/>three LLM routes only"]
@@ -38,7 +38,8 @@ Until 2026-10-21 production ran on a Fedora VPS with rootful Podman quadlets. It
   
   `actions/attest-build-provenance` attaches SLSA provenance to each artifact, signed by Sigstore through GitHub OIDC with no long-lived key.
 - **Workflow permissions:** top level `permissions: {}`. Each release job gets only what it needs: `contents: write` and `pull-requests: write` to version and tag, `packages: write` for the image, `id-token: write` and `attestations: write` to attest (and to publish to npm).
-- **Verification before pinning:** `gh attestation verify oci://ghcr.io/open-macaron/controller@<digest> --signer-workflow open-macaron/macaron/.github/workflows/release.yml --source-ref refs/heads/main --source-digest <commit>`. Only a verified digest is pinned in `deploy/openshift/controller.yaml`. `deploy.sh` refuses an image that isn't pinned by digest.
+- **Controller rollout:** production follows `ghcr.io/open-macaron/controller:latest` through the `macaron-controller` ImageStream (§2), so a controller release reaches the cluster without a pin or a deploy. The cluster doesn't verify the image's signature yet: OpenShift's `ImagePolicy` can't match a GitHub workflow's keyless signature (#35). Verify a digest by hand with `gh attestation verify oci://ghcr.io/open-macaron/controller@<digest> --signer-workflow open-macaron/macaron/.github/workflows/release.yml --source-ref refs/heads/main`.
+- **Verification before pinning** (the CLI bundles, which downstream repositories pin by URL and sha256): `gh attestation verify <file> --signer-workflow open-macaron/macaron/.github/workflows/release.yml --source-ref refs/heads/main`.
 - **Other images:** Bifrost (`docker.io/maximhq/bifrost`), Postgres (`registry.redhat.io/rhel10/postgresql-18`) and nginx (`registry.access.redhat.com/ubi10/nginx-126`) are pinned by digest in their manifests too.
 
 ## 2. Manifests (`deploy/openshift/`)
@@ -51,6 +52,7 @@ Until 2026-10-21 production ran on a Fedora VPS with rootful Podman quadlets. It
 | `postgres/macaron.conf` | TLS with the Service's serving certificate (issued and rotated by OpenShift's service CA), logs to stderr |
 | `backup.yaml` | Nightly `pg_dump` of both databases, each by its owner, to the `macaron-backups` volume, kept 30 days |
 | `bifrost.yaml` | An initContainer renders `config.json` with `deploy/bifrost/render-config.sh` (upstream URL from the Secret, `PG_SSL_MODE=require`). `Recreate`: never two instances charging the same keys |
+| `controller-imagestream.yaml` | `macaron-controller:latest`, following `ghcr.io/open-macaron/controller:latest` with a scheduled import (the cluster's interval, about 15 minutes), pulled from ghcr.io by digest. The controller Deployment's `image.openshift.io/triggers` annotation rolls it out on each new digest |
 | `controller.yaml` | `config/` mounted from a ConfigMap that `deploy.sh` generates. `DATABASE_URL` is assembled from the Secret's password and verifies the service CA. `RollingUpdate`: migrations run under an advisory lock and pg-boss coordinates through Postgres |
 | `edge.yaml`, `edge/nginx.conf` | The Route (edge TLS, 600 s timeout for LLM streams, no sticky cookie) and nginx, which holds the routing contract of DESIGN.md §7. The official Caddy image can't be used under `restricted-v2`: its binary carries a file capability |
 | `networkpolicies.yaml` | Default deny, DNS for every pod, then one allow-list per workload |
@@ -120,12 +122,12 @@ deploy/openshift/scripts/deploy.sh
 
 The script:
 1. Refuses an unclean checkout, or a commit other than `origin/main` unless `MACARON_DEPLOY_UNMERGED=1`.
-2. Generates the `config/` ConfigMap, whose items rebuild the directory tree, and checks that the controller image is pinned by digest.
+2. Generates the `config/` ConfigMap, whose items rebuild the directory tree, and sets the controller image to the digest the ImageStream holds (importing it on a first deploy), so a deploy never moves the controller.
 3. Runs a `pg_dump` Job before applying.
 4. Refuses to restart a changed Bifrost while runs are unsettled, because Bifrost writes spend to Postgres only every 10 s.
 5. Applies server-side and waits for every rollout. A Deployment that doesn't become ready is rolled back.
 
-A `config/` change is a deploy: its ConfigMap gets a new name, which rolls the controller.
+A `config/` change is a deploy: its ConfigMap gets a new name, which rolls the controller. A controller release is not: the ImageStream picks it up.
 
 ## 6. Operations
 
@@ -138,6 +140,8 @@ A `config/` change is a deploy: its ConfigMap gets a new name, which rolls the c
   - **What it accepts:** a snapshot replaces the live one only if it is valid and the active LLM backend prices every model it configures. Otherwise the controller logs `configuration … rejected` and keeps the live one.
   - **Boot:** the controller starts on the published snapshot. If Pages can't serve a valid one, it starts on the snapshot it applied last, which is stored in `config_snapshots`, also the record of which commit was live when. With neither, it refuses to start.
   - **Which commit is live:** `oc exec statefulset/macaron-postgres -- psql -d macaron -c 'select commit, applied_at from config_snapshots order by applied_at desc limit 5'`.
+- **Controller version:** `oc get imagestreamtag macaron-controller:latest -o jsonpath='{.image.dockerImageMetadata.Config.Labels.org\.opencontainers\.image\.version}'`, and `oc describe imagestream macaron-controller` for the digests imported over time.
+- **Rolling back the controller:** pin the tag to an earlier digest from that history, which also stops the scheduled import: `oc tag --scheduled=false ghcr.io/open-macaron/controller@sha256:<earlier> macaron-controller:latest`. The trigger rolls the Deployment to it. Following releases again means releasing a fixed version, then `deploy.sh` (it re-applies `scheduled: true`).
 - **psql:** `oc exec -it statefulset/macaron-postgres -- psql -d macaron`, as the superuser over the local socket.
 - **Off-cluster copy of the database:** the `macaron-backups` volume is in the same cluster. Until an object store is available, pull a dump to the operator's machine: `oc exec statefulset/macaron-postgres -- pg_dump --format=custom -d macaron > macaron.dump`, and the same for `bifrost`. Keep the dumps encrypted at rest.
 - **Restore** (the procedure used for the migration):
