@@ -28,7 +28,10 @@ macaron/                                (open-macaron/macaron, public)
 │   ├── controller/                     NestJS service, see §3
 │   ├── contracts/                      Zod schemas: RunContext, RunResult, TrustConfig → also emitted as JSON Schema
 │   ├── agent-cli/                      `macaron-agent` used inside runner's `run.yml`: bootstrap (OIDC) → harness → validate → upload
-│   └── review/                         review engine shared by controller and agent-cli; `macaron-review` CLI on npm
+│   ├── review/                         review engine shared by controller and agent-cli; `macaron-review` CLI on npm
+│   ├── owners/                         owner-approved merges (OWNERS.yaml per folder), shared by the two CLIs below
+│   ├── knowledge-cli/                  open-macaron/knowledge: validate, merge, build the Pages read API
+│   └── config-cli/                     open-macaron/config: validate (the controller's checks), merge, build the Pages snapshot
 ├── harness/{claude,codex,opencode}/    thin shell adapters invoked by agent-cli
 ├── config/                             global → projects/<p> → repos/<r>; schema in packages/contracts
 ├── deploy/                             openshift/ (manifests, scripts), bifrost/ (config, prices, dev.sh), see DEPLOYMENT.md

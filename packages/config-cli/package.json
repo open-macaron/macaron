@@ -1,0 +1,28 @@
+{
+  "name": "@open-macaron/config-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "config-cli: validates open-macaron/config, decides owner-approved merges, builds the snapshot published on GitHub Pages",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "config-cli": "dist/config-cli.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "node scripts/bundle.ts"
+  },
+  "dependencies": {
+    "@actions/core": "catalog:",
+    "@octokit/rest": "catalog:",
+    "@open-macaron/contracts": "workspace:*",
+    "@open-macaron/owners": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "esbuild": "catalog:"
+  }
+}
