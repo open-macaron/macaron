@@ -141,6 +141,7 @@ describe("prompts", () => {
     expect(system).toContain(`https://github.com/org-x/repo-a/blob/${baseSha}/`);
     expect(taskPrompt(context)).toContain("@alice asked");
     expect(system).not.toContain("## Platform");
+    expect(system).toContain("At most 10 files, 1 MB each and 5 MB in total");
   });
 
   it("tell the agent where its lessons come from, only when it has some", async () => {
