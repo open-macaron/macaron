@@ -13,7 +13,7 @@ Read first: [README.md](README.md) (what the bot does), [docs/DESIGN.md](docs/DE
 | `packages/agent-cli` | `macaron-agent`, run on GitHub Actions runners (no GitHub token, one capped LLM key) |
 | `packages/review` | The review engine (rule selection, read-only judge session, evidence verification, rendering), shared by the controller and agent-cli, and the `macaron-review` CLI published to npm as `@open-macaron/review` |
 | `packages/knowledge-cli` | Validation, owner-approved merges and the Pages read API of open-macaron/knowledge |
-| `packages/config-cli` | Validation (the controller's own `parseConfigTree`), owner-approved merges and the Pages snapshot of open-macaron/config. Changes to who can trigger the bot or what it may spend are left to the platform team |
+| `packages/config-cli` | Validation (`parseConfigTree` from contracts: the controller's own checks), owner-approved merges and the Pages snapshot of open-macaron/config. Changes to who can trigger the bot or what it may spend are left to the platform team |
 | `packages/owners` | The owner-approved merge both CLIs share: `OWNERS.yaml` per folder, matched by user id, status comment, merge at the evaluated commit |
 | [open-macaron/config](https://github.com/open-macaron/config) | Trusted projects, repositories, users, budgets (`global.yaml` → `projects/<p>/project.yaml` → `repos/<r>.yaml`), in its own repository: owner-approved, published on GitHub Pages, reloaded by the controller without a deploy. A copy for tests: `packages/contracts/test/fixtures/config` |
 | `deploy/` | `deploy/openshift/`: the production manifests and their scripts (`deploy.sh`, `provision-secrets.sh`), see docs/DEPLOYMENT.md; `deploy/bifrost/`: Bifrost's config template, pinned prices, `dev.sh` |
@@ -43,7 +43,7 @@ Integration tests (`controller-integration`) need a container runtime (Testconta
 - **Maintained libraries over hand-rolled code.** Look for one before writing a parser, a client or a protocol. Prefer clients generated from OpenAPI over guessed contracts.
 - **Dependencies** go in the `catalog:` of `pnpm-workspace.yaml`, pinned. `minimumReleaseAge` is 3 days: a version younger than that fails the install, so pick the newest that has matured.
 - **Comments** explain why, at the density of the surrounding code. No narration of what the code does.
-- **`process.env`** is read only in the validated env modules (`config/env.ts`, `agent-cli/src/inputs.ts`).
+- **`process.env`** is read only at the validated entry points: the controller's `config/env.module.ts` (parsed by `config/env.ts`), `agent-cli/src/inputs.ts`, and the `cli.ts` of knowledge-cli and config-cli. Each has an `eslint-disable` of `no-restricted-syntax`.
 - **Leave the code better, within scope.** Never include a fix outside your task. When you find a problem, something to improve or an idea, open an issue on open-macaron/macaron (`gh issue create`) with the matching label (`bug`, `enhancement`, `documentation`).
 
 ## Generated code (CI fails on drift)
@@ -66,7 +66,7 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 - **Agent output is untrusted:** results are schema-validated and gated; review violations stand only with a quote of an added line; mentions are defused (`sanitize()`).
 - **Read-only sessions** (reviews) get `--permission-mode dontAsk`, a short tool list, and never MCP servers. They're defined once, in `packages/review` (`claudeReviewArgs`), for the bot and the local CLI alike.
 - **Secrets are never printed, logged or committed.** Scripts read them from `~/.config/macaron/dev.env` without echoing; the cluster gets them through `deploy/openshift/scripts/provision-secrets.sh` (pipes and a server-side apply, never a command line).
-- **Nothing from a pull request's checkout is executed in a privileged context** (open-macaron/knowledge `merge.yml`; environments that run code only on trusted branches).
+- **Nothing from a pull request's checkout is executed in a privileged context** (the `merge.yml` of open-macaron/knowledge and open-macaron/config; environments that run code only on trusted branches).
 
 ## Release and deploy
 
@@ -76,7 +76,7 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
    - `release.yml` builds what was released, each with a build provenance attestation: the controller image (`:<version>`, `:sha-<commit>`, `:latest`), the agent-cli, knowledge-cli and config-cli bundles attached to their release, and `@open-macaron/review` on npm (trusted publishing, once the repository variable `NPM_PUBLISH` is `true`).
    
    The Version Packages PR is opened by the org's `open-macaron-release` GitHub App: a one-hour token from `RELEASE_APP_CLIENT_ID` (variable) and `RELEASE_APP_PRIVATE_KEY` (secret), limited to this repository, Contents and Pull requests write. It needs the app because GitHub runs no workflow on a PR opened with `GITHUB_TOKEN`. Without it, run CI on that PR by hand: `gh workflow run ci.yml --ref changeset-release/main`. `main`'s ruleset requires the `check` and `image` jobs and a PR for every change.
-3. **Verify before pinning:** `gh attestation verify` on the image digest / bundle (signer workflow on `refs/heads/main`, source digest = the commit).
+3. **Verify before pinning:** `gh attestation verify` on each CLI bundle (signer workflow `release.yml` on `refs/heads/main`, source digest = the commit). The controller image isn't pinned: verify a digest by hand when needed (docs/DEPLOYMENT.md §1).
 4. The controller rolls out by itself: the `macaron-controller` ImageStream follows `:latest`, and its image trigger rolls the Deployment (docs/DEPLOYMENT.md §2). Pin by hand only what other repositories use:
    - the agent-cli URL (`…/releases/download/%40open-macaron%2Fagent-cli%40<version>/macaron-agent.mjs`) and its sha256 in open-macaron/runner `run.yml`;
    - the knowledge-cli and config-cli URLs and sha256 in open-macaron/knowledge's and open-macaron/config's workflows. That's a platform PR there: `.github/` is never auto-merged.

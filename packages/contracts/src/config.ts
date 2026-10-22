@@ -146,8 +146,9 @@ export type ProjectFile = z.infer<typeof ProjectFile>;
 
 /**
  * Name of the bot's fork of a repo: a random 6-character prefix and the upstream name
- * (`sf465s-podman-desktop`), so two upstreams with the same name never collide. Chosen at
- * onboarding (`onboard-repo.sh` generates it); the owner is always the bot account.
+ * (`sf465s-podman-desktop`), so two upstreams with the same name never collide. Picked at
+ * onboarding by the maintainer who creates the fork (REPOSITORIES.md §5); the owner is always
+ * the bot account.
  */
 export const ForkName = z
   .string()

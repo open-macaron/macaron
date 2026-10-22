@@ -10,7 +10,7 @@ Companion docs:
 
 - ~30 upstream repos across many orgs; we can't install GitHub Apps there, and `macaron-bot` **never has any access to them**: no collaborator role, no org membership. It acts exactly like an outside contributor, working from forks (see "Operating as an outside contributor").
 - We want a bot account (`macaron-bot`) that is mentioned on an issue and then plans, asks questions, or opens a PR. It also handles review loops on its own PRs.
-- Agents (claude / codex / opencode) run on GitHub-hosted runners, so we don't manage agent environments.
+- Agents (Claude Code today; codex and opencode planned) run on GitHub-hosted runners, so we don't manage agent environments.
 - A **controller in our OpenShift namespace** holds every credential and does everything deterministic: polling, webhooks, reactions, budget keys, policy checks, pushes, comments.
 - Security comes first. The agent never holds a GitHub credential. Every agent run gets its own budget-capped LLM key: a Bifrost virtual key over the upstream LLM key, or an OpenRouter key (§4 "Budgets"). Pushes are done afterwards by deterministic code that only writes to one branch.
 - The bot only works for allow-listed repos and users. It reacts fast (👀), comments little, reports the cost of every action, and learns over time through a curated knowledge base.
@@ -27,7 +27,7 @@ flowchart LR
     BR["macaron-bot/sf465s-repo-a<br/>branch macaron/12-fix-parser"]
   end
   subgraph CTL["OpenShift: macaron-controller"]
-    ING["Ingest<br/>notifications poller<br/>(obeys X-Poll-Interval)<br/>/webhook (only if an upstream admin installs it)<br/>trust + debounce + 👀"]
+    ING["Ingest<br/>notifications poller<br/>(obeys X-Poll-Interval)<br/>upstream webhooks (planned)<br/>trust + debounce + 👀"]
     ROU["Router<br/>1 LLM call, no tools"]
     RL["RunLauncher<br/>/bootstrap, reconcile"]
     PUB["Gate + Publisher"]
@@ -39,7 +39,7 @@ flowchart LR
   OR[("LLM backend<br/>OpenRouter, or Bifrost → upstream<br/>keys, usage $")]
 
   ING -- "poll notifications" --> UP
-  UP -. "webhook (optional, upstream admin)" .-> ING
+  UP -. "webhook (planned, upstream admin)" .-> ING
   ING -- "👀" --> UP
   ING --> ROU --> RL
   RL -- "mint / revoke key" --> OR
@@ -60,7 +60,7 @@ flowchart LR
   - `comment`: follow-ups on threads the bot has already replied in.
 
   `review_requested` can't happen, because a reviewer must have access. `assign` only happens if a maintainer assigns the bot after it has commented on that issue; it's treated like a bare mention. The controller polls notifications with conditional GETs (§4).
-- *Webhooks* are instant. They work for upstream repos whose admins opt in, and for **our own org**, `open-macaron`: a webhook on the `runner` repository delivers `workflow_run` events from `runner`, which tell the controller that an agent finished. We own the org, so this always works.
+- *Webhooks* are instant, and today only come from **our own org**, `open-macaron`, on `/v1/webhook`: `workflow_run` from the `runner` repository tells the controller that an agent finished, and `deployment_status` from `config` that a new configuration is published (§4). We own the org, so this always works. Webhooks from upstream repos whose admins opt in are planned (§9, milestone 5).
 
 **Why a controller of our own.** GitHub holds **no secrets at all**. The prepare, gate and publish jobs leave Actions, which saves about 20–40 s of runner start-up per job and is a real speed gain. The controller can also revoke a key mid-run.
 
@@ -95,7 +95,7 @@ sequenceDiagram
   end
   J->>J: upload artifact: changes.patch + result.json
   J-->>C: webhook: workflow_run completed
-  C->>OR: disable key now (spending stops); settle-cost job ~90 s later: final usage → ledger → delete key
+  C->>OR: disable key now (spending stops); settle-cost job after the backend's usage lag (15 s Bifrost, 90 s OpenRouter): final usage → ledger → delete key
   C->>C: download artifact → Gate (policy)
   Note over C: Publisher: commit, FF push, replies, cost table, 👀 → 👍/😕
 ```
@@ -110,7 +110,7 @@ sequenceDiagram
 ```ts
 class Ingest {
   constructor(gh: GitHubClient, trust: TrustList, ledger: Ledger, router: Router, poller: NotificationsPoller) {}
-  /** POST /webhook — only for upstream repos whose admins install our webhook (HMAC-verified). Not assumed. */
+  /** Planned (milestone 5): POST /v1/webhook from upstream repos whose admins install our webhook (HMAC-verified). Not assumed. */
   onUpstreamWebhook(ev: WebhookEvent): Promise<void>;
   /** 👀 immediately; hand the thread to the Router once it has been quiet for 60 s (one review = one run). */
   schedule(ev: TriggerEvent): Promise<void>;
@@ -139,7 +139,7 @@ class RunLauncher {
   constructor(gh: GitHubClient, budgets: BudgetService, ledger: Ledger, publisher: Publisher) {}
   /** Caps check → mint key → store ticket → workflow_dispatch(run.yml, { ticket, repo, baseSha, branch, env, runsOn }). */
   launch(thread: ThreadRef, mode: Mode): Promise<Ticket>;
-  /** POST /bootstrap — verify OIDC, redeem ticket once, bind run_id. */
+  /** POST /v1/bootstrap — verify OIDC, redeem ticket once, bind run_id. */
   bootstrap(oidc: string, ticket: string): Promise<BootstrapPayload>;
   /** workflow_run completed → settle key, fetch artifact, Gate, Publisher; escalate if asked. */
   complete(run: WorkflowRun): Promise<void>;
@@ -213,7 +213,7 @@ stateDiagram-v2
 6. **Errors back off, they never retry fast.** The wait is `Retry-After`, the rate-limit reset, or an exponential backoff, whichever is longest, and never shorter than the poll interval.
 7. **Pinned API version.** All Octokit clients send `X-GitHub-Api-Version: 2026-03-10`. These endpoints only accept a classic PAT with the `notifications` scope, which is `GH_INTERACT`.
 
-Latency is therefore *at least* one poll interval (typically ~60 s, more when GitHub is under load). When an upstream repo installs our webhook, it is the fast path; polling remains the floor.
+Latency is therefore *at least* one poll interval (typically ~60 s, more when GitHub is under load). Upstream webhooks, where an admin installs ours, are planned as the fast path (§9, milestone 5); polling remains the floor.
 
 ### Budgets (`BudgetModule`)
 
@@ -250,7 +250,7 @@ class BudgetService {
 - Caps exist at four levels: per-run key limit, per thread, per repo per month, and global concurrency. There is also a kill switch (`MACARON_ENABLED`).
 - Every run key expires on its own (`expires_at` = timeout + 15 min). A `sweep-keys` pg-boss cron job deletes leftovers, as a safety net: keys of unsettled runs are kept until they are older than the longest allowed run plus grace and settlement (`KEY_MAX_AGE_MS`, derived from `MAX_TIMEOUT_MINUTES`). Each run's fast model is stored at launch with its model, since its key allows only those two.
 - The last request can overshoot a key's limit a little, so harness `max_tokens` stays bounded. OpenRouter refuses a request whose worst case exceeds what's left. Bifrost checks the budget before a request and charges it after, with no reservation, so parallel requests can each overshoot; its per-key request limit is counted the same way and doesn't stop a burst. The bound is Bifrost's provider-wide cap: 16 requests in flight plus 16 queued, the rest dropped (measured: a burst of 40 ran 32).
-- **Bifrost only charges priced models.** A model without a price costs $0, so its budget would never trigger. Prices are pinned in `deploy/bifrost/pricing.json` for exactly the allowed models, the controller refuses to start when the active backend can't price a configured model (e.g. names written for the other backend), and `BifrostKeys` refuses to mint a key for a model without one after a config reload.
+- **Bifrost only charges priced models.** A model without a price costs $0, so its budget would never trigger. Prices are pinned in `deploy/bifrost/pricing.json` for exactly the allowed models, the controller refuses to start when the active backend can't price a configured model (e.g. names written for the other backend), or to apply a reloaded configuration, and `BifrostKeys` still refuses to mint a key for a model without one.
 
 ### Gate and Publisher (`PublishModule`)
 
@@ -278,27 +278,33 @@ The controller has three GitHub tokens, all in its own Kubernetes Secret. Exact 
 | `GH_INTERACT` | classic `public_repo` PAT | Comments, reactions, PRs, notifications on upstream repos; blocked from `open-macaron` by org policy |
 | `GH_ORG` | fine-grained PAT, owner open-macaron | `runner`: Actions write (start and cancel runs); `knowledge`: Pull requests write (`remember:` proposals) |
 
-### Harness contract (`harness/<name>/run.sh`, `packages/contracts`)
+### Harness contract (`packages/agent-cli/src/harness.ts`, `packages/contracts`)
 
 For Claude Code the adapter sets `ANTHROPIC_BASE_URL=<llm.baseUrl>` (OpenRouter's `https://openrouter.ai/api`, or the edge's `/llm/anthropic` route to Bifrost), `ANTHROPIC_AUTH_TOKEN=<llm.key>`, `ANTHROPIC_API_KEY=""`, and the Haiku slot to `llm.fastModel`.
 
 ```ts
-type Mode = "triage" | "plan" | "implement" | "address_review" | "reproduce" | "verify" | "retro";
+// Abridged; the schemas are packages/contracts/src/run.ts (emitted as run-context/run-result.schema.json).
+type Mode = "triage" | "plan" | "implement" | "address_review" | "reproduce" | "verify" | "retro" | "review";
 
 interface RunContext {
-  mode: Mode; repo: string; number: number; branch: string; baseSha: string;
-  trigger: { kind: "assign" | "mention" | "review" | "comment"; url: string };
+  mode: Mode; repo: string; number: number; kind: "issue" | "pull"; title: string; branch: string; baseSha: string;
+  trigger: { kind: "assign" | "mention" | "review" | "comment"; author: string; url: string; instruction: string };
   thread: Comment[]; reviewComments: ReviewComment[];   // untrusted text; IDs are kept for replies
-  priorLoops: LoopSummary[]; knowledge: KnowledgeSlice;
+  priorLoops: LoopSummary[]; commands: Commands; attachments: AttachmentLimits;
+  platform: Platform; platforms: Platform[];            // the run's OS, and where a triage may escalate
+  review?: ReviewContext;                               // set iff mode is `review`: the rules to check
+  knowledge: RunKnowledge;                              // lessons (rules go in `review`)
 }
 
 interface RunResult {
-  action: "reply" | "plan" | "ask" | "commit" | "escalate" | "noop";
-  escalateTo?: Mode; commitMessage?: string; prTitle?: string; prBody?: string;
+  action: "reply" | "plan" | "ask" | "commit" | "escalate" | "noop" | "review";
+  escalateTo?: Mode; escalateOn?: Platform; commitMessage?: string;
+  pr?: { title: string; body: string }; message?: string;
   replies: { inReplyTo: number; body: string }[];        // bodies may embed ![caption](attachment:<id>)
   summary: string;
   attachments: { id: string; path: string; kind: "image" | "video"; caption: string; preview?: string }[];
-  learnings: { scope: "global" | "repo"; topic: string; text: string; evidence: string }[];
+  learnings: { scope: "global" | "project" | "repo"; topic: string; description?: string; text: string; evidence: string; updates?: string }[];
+  review?: RuleVerdict[];                                // required when action is review
 }
 ```
 
@@ -373,7 +379,7 @@ Mentions from untrusted users on trusted repositories get 👎 and nothing else:
 ```mermaid
 sequenceDiagram
   Reviewer->>Upstream PR: review (3 inline comments)
-  Controller->>Upstream PR: 👀 (next allowed poll, per X-Poll-Interval; instant if webhook)
+  Controller->>Upstream PR: 👀 (next allowed poll, per X-Poll-Interval)
   Controller->>Controller: 60 s quiet → Router: "2 change requests, 1 question"
   Controller->>Actions: dispatch run.yml {ticket} mode=address_review
   Actions->>Controller: bootstrap (OIDC) → key + context
@@ -558,7 +564,7 @@ https://open-macaron.github.io/knowledge/v1/
 └── repos/<owner>/<repo>.json    each: the folder's overview, rules and lessons, full text
 ```
 
-One file per folder, not pre-merged: which project a repository belongs to is macaron's configuration, not the knowledge repository's. The controller fetches `global`, the repo's project and the repo (ETag-cached, versioned by commit) and merges them, instead of cloning. Everything is public already; anyone can see what the bot enforces on a repository. Shapes: `KnowledgeIndex` and `KnowledgeSlice` in `@open-macaron/contracts`.
+One file per folder, not pre-merged: which project a repository belongs to is open-macaron/config's, not the knowledge repository's. The controller fetches `global`, the repo's project and the repo (ETag-cached, versioned by commit) and merges them, instead of cloning. Everything is public already; anyone can see what the bot enforces on a repository. Shapes: `KnowledgeIndex` and `KnowledgeSlice` in `@open-macaron/contracts`.
 
 ### 6.6 Gathering lessons
 
@@ -574,10 +580,10 @@ One file per folder, not pre-merged: which project a repository belongs to is ma
 | Runaway spend | Per-run key limit, live watchdog, mid-run revoke, thread/repo/month caps, loop caps, `timeout-minutes`, kill switch; with Bifrost, pinned prices for allowed models only and a provider-wide cap on requests in flight |
 | The upstream LLM key leaks or is used without a run key | Only Bifrost holds it (its own Kubernetes Secret; stored keys encrypted in its database); inference requires a virtual key; the edge routes three exact paths, never the admin API or UI |
 | Prompt injection via issue or review | Worst case is a bad patch in a PR that humans review; replies are sanitised (capped, @mentions defanged); knowledge updates are gated |
-| Malicious media (huge files, disguised types, HTML/SVG) | Allow-list by magic bytes (no SVG or HTML), size and count caps, served from GitHub Releases rather than our host; the controller never decodes media |
+| Malicious media (huge files, disguised types, HTML/SVG) | Allow-list by magic bytes (no SVG or HTML), size and count caps, served by GitHub (user-attachments, uploaded against the bot's fork) rather than our host; the controller never decodes media |
 | Forged authorship | The Publisher creates the commit itself (bot author, signed) from the diff |
 | Fork CI with our pushes | Actions disabled on every fork at onboarding |
-| Forged webhooks or bootstrap calls | HMAC on webhooks; OIDC signature and claims checked on bootstrap; the reverse proxy only exposes `/webhook`, `/bootstrap` and the three LLM routes |
+| Forged webhooks or bootstrap calls | HMAC on webhooks; OIDC signature and claims checked on bootstrap; the edge only exposes `/v1/webhook`, `/v1/bootstrap` and three exact `/llm/anthropic/v1/…` routes |
 
 Self-hosted runners next to the controller are deliberately not used. The machine holding every credential must never run agent code; throwaway GitHub VMs isolate it for free.
 
@@ -591,18 +597,18 @@ All `open-macaron` repos, the `runner` Actions logs, the images and the knowledg
   - no `pull_request_target` and no `workflow_run` triggers on untrusted input;
   - top-level `permissions: {}`;
   - actions pinned by SHA;
-  - `zizmor` in CI (see ENGINEERING.md §8).
+  - `zizmor` and `actionlint` on the workflows (wanted, not wired into `ci.yml` yet: #39).
 - **Sensitive values stay out of logs.** The run's LLM key is masked as the job's first step, and harness adapters never echo their environment. The knowledge base must not contain anything non-public about upstream projects or people.
 
 ## 8. Decisions
 
-1. **Ingress (decided).** The OpenShift router terminates TLS; nginx (`deploy/openshift/edge/`) exposes only `/webhook`, `/bootstrap` and, with the Bifrost backend, three exact `/llm/anthropic/…` routes.
+1. **Ingress (decided).** The OpenShift router terminates TLS; nginx (`deploy/openshift/edge/`) exposes only `/v1/webhook`, `/v1/bootstrap` and, with the Bifrost backend, three exact `/llm/anthropic/v1/…` routes.
 2. **Ledger storage (decided).** PostgreSQL 18 (a StatefulSet next to the controller, TLS only), with Drizzle ORM. See DEPLOYMENT.md §2.
 3. **Stack (decided).** NestJS 12 (ESM), TypeScript 6 strict, Drizzle v1 via `@nestjs/drizzle`, Zod, Vitest. See ENGINEERING.md.
 4. **Triggers (decided).** The trigger is a **mention**: `@macaron-bot [plan|implement|reproduce|verify|stop|retry|…]` from a trusted user. The bot never gets access to upstream repos, so no trigger is built on assignment, review requests or labels. GitHub lets a maintainer assign the bot only after it has commented on that issue; that rare case is handled like a bare mention, with the assigner checked against the trusted users.
 5. **Private upstreams (decided: no).** Public only, see "Everything is public".
 6. **Hosting (decided 2026-10-21):** an OpenShift namespace, applied from an operator machine (no GitOps, no credential in GitHub). It replaced a Fedora VPS with Podman quadlets (decided 2026-10-15), migrated in #24. Still open: see DEPLOYMENT.md §7.
-7. **Organisation (decided 2026-10-15):** `open-macaron` owns `macaron`, `runner`, `knowledge` and `.github`; the user `macaron-bot` owns only forks. See REPOSITORIES.md.
+7. **Organisation (decided 2026-10-15):** `open-macaron` owns `macaron`, `config`, `runner`, `knowledge` and `.github`; the user `macaron-bot` owns only forks. See REPOSITORIES.md.
 8. **Knowledge approval (decided 2026-10-15):** Prow-style. Per-folder `OWNERS.yaml` matched by user id; folder owners need no write access; `merge.yml` (on `main`, triggered by reviews, trusting nothing from the triggering run) merges with the repository's own token. No upstream-provided rules for now. See §6.4.
 9. **LLM backend (decided 2026-10-19):** Bifrost (Apache 2.0, ~200 MB) mints per-run keys over the upstream LLM key, which can't derive keys. LiteLLM was rejected for its weight. A live spike verified Claude Code through Bifrost with raw pass-through and spend matching Claude Code's own cost. Production runs on Bifrost only: OpenRouter's keys are disabled and it isn't configured, though the code still supports it.
 
