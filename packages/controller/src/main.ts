@@ -13,7 +13,7 @@ async function bootstrap(): Promise<void> {
   app.useLogger(app.get(Logger));
   app.useGlobalPipes(new StandardSchemaValidationPipe({ transform: true }));
   app.useGlobalFilters(new DomainErrorFilter());
-  // Not SIGHUP, which Nest includes by default: it reloads config/ (RepoConfigService, sent by deploy.sh).
+  // Not SIGHUP, which Nest includes by default: it reloads the configuration (RepoConfigService).
   app.enableShutdownHooks(["SIGTERM", "SIGINT"]);
   app.disable("x-powered-by");
   const env = app.get<AppEnv>(APP_ENV);

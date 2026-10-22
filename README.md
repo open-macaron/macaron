@@ -42,8 +42,10 @@ Read [docs/DESIGN.md](docs/DESIGN.md) first; [docs/SCALING.md](docs/SCALING.md),
 | `packages/controller` | The NestJS controller |
 | `packages/agent-cli` | `macaron-agent`, run on the runners: bootstrap, harness, result |
 | `packages/review` | The review engine of `@macaron-bot review`, also the `macaron-review` CLI to run the same review locally ([README](packages/review/README.md)) |
+| `packages/owners` | The owner-approved merge (`OWNERS.yaml` per folder) shared by knowledge-cli and config-cli |
 | `packages/knowledge-cli` | Validation, owner-approved merges and the read API of open-macaron/knowledge |
 | `packages/config-cli` | Validation, owner-approved merges and the published snapshot of [open-macaron/config](https://github.com/open-macaron/config), which holds the trusted projects, repositories, users and budgets |
+| `deploy/` | OpenShift manifests and scripts, Bifrost's config and the local stack ([DEPLOYMENT.md](docs/DEPLOYMENT.md)) |
 | `docs/` | Design documents |
 
 ## Development
@@ -52,8 +54,8 @@ Requirements: Node.js 24, pnpm 12, and Docker or Podman for the integration test
 
 ```sh
 pnpm install
-pnpm check          # typecheck, lint, unit tests
-pnpm test           # all tests (integration tests start a Postgres container)
+pnpm check          # typecheck, lint, all tests (integration tests start a Postgres container)
+pnpm exec vitest run --project controller   # the tests of one package
 ```
 
 With Podman, point Testcontainers at its socket: `DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock TESTCONTAINERS_RYUK_DISABLED=true`.
