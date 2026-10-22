@@ -13,9 +13,13 @@ export interface ConfigSnapshot {
 }
 
 export class ConfigTreeError extends Error {
-  constructor(readonly problems: readonly string[]) {
+  // A plain field, not a parameter property: contracts' sources also run under Node's type stripping (gen).
+  readonly problems: readonly string[];
+
+  constructor(problems: readonly string[]) {
     super(`invalid configuration:\n${problems.map((problem) => `  - ${problem}`).join("\n")}`);
     this.name = "ConfigTreeError";
+    this.problems = problems;
   }
 }
 
