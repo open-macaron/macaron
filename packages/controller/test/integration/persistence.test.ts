@@ -1,8 +1,9 @@
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { type RunContext, Ticket } from "@open-macaron/contracts";
+import { CommitSha, type PublishedConfig, type RunContext, Ticket } from "@open-macaron/contracts";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TicketAlreadyRedeemed, TicketRejected } from "../../src/common/errors.ts";
+import { DrizzleConfigSnapshotStore } from "../../src/config/config-snapshots.store.ts";
 import { connectAndMigrate, type Db } from "../../src/db/db.module.ts";
 import { createGitHub } from "../../src/github/github.ts";
 import type { RepoRef } from "../../src/github/repo-ref.ts";
@@ -56,6 +57,21 @@ describe("migrations at startup", () => {
     await second.$client.end();
     const result = await db.execute(sql`select count(*)::int as n from information_schema.tables where table_name = 'runs'`);
     expect(result.rows).toEqual([{ n: 1 }]);
+  });
+});
+
+describe("DrizzleConfigSnapshotStore", () => {
+  it("returns the configuration applied last, and moves a commit applied again", async () => {
+    const store = new DrizzleConfigSnapshotStore(db);
+    const one: PublishedConfig = { version: 1, commit: CommitSha.parse("1".repeat(40)), files: { "global.yaml": "one" } };
+    const two: PublishedConfig = { version: 1, commit: CommitSha.parse("2".repeat(40)), files: { "global.yaml": "two" } };
+
+    expect(await store.latest()).toBeUndefined();
+    await store.applied(one);
+    await store.applied(two);
+    expect(await store.latest()).toEqual(two);
+    await store.applied(one);
+    expect(await store.latest()).toEqual(one);
   });
 });
 

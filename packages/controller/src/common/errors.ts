@@ -38,7 +38,7 @@ export class UpstreamError extends DomainError {
   readonly code = "upstream_error";
 
   constructor(
-    readonly service: "github" | "openrouter" | "bifrost" | "knowledge",
+    readonly service: "github" | "openrouter" | "bifrost" | "knowledge" | "config",
     message: string,
     readonly status: number | undefined,
     options?: ErrorOptions,

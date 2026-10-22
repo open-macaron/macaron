@@ -5,6 +5,9 @@ import { BudgetService } from "./budget/budget.service.ts";
 import { OpenRouterKeys } from "./budget/openrouter-keys.ts";
 import { RunKeysRegistry } from "./budget/run-keys.registry.ts";
 import { APP_ENV, type AppEnv } from "./config/env.ts";
+import { ConfigSnapshotStore, DrizzleConfigSnapshotStore } from "./config/config-snapshots.store.ts";
+import type { ConfigSnapshot } from "./config/config-tree.ts";
+import { PublishedConfigClient } from "./config/published-config.client.ts";
 import { RepoConfigService } from "./config/repo-config.service.ts";
 import { BotIdentity } from "./github/bot-identity.ts";
 import { BootstrapController } from "./http/bootstrap.controller.ts";
@@ -38,6 +41,8 @@ import { ThreadStates } from "./routing/thread-states.ts";
 @Module({
   providers: [
     RepoConfigService,
+    PublishedConfigClient,
+    { provide: ConfigSnapshotStore, useClass: DrizzleConfigSnapshotStore },
     Jobs,
     BotIdentity,
     RunsRepository,
@@ -48,18 +53,31 @@ import { ThreadStates } from "./routing/thread-states.ts";
 })
 export class CoreModule {}
 
+/** Every model a configuration can give a run. */
+function configuredModels(snapshot: ConfigSnapshot): string[] {
+  return [...snapshot.repos.values()].flatMap((repo) => [repo.model, repo.fastModel, ...Object.values(repo.models)]);
+}
+
 /** Run keys: the only module holding the credentials that mint them. */
 @Module({
   providers: [
     {
       provide: RunKeysRegistry,
       inject: [APP_ENV, RepoConfigService],
-      useFactory: (env: AppEnv, config: RepoConfigService) =>
-        new RunKeysRegistry(
+      useFactory: (env: AppEnv, config: RepoConfigService) => {
+        const registry = new RunKeysRegistry(
           env.LLM_BACKEND,
           [...(env.openRouter === undefined ? [] : [new OpenRouterKeys(env.openRouter)]), ...(env.bifrost === undefined ? [] : [new BifrostKeys(env.bifrost)])],
-          () => [...config.snapshot.repos.values()].flatMap((repo) => [repo.model, repo.fastModel, ...Object.values(repo.models)]),
-        ),
+          () => configuredModels(config.snapshot),
+        );
+        // A reloaded configuration naming a model the active backend can't bill is refused as a whole,
+        // as at boot, rather than failing every run that would use it.
+        config.addCheck(async (snapshot) => {
+          const unpriced = await registry.active.unpriced(configuredModels(snapshot));
+          return unpriced.length === 0 ? [] : [`LLM backend "${registry.activeBackend}" has no price for ${unpriced.join(", ")}`];
+        });
+        return registry;
+      },
     },
     BudgetService,
   ],

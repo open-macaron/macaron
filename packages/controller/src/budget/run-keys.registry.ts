@@ -39,8 +39,8 @@ export class RunKeysRegistry implements OnModuleInit, OnApplicationBootstrap {
 
   /**
    * Refuses to start when the active backend can't bill a configured model (e.g. names written for
-   * another backend): every run would otherwise fail at launch. After a config reload, minting
-   * still refuses unpriced models one run at a time.
+   * another backend): every run would otherwise fail at launch. A reloaded configuration goes through
+   * the same check (registered on RepoConfigService); minting still refuses an unpriced model.
    */
   async onApplicationBootstrap(): Promise<void> {
     const unpriced = await this.active.unpriced(this.configuredModels());

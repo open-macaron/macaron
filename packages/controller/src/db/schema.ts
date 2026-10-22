@@ -40,6 +40,20 @@ export const pollState = pgTable(
   (table) => [check("poll_state_singleton", sql`${table.id} = 1`)],
 );
 
+/**
+ * Every published configuration the controller applied, newest last: the boot fallback when Pages
+ * is unreachable, and a record of which commit of open-macaron/config was live when.
+ */
+export const configSnapshots = pgTable(
+  "config_snapshots",
+  {
+    commit: text("commit").primaryKey(),
+    files: jsonb("files").$type<Record<string, string>>().notNull(),
+    appliedAt: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("config_snapshots_applied_at").on(table.appliedAt)],
+);
+
 /** An upstream issue (and the PR the bot opened for it, if any). */
 export const threads = pgTable(
   "threads",
