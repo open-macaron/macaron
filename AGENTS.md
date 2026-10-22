@@ -71,7 +71,7 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 ## Release and deploy
 
 1. Every PR that changes a package carries a changeset: `pnpm changeset` (packages, bump, a summary for the changelog), or `pnpm changeset --empty` when there is nothing to release. CI (`changeset status`) fails otherwise. Small semantic commits; CI (`ci.yml`) must be green, and a network flake pulling base images is retried, not ignored.
-2. `release.yml` keeps a "Version Packages" PR up to date with the pending changesets: versions, `CHANGELOG.md`, and dependents bumped. **Merging it is the release** (.changeset/README.md):
+2. `release.yml` keeps a "Version Packages" PR up to date with the pending changesets: versions, `CHANGELOG.md`, and dependents bumped. **It merges itself once CI is green (auto-merge), and that merge is the release** (.changeset/README.md):
    - changesets tags each released package (`@open-macaron/<package>@<version>`) and writes its GitHub release;
    - `release.yml` builds what was released, each with a build provenance attestation: the controller image (`:<version>`, `:sha-<commit>`, `:latest`), the agent-cli, knowledge-cli and config-cli bundles attached to their release, and `@open-macaron/review` on npm (trusted publishing, once the repository variable `NPM_PUBLISH` is `true`).
    
