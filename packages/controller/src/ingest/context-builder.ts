@@ -29,7 +29,7 @@ export interface Trigger {
 }
 
 /** Media limits handed to the agent; the Gate enforces the same numbers. */
-const ATTACHMENTS = { maxFiles: 10, maxFileBytes: 25_000_000, maxTotalBytes: 50_000_000 };
+const ATTACHMENTS = { maxFiles: 20, maxFileBytes: 25_000_000, maxTotalBytes: 50_000_000 };
 const MAX_COMMENTS = 100;
 /** RunKnowledge's limit: beyond it, skill descriptions alone would crowd the context. */
 const MAX_LESSONS = 200;

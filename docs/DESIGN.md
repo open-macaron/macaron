@@ -341,7 +341,7 @@ flowchart LR
 - **Each file is uploaded once per loop** (effects), so a retried publish reuses it.
 - **Limits:**
   - allowed types: png, jpeg, webp, gif, webm, mp4;
-  - at most 10 files and 50 MB per run.
+  - at most 20 files and 50 MB per run.
 
   The controller only checks magic bytes and sizes. It never decodes or transcodes media, so it doesn't parse untrusted files.
 - **Videos (later):** `ffmpeg -f x11grab` on the virtual display, uploaded the same way.
