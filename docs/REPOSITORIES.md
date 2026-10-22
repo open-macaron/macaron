@@ -13,7 +13,7 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 │ knowledge    rules + lessons; folder owners approve, merge.yml merges; Pages read API      │◀─ PR from macaron-bot/knowledge (GH_ORG)
 │ .github      org profile, SECURITY.md, CONTRIBUTING.md, issue templates                   │
 └───────────────────────────────────────────────────────────────────────────────────────────┘
-          runner repository webhook (workflow_run) ─────────────────────▶ VPS controller /v1/webhook
+          runner repository webhook (workflow_run) ─────────────────────▶ controller /v1/webhook
 
  github.com/macaron-bot  (user, owns forks only)
 ┌──────────────────────────────────────────────┐   PR + replies (GH_INTERACT)   ┌─────────────────────────┐
@@ -27,7 +27,7 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 
 | Repo | Contents | Who writes | Why separate |
 |---|---|---|---|
-| `open-macaron/macaron` (this repo) | `packages/controller`, `packages/{contracts,agent-cli}`, `harness/`, `config/` (global → project → repo), `deploy/`, `docs/` | Humans via PR | Source of truth for code and trust config. `deploy.sh` on the VPS pulls it |
+| `open-macaron/macaron` (this repo) | `packages/controller`, `packages/{contracts,agent-cli}`, `harness/`, `config/` (global → project → repo), `deploy/`, `docs/` | Humans via PR | Source of truth for code and trust config. `deploy/openshift/scripts/deploy.sh` applies a clean checkout of `main` |
 | `open-macaron/runner` | `.github/workflows/run.yml` (the only agent workflow), `env-check.yml`, `environments/` (shared + own, CODEOWNERS per folder), plus a `README` describing the contract (SCALING.md §1) | Humans via PR; the bot only *dispatches* | Gives agent runs their own `repository_id` (the OIDC check pins it) and their own public run history. The token that dispatches runs can't trigger `macaron`'s `release.yml` |
 | `open-macaron/knowledge` | `global/`, `projects/<p>/`, `repos/<owner>/<repo>/`, each with `OWNERS.yaml`, `rules/`, `lessons/` (DESIGN.md §6) | Humans write rules; the bot proposes lessons from its fork. Folder owners approve (no write access needed); `merge.yml` merges | High-churn, bot-authored content stays out of the code repo. Knowledge is versioned independently of controller releases |
 | `open-macaron/.github` | Org profile, default community health files | Humans | GitHub convention |
@@ -47,7 +47,7 @@ How `run.yml` gets the agent-cli:
 | Humans | Team `maintainers` (owners: 2 people minimum) | `admin` on all org repos |
 | `macaron-bot` | Member, team `bots` | `write` on `runner` only, needed for `workflow_dispatch`. Rulesets block it from creating or updating any ref there. Read elsewhere (public) |
 
-| Token (on the VPS) | Type and owner | Permissions | Used for |
+| Token (in the controller's Secret) | Type and owner | Permissions | Used for |
 |---|---|---|---|
 | `GH_INTERACT` | classic PAT of macaron-bot | `public_repo`, `notifications` | Comments, reactions, PRs and notifications on **upstream** repos. The org blocks classic PATs, so this token can't touch `open-macaron/*` |
 | `GH_PUSH` | fine-grained, owner `macaron-bot`, all repositories | Contents: write. Workflows: write | `git push` to forks only (macaron-bot owns nothing else), including `macaron-bot/knowledge`. Workflows only carries upstream's own workflow commits when a fork is synced or branched; the controller never writes `.github/` itself. No Administration permission. **Never enable Actions on a fork**: GitHub keeps them off on a new fork until its owner turns them on |
@@ -99,8 +99,8 @@ The `macaron-bot` account itself: 2FA on; the profile says it's a bot and links 
 
 1. Org: apply §4 settings, create teams `maintainers` and `bots`, and add `macaron-bot` to `bots`.
 2. Create `macaron` and push these docs. Then create `runner`, `knowledge` and `.github`. Apply the rulesets.
-3. Create the three tokens (§3), approve `GH_ORG` in the org, and store them as Podman secrets on the VPS (DEPLOYMENT.md §4).
-4. Add the webhook on `open-macaron/runner` (event `workflow_run`, HMAC secret) once the VPS has its hostname. Done 2026-10-15.
+3. Create the three tokens (§3), approve `GH_ORG` in the org, and store them in the controller's Secret with `provision-secrets.sh` (DEPLOYMENT.md §4).
+4. Add the webhook on `open-macaron/runner` (event `workflow_run`, HMAC secret) once the controller has its public URL. Done 2026-10-15, moved to the OpenShift Route on 2026-10-21 (DEPLOYMENT.md §6, "Moving `PUBLIC_URL`").
 5. Onboard one sandbox upstream repo (§5) for milestone 1.
 
 > **No `evidence` repository** (decided 2026-10-16): run media are GitHub user-attachments, uploaded by the controller against the bot's fork of each repository (DESIGN.md, Evidence).

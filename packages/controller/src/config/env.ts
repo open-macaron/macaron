@@ -9,7 +9,7 @@ const RawEnv = z.object({
   NODE_ENV: z.enum(["production", "development", "test"]).default("production"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
-  /** Public base URL behind Caddy; also the OIDC audience runners must request. */
+  /** Public base URL (the Route to the edge); also the OIDC audience runners must request. */
   PUBLIC_URL: z.url({ protocol: /^https$/ }),
   DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, "expected a postgres:// URL"),
   /** Directory holding global.yaml and projects/ (delivered by deploy.sh). */
@@ -54,7 +54,7 @@ const RawEnv = z.object({
 
   /** Bifrost backend (virtual keys over the upstream LLM key): configured when BIFROST_ADMIN_URL is set. */
   BIFROST_ADMIN_URL: z.url().optional(),
-  /** What runners use as ANTHROPIC_BASE_URL: Caddy's inference-only route to Bifrost. */
+  /** What runners use as ANTHROPIC_BASE_URL: the edge's inference-only route to Bifrost. */
   BIFROST_PUBLIC_URL: z.url({ protocol: /^https$/ }).optional(),
   BIFROST_ADMIN_USERNAME: z.string().min(1).default("macaron"),
   BIFROST_ADMIN_PASSWORD: Secret.optional(),

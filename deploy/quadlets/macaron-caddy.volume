@@ -1,3 +1,0 @@
-# Certificates and ACME account (Caddy's /data).
-[Volume]
-VolumeName=macaron-caddy

@@ -1,10 +1,9 @@
 #!/bin/sh
 # Writes Bifrost's config.json from config.template.json with the upstream's URL, which stays out of
-# this public repository (a Podman secret on the VPS, a Secret on OpenShift, dev.env locally). The
-# URL arrives on stdin. POSIX sh: it also runs in Bifrost's own (Alpine, bash-less) image.
+# this public repository (a Secret on OpenShift, dev.env locally). The URL arrives on stdin. POSIX sh: it also runs in Bifrost's own (Alpine, bash-less) image.
 #   printf %s "$url" | [PG_SSL_MODE=require] deploy/bifrost/render-config.sh <output>
-# PG_SSL_MODE (default disable) is the Postgres connection's sslmode: the VPS's database network is
-# internal, OpenShift's Postgres only accepts TLS.
+# PG_SSL_MODE (default disable, for dev.sh's local Postgres) is the Postgres connection's sslmode:
+# OpenShift's Postgres only accepts TLS.
 set -eu
 
 OUT="${1:?usage: render-config.sh <output>, URL on stdin}"

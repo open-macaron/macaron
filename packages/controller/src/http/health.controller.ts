@@ -5,7 +5,7 @@ import { HealthCheck, type HealthCheckResult, HealthCheckService } from "@nestjs
 import { sql } from "drizzle-orm";
 import type { Db } from "../db/db.module.ts";
 
-/** Probes for systemd/Podman. Caddy never routes these paths to the internet. */
+/** Kubelet probes. The edge never routes these paths to the internet. */
 @ApiExcludeController()
 @Controller()
 export class HealthController {

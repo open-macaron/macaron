@@ -101,7 +101,7 @@ export class RunsModule {}
 })
 export class IngestModule {}
 
-/** The only routes exposed through Caddy are /v1/bootstrap and /v1/webhook. */
+/** The only routes the edge exposes are /v1/bootstrap and /v1/webhook. */
 @Module({
   imports: [RunsModule, TerminusModule],
   controllers: [BootstrapController, WebhookController, HealthController],

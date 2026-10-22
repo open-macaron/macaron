@@ -50,7 +50,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: controller
-          # Digest only, the same as deploy/quadlets/macaron-controller.container (AGENTS.md "Release and deploy").
+          # Digest only, verified before pinning (AGENTS.md "Release and deploy"); deploy.sh refuses anything else.
           image: ghcr.io/open-macaron/controller@sha256:8451ae1a4f4bf68c5ddebafff585414debbd7aa5a02ea8eec72015446fff9ffe
           ports:
             - name: http
