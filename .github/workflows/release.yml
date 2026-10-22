@@ -3,9 +3,9 @@ name: release
 # Every push to main runs this, and changesets decides what happens (.changeset/README.md):
 #   - Changesets are pending → changesets/action opens or updates the "Version Packages" PR,
 #     which bumps versions, writes CHANGELOG.md and bumps dependents. Nothing is built.
-#   - That PR was merged → `changeset publish` tags each released package
-#     (`@open-macaron/<package>@<version>`; every package is private, so npm is untouched) and the
-#     action writes its GitHub release. The jobs below then build only what was released, each with
+#   - That PR merges itself once CI is green (auto-merge, below). On that push, `changeset publish`
+#     tags each released package (`@open-macaron/<package>@<version>`; every package is private, so
+#     npm is untouched) and the action writes its GitHub release. The jobs below then build only what was released, each with
 #     a build provenance attestation, and attach it to that release.
 # Builds run here rather than on the tags: tags and releases made with GITHUB_TOKEN trigger no
 # workflow, and a separate one would need a token for that alone.
@@ -63,6 +63,14 @@ jobs:
           create-github-releases: true
           pr-title: "chore(release): version packages"
           commit-message: "chore(release): version packages"
+      # Continuous delivery: the Version Packages PR merges itself as soon as main's ruleset is
+      # satisfied (CI green). With the app's token: the merge's push then runs this workflow again,
+      # which releases; a merge made with GITHUB_TOKEN would trigger nothing.
+      - if: steps.changesets.outputs.pr-number != '' && steps.app-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR: ${{ steps.changesets.outputs.pr-number }}
+        run: gh pr merge "$PR" --auto --merge --repo "$GITHUB_REPOSITORY"
       - id: released
         env:
           PUBLISHED: ${{ steps.changesets.outputs.published-packages || '[]' }}
