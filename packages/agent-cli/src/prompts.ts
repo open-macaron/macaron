@@ -40,6 +40,10 @@ function knowledgeSection(context: RunContext): string {
   return `\n## Lessons\nWhat earlier work on this project taught is available as ${String(lessons.length)} skill${lessons.length === 1 ? "" : "s"} (lessons from ${origin}). Load one when its description matches what you are doing, and trust the code over a lesson that disagrees with it.\n${context.mode === "retro" ? `Their ids, for \`updates\`:\n${lessons.map((lesson) => `- \`${lesson.id}\`: ${lesson.topic}`).join("\n")}\n` : ""}`;
 }
 
+function megabytes(bytes: number): string {
+  return `${String(Math.floor(bytes / 1_000_000))} MB`;
+}
+
 /** Appended to the harness's own system prompt. */
 export function systemPrompt(context: RunContext, outDir: string): string {
   const schema = JSON.stringify(z.toJSONSchema(RunResult, { io: "input" }), null, 2);
@@ -66,7 +70,7 @@ Allowed actions in this mode: ${allowedActions[context.mode].join(", ")}.
 
 ## How to finish
 1. Write your result as JSON to \`${outDir}/result.json\`, following the schema below. Your file changes in the working tree are collected automatically: do not describe them in the JSON.
-2. Screenshots and videos: \`macaron-agent attach <file> --kind image|video --caption "…"\` copies the file and prints a reference \`attachment:<id>\`. Use it in text as \`![caption](attachment:<id>)\`. Attachments are added to the result for you.
+2. Screenshots and videos: \`macaron-agent attach <file> --kind image|video --caption "…"\` copies the file and prints a reference \`attachment:<id>\`. Use it in text as \`![caption](attachment:<id>)\`. Attachments are added to the result for you. At most ${String(context.attachments.maxFiles)} files, ${megabytes(context.attachments.maxFileBytes)} each and ${megabytes(context.attachments.maxTotalBytes)} in total: beyond that the result is refused, so attach only what shows the point.
 3. Run \`macaron-agent finish\`. If it reports problems, fix them and run it again. You are done when it prints "result ready".
 
 ## Result schema
