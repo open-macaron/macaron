@@ -17,9 +17,20 @@ import { type NotificationSubject, parseMention, parseSubjectUrl } from "./trigg
 /** Comments older than the notification by more than this are not new triggers. */
 const LOOKBACK_MS = 15 * 60_000;
 
+interface Candidate {
+  readonly event: Omit<NewEvent, "threadId" | "subjectKind" | "subjectNumber">;
+  readonly target: ReactionTarget;
+}
+/** A mention by someone who may not trigger work. */
+interface Refusal {
+  readonly author: string;
+  readonly target: ReactionTarget;
+}
+
 /**
- * Turns notifications into trigger events. Untrusted repos and users are ignored silently: no
- * reaction, no reply, no LLM call. Trusted triggers get 👀 right away and are debounced.
+ * Turns notifications into trigger events. Untrusted repos are ignored silently. On trusted ones,
+ * a mention by an untrusted user gets 👎 and nothing else: no reply, no LLM call. Trusted
+ * triggers get 👀 right away and are debounced.
  */
 @Injectable()
 export class IngestService extends NotificationSink {
@@ -48,7 +59,13 @@ export class IngestService extends NotificationSink {
     const ownPull = subject.kind === "pull" && thread.prNumber === subject.number;
     const since = new Date(notification.updatedAt.getTime() - LOOKBACK_MS);
 
-    const found = [...(await this.issueComments(subject, ownPull, since)), ...(ownPull ? [...(await this.reviews(subject, since)), ...(await this.reviewComments(subject, since))] : [])];
+    const conversation = await this.issueComments(subject, ownPull, since);
+    for (const refusal of conversation.refused) {
+      this.logger.log(`${subject.repo}#${String(subject.number)}: mention by untrusted @${refusal.author}`);
+      await this.reactions.refuse(thread.id, repoRef(subject.repo), refusal.author, refusal.target);
+    }
+
+    const found = [...conversation.found, ...(ownPull ? [...(await this.reviews(subject, since)), ...(await this.reviewComments(subject, since))] : [])];
     let fresh = false;
     for (const candidate of found) {
       const event: NewEvent = { ...candidate.event, threadId: thread.id, subjectKind: subject.kind, subjectNumber: subject.number };
@@ -72,48 +89,53 @@ export class IngestService extends NotificationSink {
     }
   }
 
-  private async issueComments(subject: NotificationSubject, ownPull: boolean, since: Date): Promise<{ event: Omit<NewEvent, "threadId" | "subjectKind" | "subjectNumber">; target: ReactionTarget }[]> {
+  /** The issue (or pull request) and its conversation: triggers, and mentions to refuse. */
+  private async issueComments(subject: NotificationSubject, ownPull: boolean, since: Date): Promise<{ found: Candidate[]; refused: Refusal[] }> {
     const upstream = repoRef(subject.repo);
-    const found: { event: Omit<NewEvent, "threadId" | "subjectKind" | "subjectNumber">; target: ReactionTarget }[] = [];
+    const found: Candidate[] = [];
+    const refused: Refusal[] = [];
 
     const { data: issue } = await this.gh.rest.issues.get({ ...upstream, issue_number: subject.number });
     const opener = issue.user?.login ?? "";
-    if (new Date(issue.created_at) >= since && this.trusted(subject.repo, issue.user) === "user" && parseMention(issue.body ?? "", this.bot.identity.login) !== undefined) {
-      found.push({
-        event: { externalId: `issue:${String(subject.number)}`, author: opener, kind: "mention", url: issue.html_url, body: issue.body ?? "" },
-        target: { kind: "issue", number: subject.number },
-      });
+    if (new Date(issue.created_at) >= since && !this.isBot(opener) && parseMention(issue.body ?? "", this.bot.identity.login) !== undefined) {
+      const target: ReactionTarget = { kind: "issue", number: subject.number };
+      const trust = this.trusted(subject.repo, issue.user);
+      if (trust === "user") found.push({ event: { externalId: `issue:${String(subject.number)}`, author: opener, kind: "mention", url: issue.html_url, body: issue.body ?? "" }, target });
+      else if (trust === undefined && issue.user !== null) refused.push({ author: opener, target });
     }
 
     const comments = await this.gh.paginate(this.gh.rest.issues.listComments, { ...upstream, issue_number: subject.number, since: since.toISOString(), per_page: 100 });
     for (const comment of comments) {
       const author = comment.user?.login ?? "";
       const body = comment.body ?? "";
-      if (author.toLowerCase() === this.bot.identity.login.toLowerCase()) continue;
+      if (this.isBot(author)) continue;
       const mention = parseMention(body, this.bot.identity.login) !== undefined;
       const trust = this.trusted(subject.repo, comment.user);
+      const target: ReactionTarget = { kind: "issue-comment", id: comment.id };
+      if (mention && trust === undefined && comment.user !== null) refused.push({ author, target });
       // Mentions need a trusted user; plain comments only count on the bot's own PR.
       const kind = mention && trust === "user" ? "mention" : ownPull && trust !== undefined ? "comment" : undefined;
       if (kind === undefined) continue;
-      found.push({
-        event: { externalId: `issue-comment:${String(comment.id)}`, author, kind, url: comment.html_url, body },
-        target: { kind: "issue-comment", id: comment.id },
-      });
+      found.push({ event: { externalId: `issue-comment:${String(comment.id)}`, author, kind, url: comment.html_url, body }, target });
     }
-    return found;
+    return { found, refused };
+  }
+
+  private isBot(login: string): boolean {
+    return login.toLowerCase() === this.bot.identity.login.toLowerCase();
   }
 
   /**
    * Review summaries (the text submitted with "Comment" / "Request changes"). GitHub has no
    * reactions on reviews, so 👀 goes on the PR itself.
    */
-  private async reviews(subject: NotificationSubject, since: Date): Promise<{ event: Omit<NewEvent, "threadId" | "subjectKind" | "subjectNumber">; target: ReactionTarget }[]> {
+  private async reviews(subject: NotificationSubject, since: Date): Promise<Candidate[]> {
     const reviews = await this.gh.paginate(this.gh.rest.pulls.listReviews, { ...repoRef(subject.repo), pull_number: subject.number, per_page: 100 });
     return reviews
       .filter((review) => review.body.trim().length > 0 && review.submitted_at !== undefined && new Date(review.submitted_at) >= since)
       .flatMap((review) => {
         const author = review.user?.login ?? "";
-        if (author.toLowerCase() === this.bot.identity.login.toLowerCase() || this.trusted(subject.repo, review.user) === undefined) return [];
+        if (this.isBot(author) || this.trusted(subject.repo, review.user) === undefined) return [];
         return [
           {
             event: { externalId: `review:${String(review.id)}`, author, kind: "review", url: review.html_url, body: review.body },
@@ -123,7 +145,7 @@ export class IngestService extends NotificationSink {
       });
   }
 
-  private async reviewComments(subject: NotificationSubject, since: Date): Promise<{ event: Omit<NewEvent, "threadId" | "subjectKind" | "subjectNumber">; target: ReactionTarget }[]> {
+  private async reviewComments(subject: NotificationSubject, since: Date): Promise<Candidate[]> {
     const upstream = repoRef(subject.repo);
     const comments = await this.gh.paginate(this.gh.rest.pulls.listReviewComments, { ...upstream, pull_number: subject.number, since: since.toISOString(), per_page: 100 });
     return comments

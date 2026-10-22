@@ -4,10 +4,15 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TicketAlreadyRedeemed, TicketRejected } from "../../src/common/errors.ts";
 import { connectAndMigrate, type Db } from "../../src/db/db.module.ts";
+import { createGitHub } from "../../src/github/github.ts";
+import type { RepoRef } from "../../src/github/repo-ref.ts";
 import { EventsRepository } from "../../src/ingest/events.repository.ts";
 import { Jobs, Queue } from "../../src/jobs/jobs.ts";
+import { ReactionTargets } from "../../src/publish/reaction-targets.ts";
+import { type ReactionContent, type ReactionTarget, UpstreamWriter } from "../../src/publish/upstream-writer.ts";
 import { RunNotBoundYet, RunsRepository } from "../../src/runs/runs.repository.ts";
 import { testEnv } from "../support/env.ts";
+import { FakeClock } from "../support/fakes.ts";
 import { runContext } from "../support/fixtures.ts";
 import { startPostgres } from "../support/postgres.ts";
 
@@ -149,6 +154,53 @@ describe("effects", () => {
     expect(await runs.effect(thread.id, 2, "eyes:issue-comment:1")).toBe("a");
     expect(await runs.effect(thread.id, 0, "eyes:issue-comment:1")).toBeUndefined();
     expect(await runs.effect(thread.id, 0, "eyes:issue-comment:2")).toBe("b");
+  });
+});
+
+class RecordingWriter extends UpstreamWriter {
+  readonly reactions: { target: ReactionTarget; content: ReactionContent }[] = [];
+
+  constructor() {
+    super(createGitHub("test", "token", "2026-03-10", { throttled: false }));
+  }
+
+  override react(_upstream: RepoRef, target: ReactionTarget, content: ReactionContent): Promise<number> {
+    this.reactions.push({ target, content });
+    return Promise.resolve(this.reactions.length);
+  }
+}
+
+describe("ReactionTargets.refuse", () => {
+  const upstream = { owner: "org-x", repo: "repo-a" };
+
+  it("gives 👎 once per untrusted user and thread, separate from the loops' reactions", async () => {
+    const { thread } = await newRun(8);
+    const writer = new RecordingWriter();
+    const reactions = new ReactionTargets(runs, writer, new FakeClock());
+
+    await reactions.refuse(thread.id, upstream, "Stranger", { kind: "issue-comment", id: 1 });
+    await reactions.refuse(thread.id, upstream, "stranger", { kind: "issue-comment", id: 2 });
+    await reactions.refuse(thread.id, upstream, "other", { kind: "issue-comment", id: 3 });
+    await reactions.finish(thread.id, 1, upstream, "+1");
+
+    expect(writer.reactions).toEqual([
+      { target: { kind: "issue-comment", id: 1 }, content: "-1" },
+      { target: { kind: "issue-comment", id: 3 }, content: "-1" },
+    ]);
+  });
+
+  it("stops reacting past the hourly cap, and resumes an hour later", async () => {
+    const { thread } = await newRun(9);
+    const writer = new RecordingWriter();
+    const clock = new FakeClock();
+    const reactions = new ReactionTargets(runs, writer, clock);
+
+    for (let user = 0; user < 31; user++) await reactions.refuse(thread.id, upstream, `user-${String(user)}`, { kind: "issue-comment", id: user + 1 });
+    expect(writer.reactions).toHaveLength(30);
+
+    clock.advance(3_600_000);
+    await reactions.refuse(thread.id, upstream, "user-30", { kind: "issue-comment", id: 31 });
+    expect(writer.reactions).toHaveLength(31);
   });
 });
 

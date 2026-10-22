@@ -1,6 +1,8 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { z } from "zod";
+import { Clock } from "../common/clock.ts";
 import { describeError } from "../common/errors.ts";
+import { SlidingWindow } from "../common/sliding-window.ts";
 import type { RepoRef } from "../github/repo-ref.ts";
 import { RunsRepository } from "../runs/runs.repository.ts";
 import { type ReactionContent, type ReactionTarget, UpstreamWriter } from "./upstream-writer.ts";
@@ -20,6 +22,12 @@ const EYES = "eyes:";
 const OUTCOME = "outcome:";
 /** Where 👀 waits until a run claims it: no loop is ever 0. */
 const UNCLAIMED_LOOP = 0;
+/** `refused:<login>`: 👎 on a mention by someone who may not trigger work, once per thread. */
+const REFUSED = "refused:";
+/** Refusals belong to no loop: nothing claims, swaps or adopts them. */
+const REFUSALS_LOOP = -1;
+/** Anyone can mention the bot: strangers must not spend the write quota real work needs. */
+const REFUSALS_PER_HOUR = 30;
 
 function targetKey(target: ReactionTarget): string {
   return target.kind === "issue" ? `issue:${String(target.number)}` : `${target.kind}:${String(target.id)}`;
@@ -38,20 +46,39 @@ export function reactionTargetOf(event: { readonly externalId: string; readonly 
 /**
  * 👀 on every request when it arrives, swapped for 👍 / 😕 when the loop that answers it ends.
  * Requests on the issue and on a pull request are answered by separate loops, so 👀 waits
- * unclaimed until a loop claims its requests. Reactions are cosmetic: failures are logged, never fatal.
+ * unclaimed until a loop claims its requests. A mention by someone who may not trigger work gets
+ * 👎 instead, so they know they were heard. Reactions are cosmetic: failures are logged, never fatal.
  */
 @Injectable()
 export class ReactionTargets {
   private readonly logger = new Logger(ReactionTargets.name);
+  private readonly refusals: SlidingWindow;
 
   constructor(
     private readonly runs: RunsRepository,
     private readonly writer: UpstreamWriter,
-  ) {}
+    clock: Clock,
+  ) {
+    this.refusals = new SlidingWindow(clock, REFUSALS_PER_HOUR, 3_600_000);
+  }
 
   /** 👀 on a request as it arrives, until a loop claims it. */
   async watch(threadId: string, upstream: RepoRef, target: ReactionTarget): Promise<void> {
     await this.start(threadId, UNCLAIMED_LOOP, upstream, target);
+  }
+
+  /** 👎 on a mention by `login`, who may not trigger work: at most once per thread, within the hourly cap. */
+  async refuse(threadId: string, upstream: RepoRef, login: string, target: ReactionTarget): Promise<void> {
+    if (this.refusals.full()) return;
+    try {
+      await this.runs.once(threadId, REFUSALS_LOOP, `${REFUSED}${login.toLowerCase()}`, async () => {
+        this.refusals.record();
+        const reactionId = await this.writer.react(upstream, target, "-1");
+        return JSON.stringify({ target, reactionId });
+      });
+    } catch (error: unknown) {
+      this.logger.warn(`👎 failed: ${describeError(error)}`);
+    }
   }
 
   /** The loop that answers these requests takes over their 👀: its outcome replaces them. */

@@ -366,7 +366,7 @@ With no access, the bot can do anything a stranger can do on a public repo and n
 
 Each trigger maps to the same `TriggerEvent`, so it only touches `Ingest`. Config gains `access: none | read | triage` per repo, and the controller uses the extra triggers only where config says the access exists. The security model doesn't change: tokens stay on the VPS, and the agent still has none.
 
-Mentions from untrusted users are ignored silently: no reaction, no reply, no LLM call. That avoids spam and doesn't advertise the bot. Follow-up comments on threads the bot is in arrive as `comment` notifications and go through the same trusted-user filter before the Router sees them.
+Mentions from untrusted users on trusted repositories get 👎 and nothing else: no reply, no LLM call. A reaction notifies no one, and it tells the author they were heard but not allowed, which silence couldn't tell apart from an outage. It's given once per user and thread, at most 30 an hour across all threads, so strangers can't spend the write quota real work needs. Mentions on other repositories stay ignored silently: the bot doesn't advertise itself where it isn't enrolled. Follow-up comments on threads the bot is in arrive as `comment` notifications and go through the same trusted-user filter before the Router sees them.
 
 ## 5. Review loop and reporting
 
