@@ -8,7 +8,7 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
  github.com/open-macaron  (org, everything public)
 ┌───────────────────────────────────────────────────────────────────────────────────────────┐
 │ macaron      controller + contracts + agent-cli + harness adapters + config + deploy + docs │──release──▶ ghcr.io/open-macaron/controller
-│              CI, release.yml (images, agent-cli tarball, attestations)                    │             agent-cli-<v>.tgz (GitHub release)
+│              CI, release.yml (changesets: image, CLIs, attestations)                        │             CLI bundles (GitHub releases)
 │ runner       run.yml + environments/ + env-check.yml — where agents execute                │◀─ start / cancel runs (GH_ORG), artifacts (GH_INTERACT)
 │ knowledge    rules + lessons; folder owners approve, merge.yml merges; Pages read API      │◀─ PR from macaron-bot/knowledge (GH_ORG)
 │ .github      org profile, SECURITY.md, CONTRIBUTING.md, issue templates                   │
@@ -36,7 +36,7 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 The current local `agent-runner` directory becomes `open-macaron/macaron`.
 
 How `run.yml` gets the agent-cli:
-- It downloads `agent-cli-<v>.tgz` from a `macaron` release, pinned by **version + sha256**.
+- It downloads `macaron-agent.mjs` from the `@open-macaron/agent-cli@<version>` release of `macaron`, pinned by **version + sha256**.
 - Renovate bumps the pin in `runner`. That PR's CI runs `gh attestation verify` against `macaron`'s `release.yml` before it can merge.
 - The agent job therefore needs no permission beyond `id-token: write`.
 

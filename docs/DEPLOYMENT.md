@@ -31,8 +31,13 @@ Until 2026-10-21 production ran on a Fedora VPS with rootful Podman quadlets. It
 
 - **Two-stage Containerfile.** It builds on `registry.access.redhat.com/ubi10/nodejs-24` and runs on `ubi10/nodejs-24-minimal`, both pinned by digest.
 - **What the build does:** `pnpm install --frozen-lockfile`, `pnpm build`, then `pnpm deploy --prod` into `/opt/app`. The runtime image only gets that folder and runs as a non-root user, which also works with OpenShift's random UIDs (group 0).
-- **Release:** on every push to `main`, buildah builds the image, pushes it to `ghcr.io/open-macaron/controller:sha-<commit>`, and `actions/attest-build-provenance` attaches SLSA provenance, signed by Sigstore through GitHub OIDC with no long-lived key. `release-agent-cli.yml` and `release-knowledge-cli.yml` attest their bundles the same way.
-- **Workflow permissions:** top level `permissions: {}`. Only the release job gets `contents: read`, `packages: write`, `id-token: write` and `attestations: write`.
+- **Release:** versions and changelogs are managed with [Changesets](https://changesets.dev) (.changeset/README.md). Merging the "Version Packages" PR that `release.yml` keeps up to date releases every package it bumps. changesets tags it (`@open-macaron/<package>@<version>`) and writes its GitHub release, then `release.yml` builds what was released:
+  - **Controller:** buildah pushes `ghcr.io/open-macaron/controller:<version>`, `:sha-<commit>` and `:latest`.
+  - **agent-cli, knowledge-cli and config-cli:** the bundles are attached to their release.
+  - **`@open-macaron/review`:** published to npm.
+  
+  `actions/attest-build-provenance` attaches SLSA provenance to each artifact, signed by Sigstore through GitHub OIDC with no long-lived key.
+- **Workflow permissions:** top level `permissions: {}`. Each release job gets only what it needs: `contents: write` and `pull-requests: write` to version and tag, `packages: write` for the image, `id-token: write` and `attestations: write` to attest (and to publish to npm).
 - **Verification before pinning:** `gh attestation verify oci://ghcr.io/open-macaron/controller@<digest> --signer-workflow open-macaron/macaron/.github/workflows/release.yml --source-ref refs/heads/main --source-digest <commit>`. Only a verified digest is pinned in `deploy/openshift/controller.yaml`. `deploy.sh` refuses an image that isn't pinned by digest.
 - **Other images:** Bifrost (`docker.io/maximhq/bifrost`), Postgres (`registry.redhat.io/rhel10/postgresql-18`) and nginx (`registry.access.redhat.com/ubi10/nginx-126`) are pinned by digest in their manifests too.
 
