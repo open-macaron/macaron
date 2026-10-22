@@ -3,7 +3,8 @@ import { join, relative, sep } from "node:path";
 import { LessonFrontMatter, OwnersFile, RULE_SECTIONS, RuleFrontMatter } from "@open-macaron/contracts";
 import picomatch from "picomatch";
 import type { z } from "zod";
-import { parseDocument, parseYamlStrict } from "./document.ts";
+import { parseYamlStrict } from "@open-macaron/owners";
+import { parseDocument } from "./document.ts";
 import { entryOf, folderOf, isRepositoryFile, type OwnedFolder } from "./layout.ts";
 
 /** Knowledge files are short by design; anything larger is a mistake or an attack on the reviewer. */

@@ -1,14 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  CONFIG_FILE_PATH,
-  GlobalFile,
-  ProjectFile,
-  type RepoConfig,
-  RepoFile,
-  type RepoSlug,
-  resolveRepoConfig,
-} from "@open-macaron/contracts";
+import { CONFIG_FILE_PATH, GlobalFile, ProjectFile, type RepoConfig, RepoFile, resolveRepoConfig } from "./config.ts";
+import type { RepoSlug } from "./ids.ts";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 
@@ -20,9 +13,13 @@ export interface ConfigSnapshot {
 }
 
 export class ConfigTreeError extends Error {
-  constructor(readonly problems: readonly string[]) {
+  // A plain field, not a parameter property: contracts' sources also run under Node's type stripping (gen).
+  readonly problems: readonly string[];
+
+  constructor(problems: readonly string[]) {
     super(`invalid configuration:\n${problems.map((problem) => `  - ${problem}`).join("\n")}`);
     this.name = "ConfigTreeError";
+    this.problems = problems;
   }
 }
 

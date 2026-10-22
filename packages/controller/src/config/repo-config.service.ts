@@ -1,8 +1,17 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
-import type { CommitSha, GitHubLogin, PublishedConfig, RepoConfig } from "@open-macaron/contracts";
+import {
+  type CommitSha,
+  type ConfigSnapshot,
+  ConfigTreeError,
+  type GitHubLogin,
+  loadConfigTree,
+  parseConfigTree,
+  type PublishedConfig,
+  type RepoConfig,
+  repoKey,
+} from "@open-macaron/contracts";
 import { describeError, UpstreamError } from "../common/errors.ts";
 import { ConfigSnapshotStore } from "./config-snapshots.store.ts";
-import { type ConfigSnapshot, ConfigTreeError, loadConfigTree, parseConfigTree, repoKey } from "./config-tree.ts";
 import { APP_ENV, type AppEnv } from "./env.ts";
 import { PublishedConfigClient } from "./published-config.client.ts";
 

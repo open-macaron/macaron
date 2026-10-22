@@ -1,0 +1,23 @@
+{
+  "name": "@open-macaron/owners",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Owner-approved merges for repositories whose folders carry an OWNERS.yaml (open-macaron/knowledge, open-macaron/config)",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@open-macaron/source": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@octokit/rest": "catalog:",
+    "@open-macaron/contracts": "workspace:*",
+    "yaml": "catalog:",
+    "zod": "catalog:"
+  }
+}

@@ -4,7 +4,8 @@ import * as core from "@actions/core";
 import { CommitSha } from "@open-macaron/contracts";
 import { Octokit } from "@octokit/rest";
 import { z } from "zod";
-import { checkOwnerLogins, mergeApproved } from "./github.ts";
+import { checkOwnerLogins, mergeApproved } from "@open-macaron/owners";
+import { knowledgeLayout } from "./layout.ts";
 import { publish } from "./publish.ts";
 import { loadTree, type Problem } from "./tree.ts";
 
@@ -46,7 +47,7 @@ async function main(argv: readonly string[]): Promise<number> {
     case "validate": {
       const { values, positionals } = parseArgs({ args: [...rest], allowPositionals: true, options: { "check-logins": { type: "boolean", default: false } } });
       const tree = await loadTree(positionals[0] ?? ".");
-      const problems = [...tree.problems, ...(values["check-logins"] ? await checkOwnerLogins(octokit(), tree) : [])];
+      const problems = [...tree.problems, ...(values["check-logins"] ? await checkOwnerLogins(octokit(), tree.folders) : [])];
       report(problems);
       return problems.length === 0 ? 0 : 1;
     }
@@ -70,7 +71,11 @@ async function main(argv: readonly string[]): Promise<number> {
       if (!headSha.success || (formatValid !== "true" && formatValid !== "false") || env.GITHUB_REPOSITORY === undefined || env.GITHUB_TOKEN === undefined) break;
       const [owner = "", repo = ""] = env.GITHUB_REPOSITORY.split("/");
       const runUrl = `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID ?? ""}`;
-      const merged = await mergeApproved(octokit(), { owner, repo }, headSha.data, formatValid === "true", runUrl);
+      const merged = await mergeApproved(octokit(), { owner, repo }, headSha.data, formatValid === "true", runUrl, {
+        layout: knowledgeLayout,
+        // Unchanged since before the code was shared: existing status comments keep being updated.
+        statusMarker: "<!-- knowledge-merge-status -->",
+      });
       core.setOutput("merged", merged.length > 0 ? "true" : "false");
       core.info(merged.length === 0 ? "nothing merged" : `merged #${merged.join(", #")}`);
       return 0;

@@ -3,7 +3,7 @@ import { fromMarkdown } from "mdast-util-from-markdown";
 import { frontmatterFromMarkdown } from "mdast-util-frontmatter";
 import { toString } from "mdast-util-to-string";
 import { frontmatter } from "micromark-extension-frontmatter";
-import { parse as parseYaml } from "yaml";
+import { parseYamlStrict } from "@open-macaron/owners";
 
 /** A Markdown file with YAML front matter: the shape of every rule and lesson. */
 export interface MarkdownDocument {
@@ -16,11 +16,6 @@ export interface MarkdownDocument {
 }
 
 export type ParseResult = { readonly ok: true; readonly document: MarkdownDocument } | { readonly ok: false; readonly error: string };
-
-/** YAML without aliases: a knowledge file never needs them, and they enable expansion bombs. */
-export function parseYamlStrict(source: string): unknown {
-  return parseYaml(source, { maxAliasCount: 0, uniqueKeys: true });
-}
 
 export function parseDocument(source: string): ParseResult {
   const tree: Root = fromMarkdown(source, { extensions: [frontmatter(["yaml"])], mdastExtensions: [frontmatterFromMarkdown(["yaml"])] });

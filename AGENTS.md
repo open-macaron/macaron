@@ -13,6 +13,8 @@ Read first: [README.md](README.md) (what the bot does), [docs/DESIGN.md](docs/DE
 | `packages/agent-cli` | `macaron-agent`, run on GitHub Actions runners (no GitHub token, one capped LLM key) |
 | `packages/review` | The review engine (rule selection, read-only judge session, evidence verification, rendering), shared by the controller and agent-cli, and the `macaron-review` CLI published to npm as `@open-macaron/review` |
 | `packages/knowledge-cli` | Validation, owner-approved merges and the Pages read API of open-macaron/knowledge |
+| `packages/config-cli` | Validation (the controller's own `parseConfigTree`), owner-approved merges and the Pages snapshot of open-macaron/config. Changes to who can trigger the bot or what it may spend are left to the platform team |
+| `packages/owners` | The owner-approved merge both CLIs share: `OWNERS.yaml` per folder, matched by user id, status comment, merge at the evaluated commit |
 | `config/` | Trusted projects, repositories, users, budgets (`global.yaml` → `projects/<p>/project.yaml` → `repos/<r>.yaml`) |
 | `deploy/` | `deploy/openshift/`: the production manifests and their scripts (`deploy.sh`, `provision-secrets.sh`), see docs/DEPLOYMENT.md; `deploy/bifrost/`: Bifrost's config template, pinned prices, `dev.sh` |
 | `docs/` | Design documents; keep them in sync with what you change |
@@ -24,7 +26,7 @@ Related repositories: [open-macaron/runner](https://github.com/open-macaron/runn
 ```sh
 pnpm install
 pnpm check                      # typecheck + lint + all tests
-pnpm exec vitest run --project controller        # unit tests of one package (contracts, review, agent-cli, controller, knowledge-cli)
+pnpm exec vitest run --project controller        # unit tests of one package (contracts, review, agent-cli, controller, knowledge-cli, owners, config-cli)
 pnpm test:live                  # live tests against Bifrost/GitHub/OpenRouter (~/.config/macaron/dev.env; each skipped without its variables)
 deploy/bifrost/dev.sh up        # local Bifrost + Postgres behind the production edge, for the Bifrost live test (LLM_UPSTREAM_URL, LLM_UPSTREAM_KEY, BIFROST_ADMIN_PASSWORD in dev.env)
 pnpm --filter @open-macaron/controller gen:bifrost   # Bifrost admin client, when bumping the Bifrost image

@@ -1,11 +1,10 @@
 import { join } from "node:path";
-import { CommitSha, type PublishedConfig } from "@open-macaron/contracts";
+import { CommitSha, type PublishedConfig, readConfigFiles } from "@open-macaron/contracts";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { UpstreamError } from "../../src/common/errors.ts";
 import { ConfigSnapshotStore } from "../../src/config/config-snapshots.store.ts";
-import { readConfigFiles } from "../../src/config/config-tree.ts";
 import { PublishedConfigClient } from "../../src/config/published-config.client.ts";
 import { RepoConfigService } from "../../src/config/repo-config.service.ts";
 import { testEnv } from "../support/env.ts";

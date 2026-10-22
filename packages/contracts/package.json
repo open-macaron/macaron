@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "deepmerge-ts": "catalog:",
+    "yaml": "catalog:",
     "zod": "catalog:"
   }
 }
