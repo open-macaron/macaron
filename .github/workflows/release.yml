@@ -177,7 +177,11 @@ jobs:
           TAG: ${{ matrix.package }}@${{ steps.released.outputs.version }}
         run: |
           sha256="$(sha256sum "$FILE" | cut -d' ' -f1)"
-          gh release upload "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY"
+          # changesets writes a release from the version's CHANGELOG.md entry; a version without one
+          # (the baseline tags) gets a release here. --clobber: a re-run replaces its own upload.
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 ||
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --latest=false --title "$TAG" --notes "No changelog entry for this version."
+          gh release upload "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" --clobber
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/$(jq -rn --arg tag "$TAG" '$tag | @uri')/$(basename "$FILE")"
           {
             echo "### ${TAG}"
@@ -218,11 +222,23 @@ jobs:
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: packages/review/dist-npm/macaron-review.mjs
-      # Trusted publishing: npm exchanges the job's OIDC token, and attaches provenance itself.
+      # Trusted publishing: npm exchanges the job's OIDC token, and attaches provenance itself. A
+      # version already on npm (a re-run, or the baseline 0.3.0) is left as it is: npm never
+      # replaces one.
       - working-directory: packages/review/dist-npm
-        run: npm publish --access public
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if npm view "@open-macaron/review@${VERSION}" version > /dev/null 2>&1; then
+            echo "::notice::@open-macaron/review@${VERSION} is already on npm"
+          else
+            npm publish --access public
+          fi
       - name: attach to the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: "@open-macaron/review@${{ steps.version.outputs.version }}"
-        run: gh release upload "$TAG" packages/review/dist-npm/macaron-review.mjs --repo "$GITHUB_REPOSITORY"
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 ||
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --latest=false --title "$TAG" --notes "No changelog entry for this version."
+          gh release upload "$TAG" packages/review/dist-npm/macaron-review.mjs --repo "$GITHUB_REPOSITORY" --clobber
