@@ -55,6 +55,22 @@ next_generation() { # kind/name
     -o jsonpath='{range .items[*]}{.kind}/{.metadata.name}={.metadata.generation}{"\n"}{end}' | sed -n "s|^$1=||p"
 }
 
+# The digest the macaron-controller ImageStream holds now (importing it on a first deploy): the
+# controller follows its releases through the image trigger, and a deploy applies that same digest,
+# so it never moves the controller forward or back.
+controller_image() {
+  oc apply --server-side --field-manager="$FIELD_MANAGER" --force-conflicts -f "$ROOT/deploy/openshift/controller-imagestream.yaml" >/dev/null
+  local reference="" _
+  for _ in $(seq 1 60); do
+    reference="$(oc get imagestream/macaron-controller -o jsonpath='{.status.tags[?(@.tag=="latest")].items[0].dockerImageReference}')"
+    [[ -n "$reference" ]] && break
+    sleep 2
+  done
+  [[ "$reference" =~ ^ghcr\.io/open-macaron/controller@sha256:[0-9a-f]{64}$ ]] ||
+    die "imagestream/macaron-controller has no imported digest: $(oc get imagestream/macaron-controller -o jsonpath='{.status.tags[?(@.tag=="latest")].conditions[0].message}')"
+  printf '%s' "$reference"
+}
+
 unsettled_runs() {
   oc exec statefulset/macaron-postgres -c postgres -- psql -tA -d macaron -c "SELECT count(*) FROM runs WHERE settled_at IS NULL"
 }
@@ -79,6 +95,10 @@ main() {
   trap 'rm -rf "$BUILD"' EXIT
   config_overlay "$BUILD"
   command oc kustomize --load-restrictor LoadRestrictionsNone "$BUILD" >"$BUILD/manifests.yaml"
+  local image
+  image="$(controller_image)"
+  echo "   controller: ${image#*@}"
+  sed -i "s|image: ghcr.io/open-macaron/controller:latest$|image: ${image}|" "$BUILD/manifests.yaml"
   grep -Eq 'image: ghcr.io/open-macaron/controller@sha256:[0-9a-f]{64}$' "$BUILD/manifests.yaml" || die "controller image is not pinned by digest"
   ! grep -q '@sha256:0000000000000000000000000000000000000000000000000000000000000000' "$BUILD/manifests.yaml" || die "an image digest is still the placeholder"
 

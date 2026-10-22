@@ -77,11 +77,10 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
    
    The Version Packages PR is opened by the org's `open-macaron-release` GitHub App: a one-hour token from `RELEASE_APP_CLIENT_ID` (variable) and `RELEASE_APP_PRIVATE_KEY` (secret), limited to this repository, Contents and Pull requests write. It needs the app because GitHub runs no workflow on a PR opened with `GITHUB_TOKEN`. Without it, run CI on that PR by hand: `gh workflow run ci.yml --ref changeset-release/main`. `main`'s ruleset requires the `check` and `image` jobs and a PR for every change.
 3. **Verify before pinning:** `gh attestation verify` on the image digest / bundle (signer workflow on `refs/heads/main`, source digest = the commit).
-4. Pin:
-   - the image digest in `deploy/openshift/controller.yaml`;
+4. The controller rolls out by itself: the `macaron-controller` ImageStream follows `:latest`, and its image trigger rolls the Deployment (docs/DEPLOYMENT.md §2). Pin by hand only what other repositories use:
    - the agent-cli URL (`…/releases/download/%40open-macaron%2Fagent-cli%40<version>/macaron-agent.mjs`) and its sha256 in open-macaron/runner `run.yml`;
    - the knowledge-cli and config-cli URLs and sha256 in open-macaron/knowledge's and open-macaron/config's workflows. That's a platform PR there: `.github/` is never auto-merged.
-5. Deploy from a clean checkout of `main`, logged in with `oc`: `MACARON_NAMESPACE=<namespace> deploy/openshift/scripts/deploy.sh` (docs/DEPLOYMENT.md §5). It takes a dump first and rolls back a Deployment that doesn't become ready. Secrets and settings change through `provision-secrets.sh`, never `oc edit`.
+5. Manifests, `config/`, Bifrost, nginx and Postgres are deployed from a clean checkout of `main`, logged in with `oc`: `MACARON_NAMESPACE=<namespace> deploy/openshift/scripts/deploy.sh` (docs/DEPLOYMENT.md §5). It takes a dump first and rolls back a Deployment that doesn't become ready. Secrets and settings change through `provision-secrets.sh`, never `oc edit`.
 6. Check the result live (status comment, run, review/PR, cost settlement) on the sandbox repositories in `config/`, never on repositories outside it.
 
 ## Pitfalls already met

@@ -12,6 +12,7 @@ resources:
   - postgres.yaml
   - backup.yaml
   - bifrost.yaml
+  - controller-imagestream.yaml
   - controller.yaml
   - edge.yaml
 configMapGenerator:
