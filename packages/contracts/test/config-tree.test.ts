@@ -4,9 +4,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ConfigTreeError, loadConfigTree, parseConfigTree, readConfigFiles } from "@open-macaron/contracts";
 
-const repoConfigDir = join(import.meta.dirname, "..", "..", "..", "config");
+const repoConfigDir = join(import.meta.dirname, "fixtures", "config");
 
-describe("the committed config/ tree", () => {
+// A copy of the configuration taken when it moved to open-macaron/config, whose CI now validates the live one.
+describe("a realistic configuration tree", () => {
   it("is valid", async () => {
     const snapshot = await loadConfigTree(repoConfigDir);
 

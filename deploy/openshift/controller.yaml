@@ -1,6 +1,7 @@
 # The controller: holds every credential (DESIGN.md §3). Secrets come from the macaron-controller
 # Secret, operator settings from the macaron-settings ConfigMap (both written by
-# scripts/provision-secrets.sh), config/ from a ConfigMap that scripts/deploy.sh generates.
+# scripts/provision-secrets.sh). Its configuration is open-macaron/config's published snapshot
+# (CONFIG_URL).
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -67,8 +68,6 @@ spec:
               value: production
             - name: PORT
               value: "8080"
-            - name: CONFIG_DIR
-              value: /opt/macaron/config
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
@@ -137,19 +136,12 @@ spec:
             limits:
               memory: 768Mi
           volumeMounts:
-            - name: config
-              mountPath: /opt/macaron/config
-              readOnly: true
             - name: service-ca
               mountPath: /etc/service-ca
               readOnly: true
             - name: tmp
               mountPath: /tmp
       volumes:
-        # deploy.sh replaces this with a generated ConfigMap whose items rebuild config/'s tree.
-        - name: config
-          configMap:
-            name: macaron-config
         - name: service-ca
           configMap:
             name: macaron-service-ca

@@ -15,7 +15,7 @@ Read first: [README.md](README.md) (what the bot does), [docs/DESIGN.md](docs/DE
 | `packages/knowledge-cli` | Validation, owner-approved merges and the Pages read API of open-macaron/knowledge |
 | `packages/config-cli` | Validation (the controller's own `parseConfigTree`), owner-approved merges and the Pages snapshot of open-macaron/config. Changes to who can trigger the bot or what it may spend are left to the platform team |
 | `packages/owners` | The owner-approved merge both CLIs share: `OWNERS.yaml` per folder, matched by user id, status comment, merge at the evaluated commit |
-| `config/` | Trusted projects, repositories, users, budgets (`global.yaml` → `projects/<p>/project.yaml` → `repos/<r>.yaml`) |
+| [open-macaron/config](https://github.com/open-macaron/config) | Trusted projects, repositories, users, budgets (`global.yaml` → `projects/<p>/project.yaml` → `repos/<r>.yaml`), in its own repository: owner-approved, published on GitHub Pages, reloaded by the controller without a deploy. A copy for tests: `packages/contracts/test/fixtures/config` |
 | `deploy/` | `deploy/openshift/`: the production manifests and their scripts (`deploy.sh`, `provision-secrets.sh`), see docs/DEPLOYMENT.md; `deploy/bifrost/`: Bifrost's config template, pinned prices, `dev.sh` |
 | `docs/` | Design documents; keep them in sync with what you change |
 
@@ -80,8 +80,8 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 4. The controller rolls out by itself: the `macaron-controller` ImageStream follows `:latest`, and its image trigger rolls the Deployment (docs/DEPLOYMENT.md §2). Pin by hand only what other repositories use:
    - the agent-cli URL (`…/releases/download/%40open-macaron%2Fagent-cli%40<version>/macaron-agent.mjs`) and its sha256 in open-macaron/runner `run.yml`;
    - the knowledge-cli and config-cli URLs and sha256 in open-macaron/knowledge's and open-macaron/config's workflows. That's a platform PR there: `.github/` is never auto-merged.
-5. Manifests, `config/`, Bifrost, nginx and Postgres are deployed from a clean checkout of `main`, logged in with `oc`: `MACARON_NAMESPACE=<namespace> deploy/openshift/scripts/deploy.sh` (docs/DEPLOYMENT.md §5). It takes a dump first and rolls back a Deployment that doesn't become ready. Secrets and settings change through `provision-secrets.sh`, never `oc edit`.
-6. Check the result live (status comment, run, review/PR, cost settlement) on the sandbox repositories in `config/`, never on repositories outside it.
+5. Manifests, Bifrost, nginx and Postgres are deployed from a clean checkout of `main`, logged in with `oc`: `MACARON_NAMESPACE=<namespace> deploy/openshift/scripts/deploy.sh` (docs/DEPLOYMENT.md §5). It takes a dump first and rolls back a Deployment that doesn't become ready. Secrets and settings change through `provision-secrets.sh`, never `oc edit`.
+6. Check the result live (status comment, run, review/PR, cost settlement) on the sandbox repositories in open-macaron/config (`projects/sandbox`), never on repositories outside it.
 
 ## Pitfalls already met
 
@@ -94,5 +94,5 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 - The edge forwards each matched request to its canonical upstream path (`proxy_pass` with a URI), never the client's: a proxy's matcher normalises paths, the upstream may not.
 - OpenShift's `restricted-v2` drops every capability with no-new-privileges: an image whose binary carries a file capability (the official Caddy image) fails with `Operation not permitted`. Prefer Red Hat images built for random UIDs (`ubi10/nginx-126`, `rhel10/postgresql-18`).
 - Postgres refuses a TLS key readable beyond its group: the serving-certificate Secret is mounted with `defaultMode: 0640` (root-owned, group = the pod's fsGroup).
-- Kustomize takes no absolute root and no file outside its directory by default: `deploy.sh` builds with a relative path and `--load-restrictor LoadRestrictionsNone`.
+- Kustomize reads no file outside its directory by default (`deploy/bifrost/` is): `deploy.sh` builds with `--load-restrictor LoadRestrictionsNone`, and a kustomization's `resources` can't be absolute paths.
 - GitHub doesn't list pings among a hook's deliveries, and deliveries can lag by 10–25 min during an incident: the reconcile job, not the webhook, guarantees that a completion is processed.

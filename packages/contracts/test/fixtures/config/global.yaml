@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../packages/contracts/schemas/config-global.schema.json
+# yaml-language-server: $schema=../../../schemas/config-global.schema.json
 #
 # Defaults for every repository. Projects and repos override them (SCALING.md §2).
 # Changes need a review from the platform team (CODEOWNERS).

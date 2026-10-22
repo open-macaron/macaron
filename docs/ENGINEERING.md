@@ -33,7 +33,6 @@ macaron/                                (open-macaron/macaron, public)
 │   ├── knowledge-cli/                  open-macaron/knowledge: validate, merge, build the Pages read API
 │   └── config-cli/                     open-macaron/config: validate (the controller's checks), merge, build the Pages snapshot
 ├── harness/{claude,codex,opencode}/    thin shell adapters invoked by agent-cli
-├── config/                             global → projects/<p> → repos/<r>; schema in packages/contracts
 ├── deploy/                             openshift/ (manifests, scripts), bifrost/ (config, prices, dev.sh), see DEPLOYMENT.md
 ├── .github/workflows/                  ci.yml, release.yml  (agent workflows live in open-macaron/runner)
 └── docs/

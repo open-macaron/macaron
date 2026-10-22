@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../../packages/contracts/schemas/config-project.schema.json
+# yaml-language-server: $schema=../../../../../schemas/config-project.schema.json
 #
 # Sandbox project used to exercise the whole loop on a throwaway upstream repository.
 
