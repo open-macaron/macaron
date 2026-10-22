@@ -106,7 +106,7 @@ The settings ConfigMap `macaron-settings` holds:
 - `PUBLIC_URL`, taken from the Route's generated host, and `BIFROST_PUBLIC_URL` (`<PUBLIC_URL>/llm/anthropic`);
 - `MACARON_ENABLED`, `MACARON_ALLOWED_USER_IDS` and `LOG_LEVEL`, which keep their values unless given in the environment. A fresh namespace starts disabled, and refuses to start without `MACARON_ALLOWED_USER_IDS` given (empty means no restriction);
 - `RUNNER_REPO_ID` and `RUNNER_OWNER_ID`;
-- `CONFIG_URL` and `CONFIG_REPO_ID`, once `config/` is published by open-macaron/config (§6, "Configuration"). Unset, the controller reads the `config/` ConfigMap;
+- `CONFIG_URL` and `CONFIG_REPO_ID`: open-macaron/config's published snapshot (§6, "Configuration"), set with `CONFIG_URL=https://open-macaron.github.io/config/v1 CONFIG_REPO_ID=1429850279 provision-secrets.sh`. Set to empty, the controller reads the `config/` ConfigMap again;
 - `LLM_BACKEND=bifrost`.
 
 Pods read Secrets and settings when they start: `oc rollout restart deployment/macaron-controller deployment/macaron-bifrost` after a change.

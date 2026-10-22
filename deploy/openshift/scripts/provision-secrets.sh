@@ -9,8 +9,9 @@
 # Re-running replaces the GitHub, webhook and LLM-upstream values. Generated once, then kept: the
 # database passwords, and Bifrost's admin password and encryption key (Bifrost can't change its
 # encryption key: keep a copy outside the cluster, docs/DEPLOYMENT.md §4). Settings keep their current
-# values unless given in the environment (MACARON_ENABLED, MACARON_ALLOWED_USER_IDS, LOG_LEVEL); a
-# fresh namespace starts disabled and needs MACARON_ALLOWED_USER_IDS given, empty for no restriction.
+# values unless given in the environment (MACARON_ENABLED, MACARON_ALLOWED_USER_IDS, LOG_LEVEL,
+# CONFIG_URL and CONFIG_REPO_ID); a fresh namespace starts disabled and needs
+# MACARON_ALLOWED_USER_IDS given, empty for no restriction.
 set -euo pipefail
 
 NS="${MACARON_NAMESPACE:?set MACARON_NAMESPACE to the target namespace}"
@@ -92,6 +93,12 @@ if [[ -z "${MACARON_ALLOWED_USER_IDS+set}" ]]; then
 fi
 [[ -z "$MACARON_ALLOWED_USER_IDS" || "$MACARON_ALLOWED_USER_IDS" =~ ^[0-9]+(,[0-9]+)*$ ]] || { echo "MACARON_ALLOWED_USER_IDS must be comma-separated numeric ids" >&2; exit 1; }
 LOG_LEVEL="${LOG_LEVEL:-$(setting LOG_LEVEL)}"
+# open-macaron/config's published snapshot (docs/DEPLOYMENT.md §6, "Configuration"): kept unless
+# given; both or neither; set to empty to go back to the config/ ConfigMap.
+CONFIG_URL="${CONFIG_URL-$(setting CONFIG_URL)}"
+CONFIG_REPO_ID="${CONFIG_REPO_ID-$(setting CONFIG_REPO_ID)}"
+[[ -z "$CONFIG_URL$CONFIG_REPO_ID" || ("$CONFIG_URL" =~ ^https://[^[:space:]]+$ && "$CONFIG_REPO_ID" =~ ^[0-9]+$) ]] ||
+  { echo "CONFIG_URL (https) and CONFIG_REPO_ID (numeric repository id) go together" >&2; exit 1; }
 settings=(
   --from-literal=PUBLIC_URL="$PUBLIC_URL"
   --from-literal=MACARON_ENABLED="$MACARON_ENABLED"
@@ -102,8 +109,9 @@ settings=(
   --from-literal=BIFROST_PUBLIC_URL="$PUBLIC_URL/llm/anthropic"
 )
 if [[ -n "$MACARON_ALLOWED_USER_IDS" ]]; then settings+=(--from-literal=MACARON_ALLOWED_USER_IDS="$MACARON_ALLOWED_USER_IDS"); fi
+if [[ -n "$CONFIG_URL" ]]; then settings+=(--from-literal=CONFIG_URL="$CONFIG_URL" --from-literal=CONFIG_REPO_ID="$CONFIG_REPO_ID"); fi
 oc create configmap macaron-settings --dry-run=client -o yaml "${settings[@]}" |
   oc label --local -f - -o yaml app.kubernetes.io/part-of=macaron |
   oc apply --server-side --field-manager=macaron-provision --force-conflicts -f - >/dev/null
-echo "   configmap/macaron-settings (PUBLIC_URL=$PUBLIC_URL, MACARON_ENABLED=$MACARON_ENABLED, MACARON_ALLOWED_USER_IDS=${MACARON_ALLOWED_USER_IDS:-unrestricted})"
+echo "   configmap/macaron-settings (PUBLIC_URL=$PUBLIC_URL, MACARON_ENABLED=$MACARON_ENABLED, MACARON_ALLOWED_USER_IDS=${MACARON_ALLOWED_USER_IDS:-unrestricted}, config: ${CONFIG_URL:-the config/ ConfigMap})"
 echo "   running pods keep their old values: oc -n $NS rollout restart deployment/macaron-controller deployment/macaron-bifrost"
