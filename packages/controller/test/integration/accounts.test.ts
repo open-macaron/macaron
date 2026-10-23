@@ -258,6 +258,13 @@ describe("UsersService", () => {
     expect(audit?.details).toEqual({ before: ["triage", "review"], after: ["implement"] });
   });
 
+  it("finds who may trigger the bot by GitHub id, with their capabilities", async () => {
+    const users_ = new UsersService(db);
+    expect(await users_.asker(102)).toEqual({ githubId: 102, capabilities: ["implement"] });
+    expect(await users_.asker(ADMIN_GITHUB_ID)).toEqual({ githubId: ADMIN_GITHUB_ID, capabilities: Capability.options });
+    expect(await users_.asker(555)).toBeUndefined();
+  });
+
   it("never edits an admin", async () => {
     expect((await refusal(new UsersService(db).setCapabilities(admin.id, ["review"], admin))).field).toBe("capabilities");
   });

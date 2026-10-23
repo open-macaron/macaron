@@ -56,7 +56,7 @@ open-macaron/config
 └── projects/
     ├── podman-desktop/
     │   ├── OWNERS.yaml                  who approves changes in this folder
-    │   ├── project.yaml                 users, bots, monthly budget, default environment
+    │   ├── project.yaml                 review bots, monthly budget, default environment
     │   └── repos/
     │       └── podman-desktop.yaml      environment: { name: podman-desktop, params: { machine: "true" } }, budget overrides
     ├── podman-desktop-extensions/
@@ -71,8 +71,7 @@ open-macaron/config
 # projects/podman-desktop-extensions/project.yaml (abridged)
 project: podman-desktop-extensions
 owners: "@open-macaron/maintainers"             # the owning team; approvals come from OWNERS.yaml
-users: [axel7083]                               # who may trigger, across the project's repos
-bots: []
+bots: []                                        # review bots whose comments on the bot's PRs count
 budget: { monthUsd: 30.00 }
 concurrency: 1
 defaults:
@@ -81,13 +80,13 @@ defaults:
   budgets: { implement: 5.00, review: 0.50 }
 ```
 
-The controller works with the merged `RepoConfig` (`packages/contracts/src/config.ts`): the repository's `RepoSettings` (harness, model and per-mode models, fast model, `runsOn`, platforms, timeout, environment, commands, contribution rules, budgets, review cost, caps) plus `repo`, `fork`, `project`, `users` and `bots`.
+The controller works with the merged `RepoConfig` (`packages/contracts/src/config.ts`): the repository's `RepoSettings` (harness, model and per-mode models, fast model, `runsOn`, platforms, timeout, environment, commands, contribution rules, budgets, review cost, caps) plus `repo`, `fork`, `project` and `bots`. A project's `users` list is deprecated and ignored: who may trigger the bot is an account of the web app, with the capabilities an administrator granted (DESIGN.md §7).
 
-**The project is the unit we "don't work for free" for.** It has a budget, a list of trusted users and a concurrency share. Costs roll up repo → project → global in the ledger and the reports.
+**The project is the unit we "don't work for free" for.** It has a budget and a concurrency share. Costs roll up repo → project → global in the ledger and the reports.
 
 **Who owns what:**
 - Each project folder's `OWNERS.yaml` gives its team its own folder: their approval merges it (`merge.yml` with `config-cli`, like knowledge).
-- The platform team owns `global.yaml` and merges by hand any change to who can trigger the bot or what it may spend or run on: `users`, `bots`, `budget`, `concurrency`, `budgets`, `caps`, `reviewCost`, `runsOn`, `platforms`. `config-cli` detects them and leaves such PRs to it.
+- The platform team owns `global.yaml` and merges by hand any change to who can trigger the bot or what it may spend or run on: `bots`, `budget`, `concurrency`, `budgets`, `caps`, `reviewCost`, `runsOn`, `platforms`. `config-cli` detects them and leaves such PRs to it.
 
 ## 3. Knowledge follows the same hierarchy
 

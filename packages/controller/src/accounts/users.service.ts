@@ -5,6 +5,7 @@ import { asc, eq, max } from "drizzle-orm";
 import { FieldRefused } from "../common/errors.ts";
 import type { Db } from "../db/db.module.ts";
 import { adminAudit, sessions, users } from "../db/schema.ts";
+import type { Asker } from "./access.ts";
 import type { Actor } from "./invitations.service.ts";
 
 type UserRow = typeof users.$inferSelect;
@@ -29,6 +30,12 @@ function toAccount(user: UserRow, lastSignInAt: Date | null): UserAccount | unde
 @Injectable()
 export class UsersService {
   constructor(@InjectDrizzle() private readonly db: Db) {}
+
+  /** The account of a GitHub user, as far as triggering the bot goes; undefined without one. */
+  async asker(githubId: number): Promise<Asker | undefined> {
+    const [row] = await this.db.select({ capabilities: users.capabilities }).from(users).where(eq(users.githubId, githubId)).limit(1);
+    return row === undefined ? undefined : { githubId, capabilities: row.capabilities };
+  }
 
   async get(id: string): Promise<UserAccount | undefined> {
     const [row] = await this.db.select().from(users).where(eq(users.id, id)).limit(1);

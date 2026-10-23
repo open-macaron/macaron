@@ -114,7 +114,7 @@ The OpenRouter keys (`OPENROUTER_PROVISIONING_KEY`, `OPENROUTER_ROUTER_KEY`) are
 
 The settings ConfigMap `macaron-settings` holds:
 - `PUBLIC_URL`, taken from the Route's generated host, and `BIFROST_PUBLIC_URL` (`<PUBLIC_URL>/llm/anthropic`);
-- `MACARON_ENABLED`, `MACARON_ALLOWED_USER_IDS` and `LOG_LEVEL`, which keep their values unless given in the environment. A fresh namespace starts disabled, and refuses to start without `MACARON_ALLOWED_USER_IDS` given (empty means no restriction);
+- `MACARON_ENABLED` and `LOG_LEVEL`, which keep their values unless given in the environment. A fresh namespace starts disabled;
 - `RUNNER_REPO_ID` and `RUNNER_OWNER_ID`;
 - `CONFIG_URL` and `CONFIG_REPO_ID`: open-macaron/config's published snapshot (§6, "Configuration"). They default to `https://open-macaron.github.io/config/v1` and that repository's id, `1429850279`, and `deploy.sh` refuses to deploy without them;
 - `LLM_BACKEND=bifrost`;
@@ -132,7 +132,7 @@ Pods read Secrets and settings when they start: `oc rollout restart deployment/m
 ```sh
 export MACARON_NAMESPACE=<namespace>
 deploy/openshift/scripts/deploy.sh                 # fresh namespace: creates the Route, stops at the missing Secrets
-MACARON_ALLOWED_USER_IDS=<ids> deploy/openshift/scripts/provision-secrets.sh
+MACARON_ADMIN_USER_IDS=<your GitHub id> deploy/openshift/scripts/provision-secrets.sh
 deploy/openshift/scripts/deploy.sh
 ```
 
@@ -149,7 +149,7 @@ Neither a configuration change nor a controller release is a deploy: the control
 
 - **Logs:** `oc logs deployment/macaron-controller` (JSON lines from pino, secrets redacted), `deployment/macaron-bifrost`, `deployment/macaron-edge`, `deployment/macaron-web`, `statefulset/macaron-postgres`.
 - **Kill switch:** `MACARON_ENABLED=false deploy/openshift/scripts/provision-secrets.sh`, then restart the controller. The controller stops ingesting, refuses to launch runs and revokes open keys. `oc scale deployment/macaron-controller --replicas=0` is the hard stop: open keys still expire on their own, and the sweeper deletes them on the next start.
-- **User allowlist:** `MACARON_ALLOWED_USER_IDS=<id>,<id>` limits who can trigger the bot to those numeric GitHub user ids, whatever open-macaron/config trusts. Ids rather than logins, because a login can be renamed and re-registered. Set it through `provision-secrets.sh`, then restart the controller.
+- **Who may trigger the bot:** people with an account of the web app, by their immutable GitHub id, within the capabilities an administrator granted them; nobody else. Without sign-in configured (§4), nobody can. Admins (`MACARON_ADMIN_USER_IDS`, set through `provision-secrets.sh`) sign in without an invitation, hold every capability, and invite everyone else from the web app.
 - **LLM backend:** production uses Bifrost over the upstream LLM key (`LLM_BACKEND=bifrost`). Models must be priced in `deploy/bifrost/pricing.json`. The controller refuses to start when the active backend can't price a configured model, and refuses to mint keys for one after a config reload. A configured backend that isn't active and fails its start-up check is logged and left out.
 - **Configuration:** the controller reads [open-macaron/config](https://github.com/open-macaron/config)'s snapshot (`<CONFIG_URL>/config.json`, schema `config-published`). A change is a PR there, approved by the project folder's owners, or merged by hand by the platform team for `global.yaml` and settings that decide who can trigger the bot or what it may spend (that repository's README). `CONFIG_DIR` is only for local runs and tests.
   - **When it changes:** a successful Pages deployment of `CONFIG_REPO_ID` sends `deployment_status` to `/v1/webhook`, and the controller reloads that commit, retrying until Pages serves it. The two-minute reconcile also revalidates the snapshot (a 304 when unchanged), in case a delivery is delayed or lost.

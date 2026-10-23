@@ -13,7 +13,7 @@ Companion docs:
 - Agents (Claude Code today; codex and opencode planned) run on GitHub-hosted runners, so we don't manage agent environments.
 - A **controller in our OpenShift namespace** holds every credential and does everything deterministic: polling, webhooks, reactions, budget keys, policy checks, pushes, comments.
 - Security comes first. The agent never holds a GitHub credential. Every agent run gets its own budget-capped LLM key: a Bifrost virtual key over the upstream LLM key, or an OpenRouter key (§4 "Budgets"). Pushes are done afterwards by deterministic code that only writes to one branch.
-- The bot only works for allow-listed repos and users. It reacts fast (👀), comments little, reports the cost of every action, and learns over time through a curated knowledge base.
+- The bot only works for allow-listed repos, and for people with an account of its web app (invited, with capabilities). It reacts fast (👀), comments little, reports the cost of every action, and learns over time through a curated knowledge base.
 
 ## 2. Target architecture
 
@@ -165,7 +165,7 @@ Behaviour notes:
   - Explicit commands (`@macaron-bot implement`, `/plan`, `/stop`) skip the Router.
   - `@macaron-bot retry` runs the thread's last failed or stopped loop again, with the same mode, trigger and platform. It is refused when the last loop succeeded. Each failure's status comment says so.
   - **Platforms.** Runs are on Linux unless the command names another platform the repo enables: `@macaron-bot reproduce on windows` (the first `on <platform>` of the mention's line). An escalation keeps the escalating run's platform unless the result sets `escalateOn`; triage is told which platforms the repo has, for issues that only happen on one. `triage` and `review` don't set the project up, so they always run on Linux. The status comment names the platform.
-- The Ingest drops events from untrusted repos, untrusted users, and the bot itself. It also caps loops: at most N review loops per PR, and a lower cap when the reviewer is a bot, so two bots can't ping-pong forever.
+- The Ingest drops events from untrusted repos, from people without an account, and from the bot itself. Who a run is for, and whether their capabilities allow its mode, is checked when it launches (`accounts/access.ts`): explicit commands, retries and escalations alike; a review bot's comments count for whoever asked for the thread's last run. It also caps loops: at most N review loops per PR, and a lower cap when the reviewer is a bot, so two bots can't ping-pong forever.
 - Review *summaries* don't support reactions, so 👀 goes on the PR.
 
 ### Subjects and routes (`src/routing/`)
@@ -308,7 +308,7 @@ interface RunResult {
 }
 ```
 
-The configuration lives in its own repository, [`open-macaron/config`](https://github.com/open-macaron/config). Each project folder's owners approve its changes (`OWNERS.yaml`, merged by `config-cli` like knowledge), and the platform team approves changes to who can trigger the bot and what it may spend or run on. A merge publishes a snapshot on GitHub Pages; the controller reloads it on the Pages deployment's webhook, without a deploy, and applies it only if it's valid (DEPLOYMENT.md §6). It holds, per global/project/repo level, the users and bots allowed to trigger, harness and model, environment, budgets and caps (SCALING.md §2).
+The configuration lives in its own repository, [`open-macaron/config`](https://github.com/open-macaron/config). Each project folder's owners approve its changes (`OWNERS.yaml`, merged by `config-cli` like knowledge), and the platform team approves changes to who can trigger the bot and what it may spend or run on. A merge publishes a snapshot on GitHub Pages; the controller reloads it on the Pages deployment's webhook, without a deploy, and applies it only if it's valid (DEPLOYMENT.md §6). It holds, per global/project/repo level, the review bots whose comments count, harness and model, environment, budgets and caps (SCALING.md §2). Who may trigger the bot isn't there: it is an account of the web app, invited by an administrator, with the capabilities they granted (§7).
 
 ### Environments and configuration
 
@@ -317,7 +317,7 @@ There is one workflow, `open-macaron/runner/.github/workflows/run.yml`. Each rep
 - **own:** a folder in `runner` owned by the repo's team;
 - **upstream:** shipped in the upstream repo and read at the base SHA, for example Podman Desktop itself.
 
-Configuration is a hierarchy, `global.yaml` → `projects/<p>/project.yaml` → `projects/<p>/repos/<r>.yaml` in open-macaron/config. The project is the unit for budget, trusted users and ownership. The full reasoning, examples and scaling limits are in [SCALING.md](SCALING.md).
+Configuration is a hierarchy, `global.yaml` → `projects/<p>/project.yaml` → `projects/<p>/repos/<r>.yaml` in open-macaron/config. The project is the unit for budget and ownership. The full reasoning, examples and scaling limits are in [SCALING.md](SCALING.md).
 
 ### Evidence: screenshots and videos
 
@@ -372,7 +372,7 @@ With no access, the bot can do anything a stranger can do on a public repo and n
 
 Each trigger maps to the same `TriggerEvent`, so it only touches `Ingest`. Config gains `access: none | read | triage` per repo, and the controller uses the extra triggers only where config says the access exists. The security model doesn't change: tokens stay in the controller, and the agent still has none.
 
-Mentions from untrusted users on trusted repositories get 👎 and nothing else: no reply, no LLM call. A reaction notifies no one, and it tells the author they were heard but not allowed, which silence couldn't tell apart from an outage. It's given once per user and thread, at most 30 an hour across all threads, so strangers can't spend the write quota real work needs. Mentions on other repositories stay ignored silently: the bot doesn't advertise itself where it isn't enrolled. Follow-up comments on threads the bot is in arrive as `comment` notifications and go through the same trusted-user filter before the Router sees them.
+Mentions from people without an account on trusted repositories get 👎 and nothing else: no reply, no LLM call. A reaction notifies no one, and it tells the author they were heard but not allowed, which silence couldn't tell apart from an outage. It's given once per user and thread, at most 30 an hour across all threads, so strangers can't spend the write quota real work needs. Mentions on other repositories stay ignored silently: the bot doesn't advertise itself where it isn't enrolled. Follow-up comments on threads the bot is in arrive as `comment` notifications and go through the same account filter before the Router sees them. Someone with an account asking for a mode their capabilities don't include gets a refusal reply that names the missing capability, with no mention.
 
 ## 5. Review loop and reporting
 
@@ -568,7 +568,7 @@ One file per folder, not pre-merged: which project a repository belongs to is op
 
 ### 6.6 Gathering lessons
 
-- **Gather: only when asked.** A knowledge pull request costs a folder owner's review, so the bot proposes lessons only when a trusted user writes `@macaron-bot remember: …`. That starts a `retro` run (Linux, no project setup, the `retro` budget) with the instruction, the thread, the code where it was asked and the repository's lessons. It checks the claim and returns `learnings`, each a complete lesson (`topic`, `description`, `text`, `evidence`, a level), or, with `updates`, the whole revised text of a lesson it was given: the bot revises rather than duplicates. The Gate refuses an `updates` id the run wasn't given. Learnings of every other run, reviews included, are ignored. Later, once these proposals prove worth the owners' time: a `retro` run when a bot pull request is merged or closed.
+- **Gather: only when asked.** A knowledge pull request costs a folder owner's review, so the bot proposes lessons only when someone holding the `remember` capability writes `@macaron-bot remember: …`. That starts a `retro` run (Linux, no project setup, the `retro` budget) with the instruction, the thread, the code where it was asked and the repository's lessons. It checks the claim and returns `learnings`, each a complete lesson (`topic`, `description`, `text`, `evidence`, a level), or, with `updates`, the whole revised text of a lesson it was given: the bot revises rather than duplicates. The Gate refuses an `updates` id the run wasn't given. Learnings of every other run, reviews included, are ignored. Later, once these proposals prove worth the owners' time: a `retro` run when a bot pull request is merged or closed.
 - **Propose:** agent output is untrusted, and a poisoned knowledge base would be a persistent attack, so learnings are never written directly. `KnowledgeProposer` writes them as lesson files to a branch of `macaron-bot/knowledge` (GH_PUSH, fast-forward only) and opens one pull request per owned folder (GH_ORG: the org blocks the classic GH_INTERACT); a folder with an open proposal gets a new commit on it instead. The fork is synced first, then a new branch starts at upstream `main`, so it is never behind on `.github/workflows/`. A revision keeps the lesson's globs and confidence, adds the new sources and is verified that day; if the lesson changed on `main` since the run read it, the pull request says so. The status comment links the pull request, and that folder's owners approve it (§6.4). A weekly `garden` run proposes dedupes, prunes stale lessons and suggests promotions to rules, in the same PRs.
 
 ## 7. Security invariants
@@ -584,6 +584,7 @@ One file per folder, not pre-merged: which project a repository belongs to is op
 | Forged authorship | The Publisher creates the commit itself (bot author, signed) from the diff |
 | Fork CI with our pushes | Actions disabled on every fork at onboarding |
 | Forged webhooks or bootstrap calls | HMAC on webhooks; OIDC signature and claims checked on bootstrap; the edge only exposes `/v1/webhook`, `/v1/bootstrap` and three exact `/llm/anthropic/v1/…` routes to them, plus `/api/auth/*` (sign-in); every other path goes to the web app, which holds no credential |
+| Someone triggers the bot without being allowed | A mention counts only from an account (by immutable GitHub id) or a review bot listed in open-macaron/config; the run's mode needs a capability the account holds (`requiredCapability`), checked at launch for commands, retries and escalations alike |
 | Someone uninvited gets an account, or a user raises their own rights | Sign-in is GitHub only; a new account needs a pending invitation for its immutable GitHub id (or to be an operator's admin), checked on GitHub's raw profile; the GitHub id, login and role can't be set by any request; capabilities change only through admin routes, each audited |
 | A session is stolen or replayed | `__Secure-`, httpOnly, SameSite=Lax cookies, 7-day sessions; GitHub's OAuth tokens are never stored and no IP address is kept; `/v1/me` and `/v1/admin` aren't routed by the edge, only the web app reaches them, forwarding the session cookie alone |
 
@@ -607,7 +608,7 @@ All `open-macaron` repos, the `runner` Actions logs, the images and the knowledg
 1. **Ingress (decided).** The OpenShift router terminates TLS; nginx (`deploy/openshift/edge/`) exposes only `/v1/webhook`, `/v1/bootstrap` and, with the Bifrost backend, three exact `/llm/anthropic/v1/…` routes.
 2. **Ledger storage (decided).** PostgreSQL 18 (a StatefulSet next to the controller, TLS only), with Drizzle ORM. See DEPLOYMENT.md §2.
 3. **Stack (decided).** NestJS 12 (ESM), TypeScript 6 strict, Drizzle v1 via `@nestjs/drizzle`, Zod, Vitest. See ENGINEERING.md.
-4. **Triggers (decided).** The trigger is a **mention**: `@macaron-bot [plan|implement|reproduce|verify|stop|retry|…]` from a trusted user. The bot never gets access to upstream repos, so no trigger is built on assignment, review requests or labels. GitHub lets a maintainer assign the bot only after it has commented on that issue; that rare case is handled like a bare mention, with the assigner checked against the trusted users.
+4. **Triggers (decided).** The trigger is a **mention**: `@macaron-bot [plan|implement|reproduce|verify|stop|retry|…]` from someone with an account. The bot never gets access to upstream repos, so no trigger is built on assignment, review requests or labels. GitHub lets a maintainer assign the bot only after it has commented on that issue; that rare case is handled like a bare mention, with the assigner checked like any other mention.
 5. **Private upstreams (decided: no).** Public only, see "Everything is public".
 6. **Hosting (decided 2026-10-21):** an OpenShift namespace, applied from an operator machine (no GitOps, no credential in GitHub). It replaced a Fedora VPS with Podman quadlets (decided 2026-10-15), migrated in #24. Still open: see DEPLOYMENT.md §7.
 7. **Organisation (decided 2026-10-15):** `open-macaron` owns `macaron`, `config`, `runner`, `knowledge` and `.github`; the user `macaron-bot` owns only forks. See REPOSITORIES.md.

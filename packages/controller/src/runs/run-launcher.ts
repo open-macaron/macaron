@@ -12,6 +12,8 @@ import {
   Ticket,
 } from "@open-macaron/contracts";
 import { z } from "zod";
+import { capabilityRefusal } from "../accounts/access.ts";
+import { UsersService } from "../accounts/users.service.ts";
 import { BudgetService, type RunKeyRef } from "../budget/budget.service.ts";
 import type { Route } from "../routing/routes.ts";
 import { decideSettlement, SETTLE_RECHECK_MS } from "../budget/settlement.ts";
@@ -90,6 +92,7 @@ export class RunLauncher {
     private readonly diffs: PullDiffReader,
     private readonly jobs: Jobs,
     private readonly clock: Clock,
+    private readonly users: UsersService,
   ) {}
 
   async launch(request: LaunchRequest): Promise<LaunchOutcome> {
@@ -264,6 +267,11 @@ export class RunLauncher {
     const { config, thread } = request;
     const mode = request.route.mode;
     if (!this.env.MACARON_ENABLED) return { kind: "refused", reason: "the bot is paused by its maintainers" };
+    // The run is for an account (whoever asked, or for escalations and retries, whoever asked first),
+    // which must hold the capability its mode needs.
+    const asker = request.triggerGithubId === null ? undefined : await this.users.asker(request.triggerGithubId);
+    const forbidden = capabilityRefusal(asker, mode, this.env.PUBLIC_URL);
+    if (forbidden !== undefined) return { kind: "refused", reason: forbidden };
 
     const limit = toMicros(runLimitUsd(config, mode, request.context));
     const caps = config.caps;

@@ -16,7 +16,7 @@ Read first: [README.md](README.md) (what the bot does), [docs/DESIGN.md](docs/DE
 | `packages/config-cli` | Validation (`parseConfigTree` from contracts: the controller's own checks), owner-approved merges and the Pages snapshot of open-macaron/config. Changes to who can trigger the bot or what it may spend are left to the platform team |
 | `packages/web` | The SvelteKit 3 app (adapter-node, shadcn-svelte): GitHub sign-in, users' LLM keys, usage history. Holds no credential; talks to the controller's Service only |
 | `packages/owners` | The owner-approved merge both CLIs share: `OWNERS.yaml` per folder, matched by user id, status comment, merge at the evaluated commit |
-| [open-macaron/config](https://github.com/open-macaron/config) | Trusted projects, repositories, users, budgets (`global.yaml` → `projects/<p>/project.yaml` → `repos/<r>.yaml`), in its own repository: owner-approved, published on GitHub Pages, reloaded by the controller without a deploy. A copy for tests: `packages/contracts/test/fixtures/config` |
+| [open-macaron/config](https://github.com/open-macaron/config) | Trusted projects, repositories, review bots, budgets (who may trigger is an account of the web app) (`global.yaml` → `projects/<p>/project.yaml` → `repos/<r>.yaml`), in its own repository: owner-approved, published on GitHub Pages, reloaded by the controller without a deploy. A copy for tests: `packages/contracts/test/fixtures/config` |
 | `deploy/` | `deploy/openshift/`: the production manifests and their scripts (`deploy.sh`, `provision-secrets.sh`), see docs/DEPLOYMENT.md; `deploy/bifrost/`: Bifrost's config template, pinned prices, `dev.sh` |
 | `docs/` | Design documents; keep them in sync with what you change |
 

@@ -1,3 +1,4 @@
+import { askedBy } from "../accounts/access.ts";
 import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
 import { type Mode, type Platform, type RepoConfig, runnerFor } from "@open-macaron/contracts";
 import { RepoConfigService } from "../config/repo-config.service.ts";
@@ -99,7 +100,8 @@ export class ThreadWorker implements OnApplicationBootstrap {
     await this.reactions.claim(thread.id, batch.map(reactionTargetOf), thread.loops + 1);
 
     // Two bots must not ping-pong forever.
-    const fromBotsOnly = batch.every((event) => this.config.trigger(thread.repo, event.author) === "bot");
+    const isBot = (login: string): boolean => this.config.isBot(thread.repo, login);
+    const fromBotsOnly = batch.every((event) => isBot(event.author));
     if (fromBotsOnly && thread.loops >= config.caps.botReviewLoops) {
       this.logger.log(`${thread.repo}#${String(thread.number)}: bot review loop cap reached, ignoring`);
       return this.events.settle(ids, "dropped");
@@ -130,7 +132,9 @@ export class ThreadWorker implements OnApplicationBootstrap {
         url: last.url,
         instruction: (parseMention(last.body, login)?.instruction ?? last.body).slice(0, 4_096),
       };
-      request = { subject, mode: command === "remember" ? "retro" : command, trigger, platform: platform ?? "linux", triggerGithubId: last.authorId };
+      // Whose request it is: the latest person in the batch, or for review bots alone, whoever asked for the thread's last run.
+      const asker = askedBy(batch, isBot, loops.at(-1)?.triggerGithubId);
+      request = { subject, mode: command === "remember" ? "retro" : command, trigger, platform: platform ?? "linux", triggerGithubId: asker ?? null };
     }
 
     const outcome = await this.routeAndStart(config, thread, state, request);

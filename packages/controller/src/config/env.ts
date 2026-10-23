@@ -20,15 +20,6 @@ const RawEnv = z.object({
   CONFIG_REPO_ID: z.coerce.number().int().positive().optional(),
   /** Kill switch: when false, nothing is ingested and every open key is revoked. */
   MACARON_ENABLED: z.stringbool().default(true),
-  /**
-   * Operator allowlist of GitHub user ids (comma-separated), checked on top of the config's
-   * trust lists. Ids, not logins: a login can be renamed and re-registered. Unset = no restriction.
-   */
-  MACARON_ALLOWED_USER_IDS: z
-    .string()
-    .regex(/^\d+(,\d+)*$/, "expected comma-separated numeric GitHub user ids")
-    .transform((ids) => new Set(ids.split(",").map(Number)))
-    .optional(),
 
   GITHUB_BOT_LOGIN: z.string().min(1).default("macaron-bot"),
   GITHUB_API_VERSION: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default("2026-03-10"),

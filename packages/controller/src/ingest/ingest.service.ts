@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { RepoConfigService } from "../config/repo-config.service.ts";
 import { BotIdentity } from "../github/bot-identity.ts";
 import { GH_INTERACT, type GitHub } from "../github/github.ts";
@@ -7,6 +6,7 @@ import { repoRef } from "../github/repo-ref.ts";
 import { ReactionTargets } from "../publish/reaction-targets.ts";
 import type { ReactionTarget } from "../publish/upstream-writer.ts";
 import { ACTIVE_STATUSES, RunsRepository, type ThreadRecord } from "../runs/runs.repository.ts";
+import { UsersService } from "../accounts/users.service.ts";
 import { RunLauncher } from "../runs/run-launcher.ts";
 import { Jobs } from "../jobs/jobs.ts";
 import { EventsRepository, type NewEvent, QUIET_PERIOD_MS } from "./events.repository.ts";
@@ -21,6 +21,9 @@ interface Candidate {
   readonly event: Omit<NewEvent, "threadId" | "subjectKind" | "subjectNumber">;
   readonly target: ReactionTarget;
 }
+/** Whether a GitHub user may trigger work on the repository at hand: a person with an account, or a listed review bot. */
+type Trust = (user: { readonly login: string; readonly id: number } | null | undefined) => Promise<"user" | "bot" | undefined>;
+
 /** A mention by someone who may not trigger work. */
 interface Refusal {
   readonly author: string;
@@ -29,7 +32,7 @@ interface Refusal {
 
 /**
  * Turns notifications into trigger events. Untrusted repos are ignored silently. On trusted ones,
- * a mention by an untrusted user gets 👎 and nothing else: no reply, no LLM call. Trusted
+ * a mention by someone without an account gets 👎 and nothing else: no reply, no LLM call. Trusted
  * triggers get 👀 right away and are debounced.
  */
 @Injectable()
@@ -37,7 +40,6 @@ export class IngestService extends NotificationSink {
   private readonly logger = new Logger(IngestService.name);
 
   constructor(
-    @Inject(APP_ENV) private readonly env: AppEnv,
     @Inject(GH_INTERACT) private readonly gh: GitHub,
     private readonly config: RepoConfigService,
     private readonly runs: RunsRepository,
@@ -46,6 +48,7 @@ export class IngestService extends NotificationSink {
     private readonly launcher: RunLauncher,
     private readonly jobs: Jobs,
     private readonly bot: BotIdentity,
+    private readonly users: UsersService,
   ) {
     super();
   }
@@ -59,13 +62,14 @@ export class IngestService extends NotificationSink {
     const ownPull = subject.kind === "pull" && thread.prNumber === subject.number;
     const since = new Date(notification.updatedAt.getTime() - LOOKBACK_MS);
 
-    const conversation = await this.issueComments(subject, ownPull, since);
+    const trust = this.trustOn(subject.repo);
+    const conversation = await this.issueComments(subject, ownPull, since, trust);
     for (const refusal of conversation.refused) {
       this.logger.log(`${subject.repo}#${String(subject.number)}: mention by untrusted @${refusal.author}`);
       await this.reactions.refuse(thread.id, repoRef(subject.repo), refusal.author, refusal.target);
     }
 
-    const found = [...conversation.found, ...(ownPull ? [...(await this.reviews(subject, since)), ...(await this.reviewComments(subject, since))] : [])];
+    const found = [...conversation.found, ...(ownPull ? [...(await this.reviews(subject, since, trust)), ...(await this.reviewComments(subject, since, trust))] : [])];
     let fresh = false;
     for (const candidate of found) {
       const event: NewEvent = { ...candidate.event, threadId: thread.id, subjectKind: subject.kind, subjectNumber: subject.number };
@@ -90,7 +94,7 @@ export class IngestService extends NotificationSink {
   }
 
   /** The issue (or pull request) and its conversation: triggers, and mentions to refuse. */
-  private async issueComments(subject: NotificationSubject, ownPull: boolean, since: Date): Promise<{ found: Candidate[]; refused: Refusal[] }> {
+  private async issueComments(subject: NotificationSubject, ownPull: boolean, since: Date, trusted: Trust): Promise<{ found: Candidate[]; refused: Refusal[] }> {
     const upstream = repoRef(subject.repo);
     const found: Candidate[] = [];
     const refused: Refusal[] = [];
@@ -99,7 +103,7 @@ export class IngestService extends NotificationSink {
     const opener = issue.user?.login ?? "";
     if (new Date(issue.created_at) >= since && !this.isBot(opener) && parseMention(issue.body ?? "", this.bot.identity.login) !== undefined) {
       const target: ReactionTarget = { kind: "issue", number: subject.number };
-      const trust = this.trusted(subject.repo, issue.user);
+      const trust = await trusted(issue.user);
       if (trust === "user") found.push({ event: { externalId: `issue:${String(subject.number)}`, author: opener, authorId: issue.user?.id ?? null, kind: "mention", url: issue.html_url, body: issue.body ?? "" }, target });
       else if (trust === undefined && issue.user !== null) refused.push({ author: opener, target });
     }
@@ -110,10 +114,10 @@ export class IngestService extends NotificationSink {
       const body = comment.body ?? "";
       if (this.isBot(author)) continue;
       const mention = parseMention(body, this.bot.identity.login) !== undefined;
-      const trust = this.trusted(subject.repo, comment.user);
+      const trust = await trusted(comment.user);
       const target: ReactionTarget = { kind: "issue-comment", id: comment.id };
       if (mention && trust === undefined && comment.user !== null) refused.push({ author, target });
-      // Mentions need a trusted user; plain comments only count on the bot's own PR.
+      // Mentions need an account; plain comments only count on the bot's own PR.
       const kind = mention && trust === "user" ? "mention" : ownPull && trust !== undefined ? "comment" : undefined;
       if (kind === undefined) continue;
       found.push({ event: { externalId: `issue-comment:${String(comment.id)}`, author, authorId: comment.user?.id ?? null, kind, url: comment.html_url, body }, target });
@@ -129,38 +133,47 @@ export class IngestService extends NotificationSink {
    * Review summaries (the text submitted with "Comment" / "Request changes"). GitHub has no
    * reactions on reviews, so 👀 goes on the PR itself.
    */
-  private async reviews(subject: NotificationSubject, since: Date): Promise<Candidate[]> {
+  private async reviews(subject: NotificationSubject, since: Date, trusted: Trust): Promise<Candidate[]> {
     const reviews = await this.gh.paginate(this.gh.rest.pulls.listReviews, { ...repoRef(subject.repo), pull_number: subject.number, per_page: 100 });
-    return reviews
-      .filter((review) => review.body.trim().length > 0 && review.submitted_at !== undefined && new Date(review.submitted_at) >= since)
-      .flatMap((review) => {
-        const author = review.user?.login ?? "";
-        if (this.isBot(author) || this.trusted(subject.repo, review.user) === undefined) return [];
-        return [
-          {
-            event: { externalId: `review:${String(review.id)}`, author, authorId: review.user?.id ?? null, kind: "review", url: review.html_url, body: review.body },
-            target: { kind: "issue" as const, number: subject.number },
-          },
-        ];
+    const found: Candidate[] = [];
+    for (const review of reviews) {
+      if (review.body.trim().length === 0 || review.submitted_at === undefined || new Date(review.submitted_at) < since) continue;
+      const author = review.user?.login ?? "";
+      if (this.isBot(author) || (await trusted(review.user)) === undefined) continue;
+      found.push({
+        event: { externalId: `review:${String(review.id)}`, author, authorId: review.user?.id ?? null, kind: "review", url: review.html_url, body: review.body },
+        target: { kind: "issue", number: subject.number },
       });
+    }
+    return found;
   }
 
-  private async reviewComments(subject: NotificationSubject, since: Date): Promise<Candidate[]> {
+  private async reviewComments(subject: NotificationSubject, since: Date, trusted: Trust): Promise<Candidate[]> {
     const upstream = repoRef(subject.repo);
     const comments = await this.gh.paginate(this.gh.rest.pulls.listReviewComments, { ...upstream, pull_number: subject.number, since: since.toISOString(), per_page: 100 });
-    return comments
-      .filter((comment) => this.trusted(subject.repo, comment.user) !== undefined)
-      .map((comment) => ({
-        event: { externalId: `review-comment:${String(comment.id)}`, author: comment.user.login, authorId: comment.user.id, kind: "review" as const, url: comment.html_url, body: comment.body },
-        target: { kind: "review-comment" as const, id: comment.id },
-      }));
+    const found: Candidate[] = [];
+    for (const comment of comments) {
+      if ((await trusted(comment.user)) === undefined) continue;
+      found.push({
+        event: { externalId: `review-comment:${String(comment.id)}`, author: comment.user.login, authorId: comment.user.id, kind: "review", url: comment.html_url, body: comment.body },
+        target: { kind: "review-comment", id: comment.id },
+      });
+    }
+    return found;
   }
 
-  /** The config's trust lists, narrowed by the operator's id allowlist when one is set. */
-  private trusted(repo: string, user: { readonly login: string; readonly id: number } | null | undefined): "user" | "bot" | undefined {
-    if (user === null || user === undefined) return undefined;
-    const allowed = this.env.MACARON_ALLOWED_USER_IDS;
-    if (allowed !== undefined && !allowed.has(user.id)) return undefined;
-    return this.config.trigger(repo, user.login);
+  /**
+   * Who may trigger work on `repo` (a trusted repository): anyone with an account of the web app,
+   * by their immutable GitHub id (capabilities are checked when a run starts), and the review bots
+   * the configuration lists. Answers are kept for one notification: a conversation asks often.
+   */
+  private trustOn(repo: string): Trust {
+    const known = new Map<number, "user" | undefined>();
+    return async (user) => {
+      if (user === null || user === undefined) return undefined;
+      if (this.config.isBot(repo, user.login)) return "bot";
+      if (!known.has(user.id)) known.set(user.id, (await this.users.asker(user.id)) === undefined ? undefined : "user");
+      return known.get(user.id);
+    };
   }
 }
