@@ -13,6 +13,10 @@
 # MACARON_ADMIN_USER_IDS and LLM_ENDPOINT_DEFAULTS); a fresh namespace starts disabled. Who may trigger the bot is an account
 # of the web app (invited, with capabilities): without sign-in configured, nobody can.
 #
+# Users' LLM keys are sealed under key-encryption keys in the Secret macaron-llm-kek (files v1, v2…),
+# generated once, then kept. LLM_KEK_ROTATE=1 adds a version (then restart the controller and run
+# `node dist/rotate-llm-keys.js` in it); LLM_KEK_RETIRE=<n> removes version n once nothing uses it.
+#
 # Sign-in (the web app) is configured when the env file has the org GitHub App's
 # GITHUB_LOGIN_CLIENT_ID and GITHUB_LOGIN_CLIENT_SECRET, and MACARON_ADMIN_USER_IDS is known; the
 # session-signing secret is generated once, then kept (changing it signs everyone out).
@@ -103,6 +107,49 @@ else
     bifrost-admin-password=<(printf %s "$bifrost_admin")
   echo "   sign-in: not configured (no GITHUB_LOGIN_CLIENT_ID and GITHUB_LOGIN_CLIENT_SECRET in $ENV_FILE)"
 fi
+# The key-encryption keys. Losing one makes every key sealed under it unreadable, so this stops at
+# the first doubt: the Secret is "absent" only on NotFound, and every existing version is read and
+# checked before anything is applied.
+kek_list() { oc get secret macaron-llm-kek -o go-template='{{range $k, $v := .data}}{{$k}}{{"\n"}}{{end}}'; }
+declare -A keks=()
+if listing="$(kek_list 2>&1)"; then
+  while IFS= read -r name; do
+    [[ "$name" =~ ^v([1-9][0-9]*)$ ]] || continue
+    version="${BASH_REMATCH[1]}"
+    value="$(oc get secret macaron-llm-kek -o "jsonpath={.data.$name}" | base64 -d)" || { echo "cannot read $name of macaron-llm-kek: stopping" >&2; exit 1; }
+    [[ "$value" =~ ^[0-9a-f]{64}$ ]] || { echo "$name of macaron-llm-kek isn't 32 bytes in hex: stopping" >&2; exit 1; }
+    keks["$version"]="$value"
+  done <<<"$listing"
+  (( ${#keks[@]} > 0 )) || { echo "macaron-llm-kek holds no version: restore it from the copy kept outside the cluster" >&2; exit 1; }
+elif [[ "$listing" != *NotFound* ]]; then
+  echo "cannot read secret/macaron-llm-kek: stopping, so that no key-encryption key is replaced" >&2
+  exit 1
+fi
+newest=0
+for version in "${!keks[@]}"; do if (( version > newest )); then newest="$version"; fi; done
+if [[ -n "${LLM_KEK_RETIRE:-}" ]]; then
+  [[ "$LLM_KEK_RETIRE" =~ ^[1-9][0-9]*$ && -n "${keks[$LLM_KEK_RETIRE]:-}" && "$LLM_KEK_RETIRE" != "$newest" ]] ||
+    { echo "LLM_KEK_RETIRE must name an existing version other than the newest (v$newest)" >&2; exit 1; }
+  unset "keks[$LLM_KEK_RETIRE]"
+  echo "   v$LLM_KEK_RETIRE retired: rotate-llm-keys must have re-sealed every key under it first"
+fi
+if (( newest == 0 )) || [[ "${LLM_KEK_ROTATE:-}" == 1 ]]; then
+  newest=$((newest + 1))
+  keks["$newest"]="$(openssl rand -hex 32)"
+  echo "   key-encryption key v$newest generated: copy it outside the cluster (docs/DEPLOYMENT.md §4)"
+fi
+# One `v<n>=<hex>` line per version, read through a pipe: printf is a builtin, nothing reaches a command line.
+kek_env() {
+  local version
+  for version in "${!keks[@]}"; do printf 'v%s=%s\n' "$version" "${keks[$version]}"; done
+}
+oc create secret generic macaron-llm-kek --dry-run=client -o yaml --from-env-file=<(kek_env) |
+  oc label --local -f - -o yaml app.kubernetes.io/part-of=macaron |
+  oc apply --server-side --field-manager=macaron-provision --force-conflicts -f - >/dev/null
+expected="$(for version in "${!keks[@]}"; do echo "v$version"; done | sort)"
+[[ "$(kek_list | sort)" == "$expected" ]] || { echo "macaron-llm-kek doesn't hold the expected versions after the apply: check it now" >&2; exit 1; }
+echo "   secret/macaron-llm-kek ($(echo "$expected" | paste -sd, -))"
+
 apply_secret macaron-bifrost \
   llm-upstream-url=<(value LLM_UPSTREAM_URL) \
   llm-upstream-key=<(value LLM_UPSTREAM_KEY) \

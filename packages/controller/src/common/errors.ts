@@ -41,6 +41,21 @@ export class SignInUnavailable extends DomainError {
   readonly code = "sign_in_unavailable";
 }
 
+/** Signed in too long ago for a sensitive change (saving or deleting an LLM key): sign in again. */
+export class FreshSessionRequired extends DomainError {
+  readonly code = "fresh_session_required";
+}
+
+/** Too many attempts in a short time: try again later. */
+export class TooManyAttempts extends DomainError {
+  readonly code = "too_many_attempts";
+}
+
+/** This deployment can't store users' LLM keys (no key-encryption key). */
+export class KeyStorageUnavailable extends DomainError {
+  readonly code = "key_storage_unavailable";
+}
+
 /** A request the web app shows on one of its form fields: an invitation that exists already, for instance. */
 export class FieldRefused extends DomainError {
   readonly code = "field_refused";

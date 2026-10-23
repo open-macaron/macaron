@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  bytea,
   check,
   index,
   integer,
@@ -319,3 +320,50 @@ export const llmEndpoints = pgTable("llm_endpoints", {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+export const llmKeyStatus = pgEnum("llm_key_status", ["valid", "rejected"]);
+/** What happened to a user's key; the user sees these on their key page. */
+export const llmKeyEventKind = pgEnum("llm_key_event_kind", ["created", "replaced", "deleted", "used", "rejected", "unreachable"]);
+
+/**
+ * One LLM key per user, sealed with AES-256-GCM under a key-encryption key that never reaches the
+ * database (LLM_KEK_DIR, src/keys/key-ring.ts). The additional data binds a ciphertext to its user
+ * and endpoint: a row copied to another user or endpoint doesn't open.
+ */
+export const llmKeys = pgTable("llm_keys", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  endpointId: uuid("endpoint_id")
+    .notNull()
+    .references(() => llmEndpoints.id, { onDelete: "restrict" }),
+  kekVersion: integer("kek_version").notNull(),
+  iv: bytea("iv").notNull(),
+  ciphertext: bytea("ciphertext").notNull(),
+  tag: bytea("tag").notNull(),
+  /** The key's last 4 characters, so its owner can tell which key it is. */
+  last4: text("last4").notNull(),
+  status: llmKeyStatus("status").notNull().default("valid"),
+  /** When the endpoint last accepted it. */
+  validatedAt: timestamp("validated_at", { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+/** Append-only (a trigger refuses updates): the history of each user's key, never the key itself. */
+export const llmKeyEvents = pgTable(
+  "llm_key_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: llmKeyEventKind("kind").notNull(),
+    endpointId: uuid("endpoint_id").references(() => llmEndpoints.id, { onDelete: "restrict" }),
+    runId: uuid("run_id").references(() => runs.id, { onDelete: "restrict" }),
+    last4: text("last4"),
+    detail: text("detail"),
+    at: createdAt(),
+  },
+  (table) => [index("llm_key_events_user_at").on(table.userId, table.at)],
+);

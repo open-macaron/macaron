@@ -16,6 +16,8 @@ export interface SessionUser {
   readonly name: string;
   readonly image: string | null;
   readonly role: "user" | "admin";
+  /** When this session was created, at sign-in: renewals don't move it. */
+  readonly signedInAt: Date;
 }
 
 /**
@@ -49,7 +51,7 @@ export class SessionsService {
     const { user } = session;
     // Onboarding writes the GitHub identity in the sign-up request itself: a user without one never finished it.
     if (user.githubId === null || user.githubId === undefined || user.githubLogin === null || user.githubLogin === undefined) throw new SignInRequired("account not onboarded");
-    return { id: user.id, githubId: user.githubId, githubLogin: user.githubLogin, name: user.name, image: user.image ?? null, role: user.role === "admin" ? "admin" : "user" };
+    return { id: user.id, githubId: user.githubId, githubLogin: user.githubLogin, name: user.name, image: user.image ?? null, role: user.role === "admin" ? "admin" : "user", signedInAt: session.session.createdAt };
   }
 
   /** The request's user if they are an admin, or SignInRequired / Forbidden. */

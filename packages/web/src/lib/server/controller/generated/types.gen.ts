@@ -69,6 +69,175 @@ export type GetMyUsageResponses = {
 
 export type GetMyUsageResponse = GetMyUsageResponses[keyof GetMyUsageResponses];
 
+export type DeleteMyLlmKeyData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/me/llm-key';
+};
+
+export type DeleteMyLlmKeyErrors = {
+    /**
+     * No valid session
+     */
+    401: unknown;
+    /**
+     * fresh_session_required: signed in over 10 minutes ago
+     */
+    403: unknown;
+};
+
+export type DeleteMyLlmKeyResponses = {
+    /**
+     * Deleted, or there was none
+     */
+    204: void;
+};
+
+export type DeleteMyLlmKeyResponse = DeleteMyLlmKeyResponses[keyof DeleteMyLlmKeyResponses];
+
+export type GetMyLlmKeyData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/me/llm-key';
+};
+
+export type GetMyLlmKeyErrors = {
+    /**
+     * No valid session
+     */
+    401: unknown;
+};
+
+export type GetMyLlmKeyResponses = {
+    200: {
+        key: {
+            endpoint: {
+                id: string;
+                name: string;
+                baseUrl: string;
+                pricingNote: string | null;
+                enabled: boolean;
+            };
+            last4: string;
+            status: 'valid' | 'rejected';
+            validatedAt: string;
+            createdAt: string;
+            updatedAt: string;
+        } | null;
+        endpoints: Array<{
+            id: string;
+            name: string;
+            baseUrl: string;
+            pricingNote: string | null;
+        }>;
+        storage: boolean;
+        freshUntil: string;
+    };
+};
+
+export type GetMyLlmKeyResponse = GetMyLlmKeyResponses[keyof GetMyLlmKeyResponses];
+
+export type SaveMyLlmKeyData = {
+    body: {
+        endpointId: string;
+        key: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/me/llm-key';
+};
+
+export type SaveMyLlmKeyErrors = {
+    /**
+     * No valid session
+     */
+    401: unknown;
+    /**
+     * fresh_session_required: signed in over 10 minutes ago
+     */
+    403: unknown;
+    /**
+     * The endpoint refused the key or couldn't check it, or isn't available
+     */
+    409: {
+        error: string;
+        field: string;
+        message: string;
+    };
+    /**
+     * too_many_attempts: 5 per hour
+     */
+    429: unknown;
+    /**
+     * key_storage_unavailable: no key-encryption key on this deployment
+     */
+    503: unknown;
+};
+
+export type SaveMyLlmKeyError = SaveMyLlmKeyErrors[keyof SaveMyLlmKeyErrors];
+
+export type SaveMyLlmKeyResponses = {
+    200: {
+        key: {
+            endpoint: {
+                id: string;
+                name: string;
+                baseUrl: string;
+                pricingNote: string | null;
+                enabled: boolean;
+            };
+            last4: string;
+            status: 'valid' | 'rejected';
+            validatedAt: string;
+            createdAt: string;
+            updatedAt: string;
+        };
+        missingModels: Array<string>;
+    };
+};
+
+export type SaveMyLlmKeyResponse = SaveMyLlmKeyResponses[keyof SaveMyLlmKeyResponses];
+
+export type GetMyLlmKeyEventsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        before?: string;
+        limit?: number;
+    };
+    url: '/v1/me/llm-key/events';
+};
+
+export type GetMyLlmKeyEventsErrors = {
+    /**
+     * No valid session
+     */
+    401: unknown;
+};
+
+export type GetMyLlmKeyEventsResponses = {
+    200: {
+        events: Array<{
+            id: string;
+            kind: 'created' | 'replaced' | 'deleted' | 'used' | 'rejected' | 'unreachable';
+            at: string;
+            endpointName: string | null;
+            last4: string | null;
+            thread: {
+                repo: string;
+                number: number;
+                kind: 'issue' | 'pull';
+            } | null;
+            detail: string | null;
+        }>;
+        nextCursor: string | null;
+    };
+};
+
+export type GetMyLlmKeyEventsResponse = GetMyLlmKeyEventsResponses[keyof GetMyLlmKeyEventsResponses];
+
 export type ListInvitationsData = {
     body?: never;
     path?: never;

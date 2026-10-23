@@ -52,3 +52,10 @@ function fail(result: Result<unknown>): never {
 export function fieldRefusal(result: Result<unknown>): FieldRefusal | undefined {
   return result.response?.status === 409 ? FieldRefusal.safeParse(result.error).data : undefined;
 }
+
+const ErrorCode = z.object({ error: z.string() });
+
+/** The error code a failed call's body names (`fresh_session_required`…), if any. */
+export function errorCode(result: Result<unknown>): string | undefined {
+  return result.response?.ok === true ? undefined : ErrorCode.safeParse(result.error).data?.error;
+}

@@ -8,7 +8,7 @@ set -euo pipefail
 
 NS="${MACARON_NAMESPACE:?set MACARON_NAMESPACE to the target namespace}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-REQUIRED=(secret/macaron-postgres secret/macaron-backup secret/macaron-controller secret/macaron-bifrost configmap/macaron-settings)
+REQUIRED=(secret/macaron-postgres secret/macaron-backup secret/macaron-controller secret/macaron-llm-kek secret/macaron-bifrost configmap/macaron-settings)
 FIELD_MANAGER=macaron-deploy
 
 log() { printf '\033[1m==> %s\033[0m\n' "$*"; }
