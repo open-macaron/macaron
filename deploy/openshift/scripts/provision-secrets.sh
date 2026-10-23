@@ -13,6 +13,10 @@
 # MACARON_ADMIN_USER_IDS and LLM_ENDPOINT_DEFAULTS); a fresh namespace starts disabled. Who may trigger the bot is an account
 # of the web app (invited, with capabilities): without sign-in configured, nobody can.
 #
+# Users' LLM keys are sealed under key-encryption keys in the Secret macaron-llm-kek (files v1, v2…),
+# generated once, then kept. LLM_KEK_ROTATE=1 adds a version (then restart the controller and run
+# `node dist/rotate-llm-keys.js` in it); LLM_KEK_RETIRE=<n> removes version n once nothing uses it.
+#
 # Sign-in (the web app) is configured when the env file has the org GitHub App's
 # GITHUB_LOGIN_CLIENT_ID and GITHUB_LOGIN_CLIENT_SECRET, and MACARON_ADMIN_USER_IDS is known; the
 # session-signing secret is generated once, then kept (changing it signs everyone out).
@@ -103,6 +107,36 @@ else
     bifrost-admin-password=<(printf %s "$bifrost_admin")
   echo "   sign-in: not configured (no GITHUB_LOGIN_CLIENT_ID and GITHUB_LOGIN_CLIENT_SECRET in $ENV_FILE)"
 fi
+# The key-encryption keys: every current version kept as is, a new one when there is none or on rotation.
+kek_versions=()
+while IFS= read -r name; do
+  [[ "$name" =~ ^v[1-9][0-9]*$ ]] && kek_versions+=("${name#v}")
+done < <(oc get secret macaron-llm-kek -o go-template='{{range $k, $v := .data}}{{$k}}{{"\n"}}{{end}}' 2>/dev/null || true)
+newest=0
+for version in "${kek_versions[@]}"; do (( version > newest )) && newest="$version"; done
+if [[ -n "${LLM_KEK_RETIRE:-}" ]]; then
+  [[ "$LLM_KEK_RETIRE" =~ ^[1-9][0-9]*$ && "$LLM_KEK_RETIRE" != "$newest" ]] || { echo "LLM_KEK_RETIRE must name a version other than the newest (v$newest)" >&2; exit 1; }
+  echo "   retiring v$LLM_KEK_RETIRE: run node dist/rotate-llm-keys.js in the controller first, or keys under it become unreadable"
+fi
+generate_kek=0
+if (( newest == 0 )) || [[ "${LLM_KEK_ROTATE:-}" == 1 ]]; then
+  generate_kek=$((newest + 1))
+  echo "   key-encryption key v$generate_kek generated"
+fi
+# One `v<n>=<hex>` line per version, read through a pipe: printf is a builtin, nothing reaches a command line.
+kek_env() {
+  local version
+  for version in "${kek_versions[@]}"; do
+    [[ "$version" == "${LLM_KEK_RETIRE:-}" ]] && continue
+    printf 'v%s=%s\n' "$version" "$(current macaron-llm-kek "v$version")"
+  done
+  (( generate_kek == 0 )) || printf 'v%s=%s\n' "$generate_kek" "$(openssl rand -hex 32)"
+}
+oc create secret generic macaron-llm-kek --dry-run=client -o yaml --from-env-file=<(kek_env) |
+  oc label --local -f - -o yaml app.kubernetes.io/part-of=macaron |
+  oc apply --server-side --field-manager=macaron-provision --force-conflicts -f - >/dev/null
+echo "   secret/macaron-llm-kek"
+
 apply_secret macaron-bifrost \
   llm-upstream-url=<(value LLM_UPSTREAM_URL) \
   llm-upstream-key=<(value LLM_UPSTREAM_KEY) \

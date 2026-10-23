@@ -102,6 +102,9 @@ spec:
                   key: webhook-hmac
             - name: BIFROST_ADMIN_URL
               value: http://macaron-bifrost:8080
+            # Users' LLM keys are sealed under these key-encryption keys: files, never variables.
+            - name: LLM_KEK_DIR
+              value: /etc/macaron/llm-kek
             # Sign-in (the web app's users): present once provision-secrets.sh had the GitHub App's
             # credentials; without them the controller runs without sign-in.
             - name: BETTER_AUTH_SECRET
@@ -155,6 +158,9 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
+            - name: llm-kek
+              mountPath: /etc/macaron/llm-kek
+              readOnly: true
       volumes:
         - name: service-ca
           configMap:
@@ -162,3 +168,8 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
+        # Readable by the pod's group only (the fsGroup OpenShift assigns), mounted in this pod only.
+        - name: llm-kek
+          secret:
+            secretName: macaron-llm-kek
+            defaultMode: 0440
