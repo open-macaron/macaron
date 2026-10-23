@@ -202,12 +202,23 @@ export class RunsRepository {
     return row?.total ?? 0;
   }
 
+  /** What was billed to `payerId`'s key since `since`: settled runs only. */
+  async spentByPayerSince(payerId: string, since: Date): Promise<UsdMicros> {
+    const [row] = await this.db
+      .select({ total: sumMicros })
+      .from(ledger)
+      .innerJoin(runs, eq(ledger.runId, runs.id))
+      .where(and(eq(runs.payerId, payerId), gte(ledger.at, since)));
+    return row?.total ?? 0;
+  }
+
   /** Limits of runs whose cost isn't settled yet: counted against caps so parallel runs can't overshoot. */
-  async reservedMicros(filter: { repo?: string; threadId?: string }): Promise<UsdMicros> {
+  async reservedMicros(filter: { repo?: string; threadId?: string; payerId?: string }): Promise<UsdMicros> {
     const where = and(
       isNull(runs.settledAt),
       filter.repo === undefined ? undefined : eq(threads.repo, filter.repo),
       filter.threadId === undefined ? undefined : eq(runs.threadId, filter.threadId),
+      filter.payerId === undefined ? undefined : eq(runs.payerId, filter.payerId),
     );
     const [row] = await this.db
       .select({ total: sql<number>`coalesce(sum(${runs.limitMicros}), 0)`.mapWith(Number) })

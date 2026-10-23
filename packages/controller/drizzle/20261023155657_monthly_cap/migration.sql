@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "monthly_cap_micros" bigint;

@@ -10,14 +10,18 @@ import {
   Me as MeSchema,
   type MyLlmKey,
   MyLlmKey as MyLlmKeySchema,
+  type MyMonth,
+  MyMonth as MyMonthSchema,
   type SavedLlmKey,
   SavedLlmKey as SavedLlmKeySchema,
   SaveLlmKey,
+  SetMonthlyCap,
   type UsagePage,
   UsagePage as UsagePageSchema,
   UsageQuery,
 } from "@open-macaron/contracts";
 import type { Request } from "express";
+import { MonthlyCapService } from "../accounts/monthly-cap.service.ts";
 import { SessionsService } from "../accounts/sessions.service.ts";
 import { UsageService } from "../accounts/usage.service.ts";
 import { UsersService } from "../accounts/users.service.ts";
@@ -34,6 +38,7 @@ export class MeController {
     private readonly users: UsersService,
     private readonly usage: UsageService,
     private readonly keys: LlmKeysService,
+    private readonly caps: MonthlyCapService,
   ) {}
 
   @Get()
@@ -96,5 +101,23 @@ export class MeController {
   async myLlmKeyEvents(@Req() request: Request, @Query({ schema: LlmKeyEventsQuery }) query: LlmKeyEventsQuery): Promise<LlmKeyEvents> {
     const user = await this.sessions.user(request.headers);
     return this.keys.events(user.id, query.limit, query.before);
+  }
+
+  @Get("month")
+  @ApiOperation({ operationId: "getMyMonth", summary: "The signed-in user's monthly cap, and what their key was billed this month" })
+  @ApiResponse({ status: 200, standardSchema: MyMonthSchema })
+  @ApiResponse({ status: 401, description: "No valid session" })
+  async myMonth(@Req() request: Request): Promise<MyMonth> {
+    const user = await this.sessions.user(request.headers);
+    return this.caps.month(user.id);
+  }
+
+  @Put("monthly-cap")
+  @ApiOperation({ operationId: "setMyMonthlyCap", summary: "Set or clear the signed-in user's monthly cap" })
+  @ApiResponse({ status: 200, standardSchema: MyMonthSchema })
+  @ApiResponse({ status: 401, description: "No valid session" })
+  async setMyMonthlyCap(@Req() request: Request, @Body({ schema: SetMonthlyCap }) body: SetMonthlyCap): Promise<MyMonth> {
+    const user = await this.sessions.user(request.headers);
+    return this.caps.set(user.id, body.monthlyCapUsd);
   }
 }
