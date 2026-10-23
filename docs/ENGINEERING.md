@@ -18,6 +18,7 @@ How the controller and the agent-side CLI are built. The system design is in [DE
 | Infra libs | `nestjs-pino` (JSON logs, secrets redacted), `@nestjs/terminus` (probes), `nestjs-cls` (request/run correlation id) | |
 | Tests | Vitest 5, `@nestjs/testing`, Testcontainers (Postgres), `msw` (GitHub and Bifrost HTTP) | Vitest is the default for ESM projects in Nest 12 |
 | Prefer libraries | maintained packages over hand-rolled code | `file-type` (media sniffing), `secretlint` (credentials), `mdast-util-from-markdown` + GFM (mentions, sanitising), `markdown-table`, `@sindresorhus/slugify`, `p-retry`, `deepmerge-ts`, `@octokit/webhooks`, pg-boss. We keep our own code only for policy (Gate, caps) and GitHub-specific pacing |
+| Web app | SvelteKit 3 (`adapter-node`), Svelte 5 runes, Tailwind 4, shadcn-svelte | `packages/web`. Components come from the shadcn-svelte CLI (vendored in `src/lib/components/ui`, never edited by hand). Configuration is `src/env.ts` (`defineEnvVars`, Zod). The app owns its CSP (`vite.config.ts`) |
 | Package manager | pnpm 12 workspace | `--frozen-lockfile`, lifecycle scripts denied except where allow-listed, `minimumReleaseAge` set to 3 days |
 
 ## 2. Repository layout
@@ -31,7 +32,8 @@ macaron/                                (open-macaron/macaron, public)
 │   ├── review/                         review engine shared by controller and agent-cli; `macaron-review` CLI on npm
 │   ├── owners/                         owner-approved merges (OWNERS.yaml per folder), shared by the two CLIs below
 │   ├── knowledge-cli/                  open-macaron/knowledge: validate, merge, build the Pages read API
-│   └── config-cli/                     open-macaron/config: validate (the controller's checks), merge, build the Pages snapshot
+│   ├── config-cli/                     open-macaron/config: validate (the controller's checks), merge, build the Pages snapshot
+│   └── web/                            SvelteKit app: GitHub sign-in, users' LLM keys, usage history (talks to the controller only)
 ├── deploy/                             openshift/ (manifests, scripts), bifrost/ (config, prices, dev.sh), see DEPLOYMENT.md
 ├── .github/workflows/                  ci.yml, release.yml  (agent workflows live in open-macaron/runner)
 └── docs/
@@ -144,6 +146,7 @@ ESLint 10 flat config uses `typescript-eslint` `strictTypeChecked` + `stylisticT
 - `consistent-type-assertions: never`: no `as`, tests included.
 - `no-restricted-syntax` on `process.env`, allowed only at the env entry points (with an `eslint-disable`).
 - `consistent-type-imports` configured for decorator metadata.
+- For `.svelte` and `.svelte.ts` files, the same typed rules plus `eslint-plugin-svelte`'s `recommended` set and the stricter rules it leaves opt-in (it has no `strict` preset): `block-lang` (TypeScript only), `button-has-type`, `no-target-blank`, `require-each-key`, `no-inline-styles`, `no-at-html-tags` and others, in `eslint.config.js`.
 
 Code conventions:
 - **Parse, don't trust.** Data from GitHub, Bifrost, OpenRouter, OIDC or the agent artifact is `unknown` until a Zod schema has parsed it. No `as` casts on external data.
@@ -166,6 +169,7 @@ Code conventions:
   - two instances produce one poller;
   - 403/429 with `Retry-After` waits at least that long;
   - an error burst never polls faster than the interval.
+- **Web tests** (`packages/web/test/`, project `web`) run with the app's own Vite config (the SvelteKit plugin, not SWC).
 - **Coverage** is measured (`@vitest/coverage-v8`, generated code excluded) but not gated yet.
 
 ## 8. CI gates (`ci.yml`, required on `main`)
@@ -173,7 +177,7 @@ Code conventions:
 1. `pnpm install --frozen-lockfile`; on pull requests, `changeset status --since=origin/main` (a changeset, or an empty one, for any package change: .changeset/README.md).
 2. `build`, `typecheck`, `lint`, `test` (unit and integration; live tests skip without credentials).
 3. Generated code drift check (§5) and `drizzle-kit check` (migrations consistent with the schema).
-4. Container build (`image` job, buildah), without pushing (pushing happens in `release.yml`, DEPLOYMENT.md §1).
+4. Container builds of the controller and the web app (`image` job, buildah), without pushing (pushing happens in `release.yml`, DEPLOYMENT.md §1).
 
 Actions are pinned by full SHA and bumped by hand. Wanted, not wired yet (#39): `actionlint` and `zizmor` on the workflows, Renovate, `knip`, `dependency-cruiser`, `gitleaks` and an image scan.
 

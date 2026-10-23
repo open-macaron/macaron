@@ -583,7 +583,7 @@ One file per folder, not pre-merged: which project a repository belongs to is op
 | Malicious media (huge files, disguised types, HTML/SVG) | Allow-list by magic bytes (no SVG or HTML), size and count caps, served by GitHub (user-attachments, uploaded against the bot's fork) rather than our host; the controller never decodes media |
 | Forged authorship | The Publisher creates the commit itself (bot author, signed) from the diff |
 | Fork CI with our pushes | Actions disabled on every fork at onboarding |
-| Forged webhooks or bootstrap calls | HMAC on webhooks; OIDC signature and claims checked on bootstrap; the edge only exposes `/v1/webhook`, `/v1/bootstrap` and three exact `/llm/anthropic/v1/…` routes |
+| Forged webhooks or bootstrap calls | HMAC on webhooks; OIDC signature and claims checked on bootstrap; the edge only exposes `/v1/webhook`, `/v1/bootstrap` and three exact `/llm/anthropic/v1/…` routes to them; every other path goes to the web app, which holds no credential |
 
 Self-hosted runners next to the controller are deliberately not used. The machine holding every credential must never run agent code; throwaway GitHub VMs isolate it for free.
 
