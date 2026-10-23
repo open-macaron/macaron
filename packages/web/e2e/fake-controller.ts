@@ -12,10 +12,14 @@ import {
   zCreateInvitationBody,
   zCreateInvitationResponse,
   zGetMeResponse,
+  zGetMyLlmKeyEventsResponse,
+  zGetMyLlmKeyResponse,
   zGetMyUsageResponse,
   zListEndpointsResponse,
   zListInvitationsResponse,
   zListUsersResponse,
+  zSaveMyLlmKeyBody,
+  zSaveMyLlmKeyResponse,
   zSetEndpointEnabledBody,
   zSetEndpointEnabledResponse,
   zSetUserCapabilitiesBody,
@@ -26,6 +30,8 @@ import { PORTS } from "./ports.ts";
 type User = z.infer<typeof zListUsersResponse>["users"][number];
 type Invitation = z.infer<typeof zListInvitationsResponse>["invitations"][number];
 type Endpoint = z.infer<typeof zListEndpointsResponse>["endpoints"][number];
+type LlmKey = NonNullable<z.infer<typeof zGetMyLlmKeyResponse>["key"]>;
+type LlmKeyEvent = z.infer<typeof zGetMyLlmKeyEventsResponse>["events"][number];
 type Run = z.infer<typeof zGetMyUsageResponse>["runs"][number];
 
 export const SESSION_COOKIE = "__Secure-macaron.session_token";
@@ -36,6 +42,9 @@ interface State {
   users: User[];
   invitations: Invitation[];
   endpoints: Endpoint[];
+  /** By user id. */
+  keys: Map<string, LlmKey>;
+  keyEvents: Map<string, LlmKeyEvent[]>;
   runs: Run[];
   /** Session renewals the browser asked for (through the edge), counted for the session test. */
   renewals: number;
@@ -66,7 +75,7 @@ function fresh(): State {
     costUsd: i === 0 ? null : 0.5,
     createdAt: at(-i / 10),
   }));
-  return { users, invitations, endpoints, runs, renewals: 0 };
+  return { users, invitations, endpoints, keys: new Map(), keyEvents: new Map(), runs, renewals: 0 };
 }
 
 let state = fresh();
@@ -140,6 +149,7 @@ async function route(request: IncomingMessage): Promise<Reply> {
       monthRuns: settled.length,
     });
   }
+  if (url.pathname.startsWith("/v1/me/llm-key")) return llmKeyRoute(url, method, user, request);
   if (user.role !== "admin") return reply(403, undefined, { error: "forbidden" });
 
   if (url.pathname === "/v1/admin/invitations" && method === "GET") return reply(200, zListInvitationsResponse, { invitations: state.invitations });
@@ -186,6 +196,53 @@ async function route(request: IncomingMessage): Promise<Reply> {
     return reply(200, zSetUserCapabilitiesResponse, updated);
   }
   return reply(404, undefined, { error: "not_found" });
+}
+
+/** In these tests octocat signed in a moment ago; defunkt's sign-in is too old to change a key. */
+const freshUntil = (user: User): string => new Date(Date.now() + (user.githubLogin === "octocat" ? 10 : -1) * 60_000).toISOString();
+
+function recordKeyEvent(user: User, event: Omit<LlmKeyEvent, "id" | "at" | "thread">): void {
+  state.keyEvents.set(user.id, [{ id: randomUUID(), at: new Date().toISOString(), thread: null, ...event }, ...(state.keyEvents.get(user.id) ?? [])]);
+}
+
+async function llmKeyRoute(url: URL, method: string, user: User, request: IncomingMessage): Promise<Reply> {
+  if (url.pathname === "/v1/me/llm-key/events") return reply(200, zGetMyLlmKeyEventsResponse, { events: state.keyEvents.get(user.id) ?? [], nextCursor: null });
+  if (url.pathname !== "/v1/me/llm-key") return reply(404, undefined, { error: "not_found" });
+  const enabled = state.endpoints.filter((endpoint) => endpoint.enabled);
+  if (method === "GET") {
+    const choices = enabled.map(({ id, name, baseUrl, pricingNote }) => ({ id, name, baseUrl, pricingNote }));
+    return reply(200, zGetMyLlmKeyResponse, { key: state.keys.get(user.id) ?? null, endpoints: choices, storage: true, freshUntil: freshUntil(user) });
+  }
+  if (Date.parse(freshUntil(user)) < Date.now()) return reply(403, undefined, { error: "fresh_session_required" });
+  if (method === "DELETE") {
+    const previous = state.keys.get(user.id);
+    state.keys.delete(user.id);
+    if (previous !== undefined) recordKeyEvent(user, { kind: "deleted", endpointName: previous.endpoint.name, last4: previous.last4, detail: null });
+    return reply(204, undefined, undefined);
+  }
+  if (method !== "PUT") return reply(404, undefined, { error: "not_found" });
+  const body = zSaveMyLlmKeyBody.parse(await readJson(request));
+  const endpoint = enabled.find((candidate) => candidate.id === body.endpointId);
+  if (endpoint === undefined) return reply(409, undefined, { error: "field_refused", field: "endpointId", message: "Choose one of the endpoints in the list." });
+  const last4 = body.key.slice(-4);
+  // As an endpoint refusing a key: any key containing "wrong".
+  if (body.key.includes("wrong")) {
+    recordKeyEvent(user, { kind: "rejected", endpointName: endpoint.name, last4, detail: "HTTP 401" });
+    return reply(409, undefined, { error: "field_refused", field: "key", message: `${endpoint.name} refused this key (HTTP 401). Check it, and that it's meant for this endpoint.` });
+  }
+  const previous = state.keys.get(user.id);
+  const now = new Date().toISOString();
+  const saved: LlmKey = {
+    endpoint: { id: endpoint.id, name: endpoint.name, baseUrl: endpoint.baseUrl, pricingNote: endpoint.pricingNote, enabled: true },
+    last4,
+    status: "valid",
+    validatedAt: now,
+    createdAt: previous?.createdAt ?? now,
+    updatedAt: now,
+  };
+  state.keys.set(user.id, saved);
+  recordKeyEvent(user, { kind: previous === undefined ? "created" : "replaced", endpointName: endpoint.name, last4, detail: previous === undefined ? null : `replaces the key ending in ${previous.last4}` });
+  return reply(200, zSaveMyLlmKeyResponse, { key: saved, missingModels: ["claude-opus-5-5"] });
 }
 
 createServer((request, response) => {

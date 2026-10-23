@@ -4,8 +4,8 @@ import * as z from 'zod';
 
 import { client } from './client.gen.ts';
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client/index.ts';
-import type { ApproveEndpointData, ApproveEndpointErrors, ApproveEndpointResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, GetMeData, GetMeErrors, GetMeResponses, GetMyUsageData, GetMyUsageErrors, GetMyUsageResponses, ListEndpointsData, ListEndpointsResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListUsersData, ListUsersResponses, RevokeInvitationData, RevokeInvitationResponses, SetEndpointEnabledData, SetEndpointEnabledErrors, SetEndpointEnabledResponses, SetUserCapabilitiesData, SetUserCapabilitiesErrors, SetUserCapabilitiesResponses } from './types.gen.ts';
-import { zApproveEndpointBody, zApproveEndpointResponse, zCreateInvitationBody, zCreateInvitationResponse, zGetMeResponse, zGetMyUsageQuery, zGetMyUsageResponse, zListEndpointsResponse, zListInvitationsResponse, zListUsersResponse, zRevokeInvitationPath, zRevokeInvitationResponse, zSetEndpointEnabledBody, zSetEndpointEnabledPath, zSetEndpointEnabledResponse, zSetUserCapabilitiesBody, zSetUserCapabilitiesPath, zSetUserCapabilitiesResponse } from './zod.gen.ts';
+import type { ApproveEndpointData, ApproveEndpointErrors, ApproveEndpointResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, DeleteMyLlmKeyData, DeleteMyLlmKeyErrors, DeleteMyLlmKeyResponses, GetMeData, GetMeErrors, GetMeResponses, GetMyLlmKeyData, GetMyLlmKeyErrors, GetMyLlmKeyEventsData, GetMyLlmKeyEventsErrors, GetMyLlmKeyEventsResponses, GetMyLlmKeyResponses, GetMyUsageData, GetMyUsageErrors, GetMyUsageResponses, ListEndpointsData, ListEndpointsResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListUsersData, ListUsersResponses, RevokeInvitationData, RevokeInvitationResponses, SaveMyLlmKeyData, SaveMyLlmKeyErrors, SaveMyLlmKeyResponses, SetEndpointEnabledData, SetEndpointEnabledErrors, SetEndpointEnabledResponses, SetUserCapabilitiesData, SetUserCapabilitiesErrors, SetUserCapabilitiesResponses } from './types.gen.ts';
+import { zApproveEndpointBody, zApproveEndpointResponse, zCreateInvitationBody, zCreateInvitationResponse, zDeleteMyLlmKeyResponse, zGetMeResponse, zGetMyLlmKeyEventsQuery, zGetMyLlmKeyEventsResponse, zGetMyLlmKeyResponse, zGetMyUsageQuery, zGetMyUsageResponse, zListEndpointsResponse, zListInvitationsResponse, zListUsersResponse, zRevokeInvitationPath, zRevokeInvitationResponse, zSaveMyLlmKeyBody, zSaveMyLlmKeyResponse, zSetEndpointEnabledBody, zSetEndpointEnabledPath, zSetEndpointEnabledResponse, zSetUserCapabilitiesBody, zSetUserCapabilitiesPath, zSetUserCapabilitiesResponse } from './zod.gen.ts';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -56,6 +56,86 @@ export const getMyUsage = <ThrowOnError extends boolean = false>(options?: Optio
             type: 'apiKey'
         }],
     url: '/v1/me/usage',
+    ...options
+});
+
+/**
+ * Delete the signed-in user's LLM key
+ */
+export const deleteMyLlmKey = <ThrowOnError extends boolean = false>(options?: Options<DeleteMyLlmKeyData, ThrowOnError>): RequestResult<DeleteMyLlmKeyResponses, DeleteMyLlmKeyErrors, ThrowOnError> => (options?.client ?? client).delete<DeleteMyLlmKeyResponses, DeleteMyLlmKeyErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: z.never().optional(),
+        path: z.never().optional(),
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zDeleteMyLlmKeyResponse.parseAsync(data),
+    security: [{
+            in: 'cookie',
+            name: '__Secure-macaron.session_token',
+            type: 'apiKey'
+        }],
+    url: '/v1/me/llm-key',
+    ...options
+});
+
+/**
+ * The signed-in user's LLM key (never the key itself) and the endpoints they may pick
+ */
+export const getMyLlmKey = <ThrowOnError extends boolean = false>(options?: Options<GetMyLlmKeyData, ThrowOnError>): RequestResult<GetMyLlmKeyResponses, GetMyLlmKeyErrors, ThrowOnError> => (options?.client ?? client).get<GetMyLlmKeyResponses, GetMyLlmKeyErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: z.never().optional(),
+        path: z.never().optional(),
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zGetMyLlmKeyResponse.parseAsync(data),
+    security: [{
+            in: 'cookie',
+            name: '__Secure-macaron.session_token',
+            type: 'apiKey'
+        }],
+    url: '/v1/me/llm-key',
+    ...options
+});
+
+/**
+ * Check a key against its endpoint, then seal and store it, replacing the previous one
+ */
+export const saveMyLlmKey = <ThrowOnError extends boolean = false>(options: Options<SaveMyLlmKeyData, ThrowOnError>): RequestResult<SaveMyLlmKeyResponses, SaveMyLlmKeyErrors, ThrowOnError> => (options.client ?? client).put<SaveMyLlmKeyResponses, SaveMyLlmKeyErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: zSaveMyLlmKeyBody,
+        path: z.never().optional(),
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zSaveMyLlmKeyResponse.parseAsync(data),
+    security: [{
+            in: 'cookie',
+            name: '__Secure-macaron.session_token',
+            type: 'apiKey'
+        }],
+    url: '/v1/me/llm-key',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * The history of the signed-in user's key, newest first
+ */
+export const getMyLlmKeyEvents = <ThrowOnError extends boolean = false>(options?: Options<GetMyLlmKeyEventsData, ThrowOnError>): RequestResult<GetMyLlmKeyEventsResponses, GetMyLlmKeyEventsErrors, ThrowOnError> => (options?.client ?? client).get<GetMyLlmKeyEventsResponses, GetMyLlmKeyEventsErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: z.never().optional(),
+        path: z.never().optional(),
+        query: zGetMyLlmKeyEventsQuery.optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zGetMyLlmKeyEventsResponse.parseAsync(data),
+    security: [{
+            in: 'cookie',
+            name: '__Secure-macaron.session_token',
+            type: 'apiKey'
+        }],
+    url: '/v1/me/llm-key/events',
     ...options
 });
 
