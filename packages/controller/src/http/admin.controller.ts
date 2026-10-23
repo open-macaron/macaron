@@ -1,13 +1,19 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Put, Req } from "@nestjs/common";
 import { ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import {
+  CreateEndpoint,
   CreateInvitation,
+  type Endpoint,
+  Endpoint as EndpointSchema,
+  type Endpoints,
+  Endpoints as EndpointsSchema,
   FieldError,
   type Invitation,
   Invitation as InvitationSchema,
   type Invitations,
   Invitations as InvitationsSchema,
   SetCapabilities,
+  SetEndpointEnabled,
   type UserAccount,
   UserAccount as UserAccountSchema,
   type UserAccounts,
@@ -15,6 +21,7 @@ import {
 } from "@open-macaron/contracts";
 import type { Request } from "express";
 import { z } from "zod";
+import { EndpointsService } from "../endpoints/endpoints.service.ts";
 import { InvitationsService } from "../accounts/invitations.service.ts";
 import { SessionsService } from "../accounts/sessions.service.ts";
 import { UsersService } from "../accounts/users.service.ts";
@@ -31,6 +38,7 @@ export class AdminController {
     private readonly sessions: SessionsService,
     private readonly invitations: InvitationsService,
     private readonly users: UsersService,
+    private readonly endpoints: EndpointsService,
   ) {}
 
   @Get("invitations")
@@ -75,5 +83,31 @@ export class AdminController {
   async setCapabilities(@Req() request: Request, @Param("id", { schema: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/) }) id: string, @Body({ schema: SetCapabilities }) body: SetCapabilities): Promise<UserAccount> {
     const admin = await this.sessions.admin(request.headers);
     return this.users.setCapabilities(id, body.capabilities, admin);
+  }
+
+  @Get("endpoints")
+  @ApiOperation({ operationId: "listEndpoints", summary: "Every LLM endpoint, approved first to last" })
+  @ApiResponse({ status: 200, standardSchema: EndpointsSchema })
+  async listEndpoints(@Req() request: Request): Promise<Endpoints> {
+    await this.sessions.admin(request.headers);
+    return { endpoints: await this.endpoints.list() };
+  }
+
+  @Post("endpoints")
+  @ApiOperation({ operationId: "approveEndpoint", summary: "Approve an LLM endpoint users may send their key to" })
+  @ApiResponse({ status: 201, standardSchema: EndpointSchema })
+  @ApiResponse({ status: 409, standardSchema: FieldError, description: "A private or unresolvable host, or a base URL already approved" })
+  async approveEndpoint(@Req() request: Request, @Body({ schema: CreateEndpoint }) body: CreateEndpoint): Promise<Endpoint> {
+    const admin = await this.sessions.admin(request.headers);
+    return this.endpoints.approve(body, admin);
+  }
+
+  @Put("endpoints/:id/enabled")
+  @ApiOperation({ operationId: "setEndpointEnabled", summary: "Enable or disable an endpoint (its base URL never changes)" })
+  @ApiResponse({ status: 200, standardSchema: EndpointSchema })
+  @ApiResponse({ status: 409, standardSchema: FieldError, description: "Unknown endpoint" })
+  async setEndpointEnabled(@Req() request: Request, @Param("id", { schema: z.uuid() }) id: string, @Body({ schema: SetEndpointEnabled }) body: SetEndpointEnabled): Promise<Endpoint> {
+    const admin = await this.sessions.admin(request.headers);
+    return this.endpoints.setEnabled(id, body.enabled, admin);
   }
 }

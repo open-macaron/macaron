@@ -15,6 +15,8 @@ import { InvitationsService } from "./accounts/invitations.service.ts";
 import { SessionsService } from "./accounts/sessions.service.ts";
 import { UsageService } from "./accounts/usage.service.ts";
 import { UsersService } from "./accounts/users.service.ts";
+import { EndpointsService, RESOLVE } from "./endpoints/endpoints.service.ts";
+import { resolveAll } from "./endpoints/public-address.ts";
 import { AdminController } from "./http/admin.controller.ts";
 import { BootstrapController } from "./http/bootstrap.controller.ts";
 import { MeController } from "./http/me.controller.ts";
@@ -106,8 +108,8 @@ export class ReviewModule {}
 
 /** The web app's users: sign-in (better-auth), invitations, capabilities, usage. */
 @Module({
-  providers: [InvitationsService, SessionsService, UsersService, UsageService],
-  exports: [InvitationsService, SessionsService, UsersService, UsageService],
+  providers: [InvitationsService, SessionsService, UsersService, UsageService, EndpointsService, { provide: RESOLVE, useValue: resolveAll }],
+  exports: [InvitationsService, SessionsService, UsersService, UsageService, EndpointsService],
 })
 export class AccountsModule {}
 

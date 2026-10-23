@@ -54,6 +54,8 @@ catalog:
   "@openrouter/sdk": 1.4.25
   # Users: GitHub sign-in and sessions (controller), its client (web)
   better-auth: 1.7.11
+  # Approved LLM endpoints: only public unicast addresses (IPv4 and IPv6 ranges, IPv4-mapped included)
+  ipaddr.js: 2.5.0
   # GitHub, OIDC
   "@octokit/core": 7.0.8
   "@octokit/rest": 22.0.1

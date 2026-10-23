@@ -314,6 +314,9 @@ catalogs:
     globals:
       specifier: 17.13.0
       version: 17.13.0
+    ipaddr.js:
+      specifier: 2.5.0
+      version: 2.5.0
     jose:
       specifier: 6.2.12
       version: 6.2.12
@@ -591,6 +594,9 @@ importers:
       file-type:
         specifier: 'catalog:'
         version: 22.1.1
+      ipaddr.js:
+        specifier: 'catalog:'
+        version: 2.5.0
       jose:
         specifier: 'catalog:'
         version: 6.2.12
@@ -3485,6 +3491,10 @@ packages:
   ipaddr.js@1.9.1:
     resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
     engines: {node: '>= 0.10'}
+
+  ipaddr.js@2.5.0:
+    resolution: {integrity: sha512-aq+t5NAc+cS6rZQQVWC2x98CPqGtKKTMDd4Gaodv0wShnItdKg/51djkGJ1hqH+Oy0ivDftCbSLCQob8zso01w==}
+    engines: {node: '>= 10'}
 
   is-docker@3.0.0:
     resolution: {integrity: sha512-eljcgEDlEns/7AXFosB5K/2nCM4P7FQPkGc/DWLy5rmFEWvZayGrik1d9/QIY5nJ4f9YsVvBkA6kJpHn9rISdQ==}
@@ -7441,6 +7451,8 @@ snapshots:
   inline-style-parser@0.2.7: {}
 
   ipaddr.js@1.9.1: {}
+
+  ipaddr.js@2.5.0: {}
 
   is-docker@3.0.0: {}
 
