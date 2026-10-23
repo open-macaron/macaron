@@ -17,7 +17,7 @@ import { UsageService } from "./accounts/usage.service.ts";
 import { UsersService } from "./accounts/users.service.ts";
 import { EndpointsService, RESOLVE } from "./endpoints/endpoints.service.ts";
 import { resolveAll } from "./endpoints/public-address.ts";
-import { PROBE, probeEndpoint } from "./keys/endpoint-probe.ts";
+import { PROBE, probeEndpoint } from "./keys/key-check.ts";
 import { KeyRing } from "./keys/key-ring.ts";
 import { CONFIGURED_MODELS, KEY_RING, LlmKeysService } from "./keys/llm-keys.service.ts";
 import { AdminController } from "./http/admin.controller.ts";

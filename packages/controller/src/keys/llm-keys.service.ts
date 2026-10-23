@@ -10,7 +10,7 @@ import type { Db } from "../db/db.module.ts";
 import { llmEndpoints, llmKeyEvents, llmKeys, runs, threads } from "../db/schema.ts";
 import { RESOLVE } from "../endpoints/endpoints.service.ts";
 import { publicHostRefusal, type Resolve } from "../endpoints/public-address.ts";
-import { PROBE, type Probe } from "./endpoint-probe.ts";
+import { PROBE, type Probe } from "./key-check.ts";
 import { KeyRing, keyAad } from "./key-ring.ts";
 
 /** Every model the live configuration can give a run: what a saved key's endpoint should list. */

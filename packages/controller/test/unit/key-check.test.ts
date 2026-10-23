@@ -2,7 +2,7 @@ import { SaveLlmKey } from "@open-macaron/contracts";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
-import { type HttpGet, NotPublicAddress, probeEndpoint, ProbeTimeout, publicHttpsGet, publicLookup } from "../../src/keys/endpoint-probe.ts";
+import { type HttpGet, NotPublicAddress, probeEndpoint, ProbeTimeout, publicHttpsGet, publicLookup } from "../../src/keys/key-check.ts";
 
 const KEY = "sk-ant-secret-0000000000001234";
 

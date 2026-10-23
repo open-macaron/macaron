@@ -7,7 +7,7 @@ import type { SessionUser } from "../../src/accounts/sessions.service.ts";
 import { FieldRefused, FreshSessionRequired, KeyStorageUnavailable, TooManyAttempts } from "../../src/common/errors.ts";
 import { connectAndMigrate, type Db } from "../../src/db/db.module.ts";
 import { llmEndpoints, llmKeyEvents, llmKeys, users } from "../../src/db/schema.ts";
-import type { ProbeResult } from "../../src/keys/endpoint-probe.ts";
+import type { ProbeResult } from "../../src/keys/key-check.ts";
 import { KeyRing, keyAad, SealBroken } from "../../src/keys/key-ring.ts";
 import { KeyRotation } from "../../src/keys/key-rotation.ts";
 import { LlmKeysService } from "../../src/keys/llm-keys.service.ts";
