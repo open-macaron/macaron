@@ -9,8 +9,8 @@
 # Re-running replaces the GitHub, webhook and LLM-upstream values. Generated once, then kept: the
 # database passwords, and Bifrost's admin password and encryption key (Bifrost can't change its
 # encryption key: keep a copy outside the cluster, docs/DEPLOYMENT.md §4). Settings keep their current
-# values unless given in the environment (MACARON_ENABLED, LOG_LEVEL, CONFIG_URL, CONFIG_REPO_ID and
-# MACARON_ADMIN_USER_IDS); a fresh namespace starts disabled. Who may trigger the bot is an account
+# values unless given in the environment (MACARON_ENABLED, LOG_LEVEL, CONFIG_URL, CONFIG_REPO_ID,
+# MACARON_ADMIN_USER_IDS and LLM_ENDPOINT_DEFAULTS); a fresh namespace starts disabled. Who may trigger the bot is an account
 # of the web app (invited, with capabilities): without sign-in configured, nobody can.
 #
 # Sign-in (the web app) is configured when the env file has the org GitHub App's
@@ -134,6 +134,14 @@ settings=(
   --from-literal=BIFROST_PUBLIC_URL="$PUBLIC_URL/llm/anthropic"
 )
 settings+=(--from-literal=CONFIG_URL="$CONFIG_URL" --from-literal=CONFIG_REPO_ID="$CONFIG_REPO_ID")
+# The LLM endpoints approved on a fresh database, a JSON list of {name, baseUrl, pricingNote?} (no
+# secret). The controller validates it at start and only ever adds what is missing: administrators
+# manage endpoints from the web app afterwards. Kept unless given; none by default.
+LLM_ENDPOINT_DEFAULTS="${LLM_ENDPOINT_DEFAULTS:-$(setting LLM_ENDPOINT_DEFAULTS)}"
+if [[ -n "$LLM_ENDPOINT_DEFAULTS" ]]; then
+  [[ "$LLM_ENDPOINT_DEFAULTS" =~ ^[[:space:]]*\[.*\][[:space:]]*$ ]] || { echo "LLM_ENDPOINT_DEFAULTS must be a JSON list" >&2; exit 1; }
+  settings+=(--from-literal=LLM_ENDPOINT_DEFAULTS="$LLM_ENDPOINT_DEFAULTS")
+fi
 if [[ -n "$login_client_id" ]]; then
   # The admins: they sign in without an invitation and hold every capability. Kept unless given.
   MACARON_ADMIN_USER_IDS="${MACARON_ADMIN_USER_IDS:-$(setting MACARON_ADMIN_USER_IDS)}"
