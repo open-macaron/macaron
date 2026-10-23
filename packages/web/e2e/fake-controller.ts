@@ -14,12 +14,15 @@ import {
   zGetMeResponse,
   zGetMyLlmKeyEventsResponse,
   zGetMyLlmKeyResponse,
+  zGetMyMonthResponse,
   zGetMyUsageResponse,
   zListEndpointsResponse,
   zListInvitationsResponse,
   zListUsersResponse,
   zSaveMyLlmKeyBody,
   zSaveMyLlmKeyResponse,
+  zSetMyMonthlyCapBody,
+  zSetMyMonthlyCapResponse,
   zSetEndpointEnabledBody,
   zSetEndpointEnabledResponse,
   zSetUserCapabilitiesBody,
@@ -45,6 +48,8 @@ interface State {
   /** By user id. */
   keys: Map<string, LlmKey>;
   keyEvents: Map<string, LlmKeyEvent[]>;
+  /** By user id; absent for no cap. */
+  caps: Map<string, number>;
   runs: Run[];
   /** Session renewals the browser asked for (through the edge), counted for the session test. */
   renewals: number;
@@ -75,7 +80,7 @@ function fresh(): State {
     costUsd: i === 0 ? null : 0.5,
     createdAt: at(-i / 10),
   }));
-  return { users, invitations, endpoints, keys: new Map(), keyEvents: new Map(), runs, renewals: 0 };
+  return { users, invitations, endpoints, keys: new Map(), keyEvents: new Map(), caps: new Map(), runs, renewals: 0 };
 }
 
 let state = fresh();
@@ -150,6 +155,16 @@ async function route(request: IncomingMessage): Promise<Reply> {
     });
   }
   if (url.pathname.startsWith("/v1/me/llm-key")) return llmKeyRoute(url, method, user, request);
+  if (url.pathname === "/v1/me/month" || url.pathname === "/v1/me/monthly-cap") {
+    if (method === "PUT") {
+      const { monthlyCapUsd } = zSetMyMonthlyCapBody.parse(await readJson(request));
+      if (monthlyCapUsd === null) state.caps.delete(user.id);
+      else state.caps.set(user.id, monthlyCapUsd);
+    }
+    const spentUsd = state.runs.reduce((sum, run) => sum + (run.costUsd ?? 0), 0);
+    const reservedUsd = state.runs.filter((run) => run.costUsd === null).length * 2;
+    return reply(200, method === "PUT" ? zSetMyMonthlyCapResponse : zGetMyMonthResponse, { monthlyCapUsd: state.caps.get(user.id) ?? null, spentUsd, reservedUsd });
+  }
   if (user.role !== "admin") return reply(403, undefined, { error: "forbidden" });
 
   if (url.pathname === "/v1/admin/invitations" && method === "GET") return reply(200, zListInvitationsResponse, { invitations: state.invitations });

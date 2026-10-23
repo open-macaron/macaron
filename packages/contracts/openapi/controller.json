@@ -1354,6 +1354,137 @@
         ]
       }
     },
+    "/v1/me/month": {
+      "get": {
+        "operationId": "getMyMonth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "monthlyCapUsd": {
+                      "nullable": true,
+                      "type": "number",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000,
+                      "multipleOf": 0.01
+                    },
+                    "spentUsd": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "reservedUsd": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "monthlyCapUsd",
+                    "spentUsd",
+                    "reservedUsd"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "The signed-in user's monthly cap, and what their key was billed this month",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/monthly-cap": {
+      "put": {
+        "operationId": "setMyMonthlyCap",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "monthlyCapUsd": {
+                    "nullable": true,
+                    "type": "number",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 100000,
+                    "multipleOf": 0.01
+                  }
+                },
+                "required": [
+                  "monthlyCapUsd"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "monthlyCapUsd": {
+                      "nullable": true,
+                      "type": "number",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000,
+                      "multipleOf": 0.01
+                    },
+                    "spentUsd": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "reservedUsd": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "monthlyCapUsd",
+                    "spentUsd",
+                    "reservedUsd"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Set or clear the signed-in user's monthly cap",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/v1/admin/invitations": {
       "get": {
         "operationId": "listInvitations",

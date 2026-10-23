@@ -22,6 +22,22 @@ export const Me = z.object({
 });
 export type Me = z.infer<typeof Me>;
 
+/** What a user's runs may cost each calendar month (UTC), on their key; null for no cap of their own. */
+export const MonthlyCapUsd = z.number().positive("a cap is above $0").max(100_000).multipleOf(0.01, "whole cents").nullable();
+
+export const SetMonthlyCap = z.object({ monthlyCapUsd: MonthlyCapUsd });
+export type SetMonthlyCap = z.infer<typeof SetMonthlyCap>;
+
+/** The signed-in user's monthly cap, and what their key was billed this month (UTC). */
+export const MyMonth = z.object({
+  monthlyCapUsd: MonthlyCapUsd,
+  /** Settled runs billed to this user's key. */
+  spentUsd: z.number().nonnegative(),
+  /** The limits of their runs not settled yet, counted against the cap until they are. */
+  reservedUsd: z.number().nonnegative(),
+});
+export type MyMonth = z.infer<typeof MyMonth>;
+
 export const InvitationStatus = z.enum(["pending", "accepted", "revoked", "expired"]);
 export type InvitationStatus = z.infer<typeof InvitationStatus>;
 

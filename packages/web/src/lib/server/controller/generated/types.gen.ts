@@ -238,6 +238,56 @@ export type GetMyLlmKeyEventsResponses = {
 
 export type GetMyLlmKeyEventsResponse = GetMyLlmKeyEventsResponses[keyof GetMyLlmKeyEventsResponses];
 
+export type GetMyMonthData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/me/month';
+};
+
+export type GetMyMonthErrors = {
+    /**
+     * No valid session
+     */
+    401: unknown;
+};
+
+export type GetMyMonthResponses = {
+    200: {
+        monthlyCapUsd: number | null;
+        spentUsd: number;
+        reservedUsd: number;
+    };
+};
+
+export type GetMyMonthResponse = GetMyMonthResponses[keyof GetMyMonthResponses];
+
+export type SetMyMonthlyCapData = {
+    body: {
+        monthlyCapUsd: number | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/me/monthly-cap';
+};
+
+export type SetMyMonthlyCapErrors = {
+    /**
+     * No valid session
+     */
+    401: unknown;
+};
+
+export type SetMyMonthlyCapResponses = {
+    200: {
+        monthlyCapUsd: number | null;
+        spentUsd: number;
+        reservedUsd: number;
+    };
+};
+
+export type SetMyMonthlyCapResponse = SetMyMonthlyCapResponses[keyof SetMyMonthlyCapResponses];
+
 export type ListInvitationsData = {
     body?: never;
     path?: never;

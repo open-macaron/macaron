@@ -83,3 +83,29 @@ test("the overview says the bot can't run without a key, until one is saved", as
   await expect(page.getByText("Spend this month")).toBeVisible();
   await expect(page.getByText("The bot can't run for you yet")).toHaveCount(0);
 });
+
+test("a user sets a monthly cap, sees how much of it is used, and clears it", async ({ signIn }) => {
+  const page = await signIn("octocat");
+  await page.goto("/settings/key");
+  const cap = page.getByLabel("Monthly cap in dollars");
+  await expect(page.getByText("No cap", { exact: true })).toBeVisible();
+
+  await cap.fill("0");
+  await page.getByRole("button", { name: "Save cap" }).click();
+  await expect(page.getByText("A cap is above $0: clear the field for no cap.")).toBeVisible();
+
+  await cap.fill("50");
+  await page.getByRole("button", { name: "Save cap" }).click();
+  await expect(page.getByText("Your monthly cap is $50.00")).toBeVisible();
+  await expect(page.getByText("of $50.00")).toBeVisible();
+  await expect(page.getByRole("progressbar", { name: "Share of the monthly cap used" })).toBeVisible();
+
+  await page.goto("/");
+  await expect(page.getByText("Of your $50.00 monthly cap, estimated at list prices.")).toBeVisible();
+
+  await page.goto("/settings/key");
+  await page.getByLabel("Monthly cap in dollars").fill("");
+  await page.getByRole("button", { name: "Save cap" }).click();
+  await expect(page.getByText("Your monthly cap is cleared")).toBeVisible();
+  await expect(page.getByText("No cap", { exact: true })).toBeVisible();
+});

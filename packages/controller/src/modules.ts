@@ -13,6 +13,7 @@ import { PublishedConfigClient } from "./config/published-config.client.ts";
 import { RepoConfigService } from "./config/repo-config.service.ts";
 import { BotIdentity } from "./github/bot-identity.ts";
 import { InvitationsService } from "./accounts/invitations.service.ts";
+import { MonthlyCapService } from "./accounts/monthly-cap.service.ts";
 import { SessionsService } from "./accounts/sessions.service.ts";
 import { UsageService } from "./accounts/usage.service.ts";
 import { UsersService } from "./accounts/users.service.ts";
@@ -114,12 +115,13 @@ export class ReviewModule {}
     UsageService,
     EndpointsService,
     LlmKeysService,
+    MonthlyCapService,
     { provide: RESOLVE, useValue: resolveAll },
     { provide: PROBE, useValue: probeEndpoint },
     { provide: CONFIGURED_MODELS, inject: [RepoConfigService], useFactory: (config: RepoConfigService) => () => configuredModels(config.snapshot) },
     { provide: KEY_RING, inject: [APP_ENV], useFactory: (env: AppEnv) => (env.LLM_KEK_DIR === undefined ? undefined : KeyRing.fromDirectory(env.LLM_KEK_DIR)) },
   ],
-  exports: [InvitationsService, SessionsService, UsersService, UsageService, EndpointsService, LlmKeysService],
+  exports: [InvitationsService, SessionsService, UsersService, UsageService, EndpointsService, LlmKeysService, MonthlyCapService],
 })
 export class AccountsModule {}
 

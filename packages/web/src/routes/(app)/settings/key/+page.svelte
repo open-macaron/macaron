@@ -13,7 +13,8 @@
   import DeleteKey from "./delete-key.svelte";
   import KeyDialog from "./key-dialog.svelte";
   import KeyHistory from "./key-history.svelte";
-  import { getMyKey } from "./key.remote.ts";
+  import { getMonth, getMyKey } from "./key.remote.ts";
+  import MonthlyCap from "./monthly-cap.svelte";
 
   // Bumped after a change: the history starts again from its newest page.
   let historyVersion = $state(0);
@@ -22,7 +23,7 @@
   };
 </script>
 
-<PageHeader title="LLM key" description="The endpoint and key that pay for the runs you ask for." />
+<PageHeader title="LLM key" description="The endpoint and key that pay for the runs you ask for, and how much they may spend." />
 
 <svelte:boundary>
   {@const mine = await getMyKey()}
@@ -108,6 +109,22 @@
     <Empty.Root>
       <Empty.Header>
         <Empty.Title>Your key could not be loaded</Empty.Title>
+        <Empty.Description>{error instanceof Error ? error.message : "Try again in a moment."}</Empty.Description>
+      </Empty.Header>
+      <Empty.Content><Button variant="outline" onclick={reset}>Try again</Button></Empty.Content>
+    </Empty.Root>
+  {/snippet}
+</svelte:boundary>
+
+<svelte:boundary>
+  <MonthlyCap month={await getMonth()} />
+  {#snippet pending()}
+    <Card.Root><Card.Content class="grid gap-3"><Skeleton class="h-5 w-40" /><Skeleton class="h-2 w-full" /></Card.Content></Card.Root>
+  {/snippet}
+  {#snippet failed(error, reset)}
+    <Empty.Root>
+      <Empty.Header>
+        <Empty.Title>Your monthly cap could not be loaded</Empty.Title>
         <Empty.Description>{error instanceof Error ? error.message : "Try again in a moment."}</Empty.Description>
       </Empty.Header>
       <Empty.Content><Button variant="outline" onclick={reset}>Try again</Button></Empty.Content>

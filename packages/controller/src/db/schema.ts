@@ -211,6 +211,8 @@ export const users = pgTable("users", {
   role: userRole("role").notNull().default("user"),
   /** Granted by an admin: at invitation, then on the Users page. Never set through better-auth. */
   capabilities: capability("capabilities").array().notNull().default(sql`'{}'::capability[]`),
+  /** What the user's runs may cost each calendar month (UTC), on their key; null for no cap of their own. */
+  monthlyCapMicros: usdMicros("monthly_cap_micros"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

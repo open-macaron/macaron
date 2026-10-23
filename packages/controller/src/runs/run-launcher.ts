@@ -13,6 +13,7 @@ import {
 } from "@open-macaron/contracts";
 import { z } from "zod";
 import { type Asker, capabilityRefusal } from "../accounts/access.ts";
+import { MonthlyCapService, monthStart } from "../accounts/monthly-cap.service.ts";
 import { UsersService } from "../accounts/users.service.ts";
 import { LlmKeysService } from "../keys/llm-keys.service.ts";
 import { BudgetService, type RunKeyRef } from "../budget/budget.service.ts";
@@ -69,10 +70,6 @@ function keyOf(run: RunRecord): RunKeyRef | undefined {
   return run.keyBackend === null || run.keyHash === null ? undefined : { backend: run.keyBackend, hash: run.keyHash };
 }
 
-function monthStart(now: Date): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-}
-
 /**
  * A run's whole life: launch (caps → key → dispatch), bootstrap (OIDC → one-time key hand-over),
  * completion (settle cost → artifact → Gate → publish) and abort. Every money decision is here.
@@ -95,6 +92,7 @@ export class RunLauncher {
     private readonly clock: Clock,
     private readonly users: UsersService,
     private readonly keys: LlmKeysService,
+    private readonly caps: MonthlyCapService,
   ) {}
 
   async launch(request: LaunchRequest): Promise<LaunchOutcome> {
@@ -302,6 +300,8 @@ export class RunLauncher {
     if (project !== undefined && (await this.runs.spentOnProjectSince(project.project, monthStart(now))) + limit > toMicros(project.budget.monthUsd)) {
       return refused("this project reached its monthly budget");
     }
+    const overCap = await this.caps.refusal(asker.userId, limit, `${this.env.PUBLIC_URL}/settings/key`);
+    if (overCap !== undefined) return refused(overCap);
     if ((await this.runs.activeCount()) >= this.config.snapshot.global.concurrency.global) {
       return { outcome: { kind: "queued", reason: "all runners are busy" } };
     }
