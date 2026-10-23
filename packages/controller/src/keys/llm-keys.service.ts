@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { InjectDrizzle } from "@nestjs/drizzle";
 import type { LlmKey, LlmKeyEvents, MyLlmKey, SavedLlmKey, SaveLlmKey } from "@open-macaron/contracts";
-import { and, count, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lt, or } from "drizzle-orm";
 import type { SessionUser } from "../accounts/sessions.service.ts";
 import { Clock } from "../common/clock.ts";
 import { decodeCursor, encodeCursor } from "../common/cursor.ts";
@@ -39,9 +39,6 @@ function toView(key: KeyRow, endpoint: EndpointRow): LlmKey {
   };
 }
 
-/** A save that ended before a key was stored: recorded, then reported to the form. */
-type Outcome = { readonly saved: SavedLlmKey } | { readonly refusal: FieldRefused };
-
 /**
  * Users' own LLM keys: sealed at rest (KeyRing), write-only through the API, checked against their
  * endpoint before they are stored. Each change is an event in the key's history. The plaintext
@@ -76,52 +73,66 @@ export class LlmKeysService {
     };
   }
 
+  /** Users with a save under way in this process: one at a time each. */
+  private readonly saving = new Set<string>();
+
   /**
    * Checks the key against its endpoint, then seals and stores it, replacing the user's previous
-   * one. Attempts are serialised per user (an advisory lock held for the probe, at most 10 s) so
-   * the hourly limit holds under concurrent requests.
+   * one. No database connection is held during the check (up to 10 s): a user can't tie up the
+   * pool. One save at a time per user, so the hourly count holds; with several controller
+   * replicas, each could let one more attempt through.
    */
   async save(user: SessionUser, input: SaveLlmKey): Promise<SavedLlmKey> {
     const ring = this.ring;
     if (ring === undefined) throw new KeyStorageUnavailable("LLM_KEK_DIR is not configured");
     this.requireFresh(user);
-    const outcome = await this.db.transaction(async (tx): Promise<Outcome> => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`llm-key:${user.id}`}))`);
-      const now = this.clock.now();
-      const since = new Date(now.getTime() - HOUR_MS);
-      const [attempts] = await tx
-        .select({ n: count() })
-        .from(llmKeyEvents)
-        .where(and(eq(llmKeyEvents.userId, user.id), gte(llmKeyEvents.at, since), inArray(llmKeyEvents.kind, ["created", "replaced", "rejected", "unreachable"])));
-      if ((attempts?.n ?? 0) >= SAVE_ATTEMPTS_PER_HOUR) throw new TooManyAttempts(`@${user.githubLogin} tried ${String(SAVE_ATTEMPTS_PER_HOUR)} keys within an hour`);
+    if (this.saving.has(user.id)) throw new TooManyAttempts(`@${user.githubLogin} is already saving a key`);
+    this.saving.add(user.id);
+    try {
+      return await this.checkAndStore(user, input, ring);
+    } finally {
+      this.saving.delete(user.id);
+    }
+  }
 
-      const [endpoint] = await tx.select().from(llmEndpoints).where(eq(llmEndpoints.id, input.endpointId));
-      if (endpoint?.enabled !== true) return { refusal: new FieldRefused("endpointId", "Choose one of the endpoints in the list.") };
-      // Approved on public addresses; checked again, as DNS answers change.
-      const hostRefusal = await publicHostRefusal(endpoint.baseUrl, this.resolve);
-      if (hostRefusal !== undefined) return { refusal: new FieldRefused("endpointId", `This endpoint can't be used now: ${hostRefusal}.`) };
+  private async checkAndStore(user: SessionUser, input: SaveLlmKey, ring: KeyRing): Promise<SavedLlmKey> {
+    const now = this.clock.now();
+    const since = new Date(now.getTime() - HOUR_MS);
+    const [attempts] = await this.db
+      .select({ n: count() })
+      .from(llmKeyEvents)
+      .where(and(eq(llmKeyEvents.userId, user.id), gte(llmKeyEvents.at, since), inArray(llmKeyEvents.kind, ["created", "replaced", "rejected", "unreachable"])));
+    if ((attempts?.n ?? 0) >= SAVE_ATTEMPTS_PER_HOUR) throw new TooManyAttempts(`@${user.githubLogin} tried ${String(SAVE_ATTEMPTS_PER_HOUR)} keys within an hour`);
 
-      const last4 = input.key.slice(-4);
-      const result = await this.probe(endpoint.baseUrl, input.key);
-      if (result.outcome !== "accepted") {
-        const rejected = result.outcome === "rejected";
-        const detail = rejected ? `HTTP ${String(result.status)}` : result.reason;
-        await tx.insert(llmKeyEvents).values({ userId: user.id, kind: result.outcome, endpointId: endpoint.id, last4, detail, at: now });
-        this.logger.log(`@${user.githubLogin}'s key for ${endpoint.name} not saved: ${result.outcome} (${detail})`);
-        return {
-          refusal: new FieldRefused("key", rejected ? `${endpoint.name} refused this key (HTTP ${String(result.status)}). Check it, and that it's meant for this endpoint.` : `${endpoint.name} couldn't check this key: ${result.reason}. Try again in a moment.`),
-        };
-      }
+    const [endpoint] = await this.db.select().from(llmEndpoints).where(eq(llmEndpoints.id, input.endpointId));
+    if (endpoint?.enabled !== true) throw new FieldRefused("endpointId", "Choose one of the endpoints in the list.");
+    // Approved on public addresses; checked again for a clear answer, and by the probe's own connection.
+    const hostRefusal = await publicHostRefusal(endpoint.baseUrl, this.resolve);
+    if (hostRefusal !== undefined) throw new FieldRefused("endpointId", `This endpoint can't be used now: ${hostRefusal}.`);
 
-      const sealed = ring.seal(input.key, keyAad(user.id, endpoint.id));
-      const [previous] = await tx.select({ last4: llmKeys.last4 }).from(llmKeys).where(eq(llmKeys.userId, user.id));
+    const last4 = input.key.slice(-4);
+    const result = await this.probe(endpoint.baseUrl, input.key);
+    if (result.outcome !== "accepted") {
+      const rejected = result.outcome === "rejected";
+      const detail = rejected ? `HTTP ${String(result.status)}` : result.reason;
+      await this.db.insert(llmKeyEvents).values({ userId: user.id, kind: result.outcome, endpointId: endpoint.id, last4, detail, at: now });
+      this.logger.log(`@${user.githubLogin}'s key for ${endpoint.name} not saved: ${result.outcome} (${detail})`);
+      throw new FieldRefused(
+        "key",
+        rejected ? `${endpoint.name} refused this key (HTTP ${String(result.status)}). Check it, and that it's meant for this endpoint.` : `${endpoint.name} couldn't check this key: ${result.reason}. Try again in a moment.`,
+      );
+    }
+
+    const sealed = ring.seal(input.key, keyAad(user.id, endpoint.id));
+    const stored = await this.db.transaction(async (tx) => {
+      const [previous] = await tx.select({ last4: llmKeys.last4 }).from(llmKeys).where(eq(llmKeys.userId, user.id)).for("update");
       const values: Omit<typeof llmKeys.$inferInsert, "userId"> = { endpointId: endpoint.id, ...sealed, last4, status: "valid", validatedAt: now, updatedAt: now };
-      const [stored] = await tx
+      const [row] = await tx
         .insert(llmKeys)
         .values({ userId: user.id, ...values })
         .onConflictDoUpdate({ target: llmKeys.userId, set: values })
         .returning();
-      if (stored === undefined) throw new Error("the key wasn't stored");
+      if (row === undefined) throw new Error("the key wasn't stored");
       await tx.insert(llmKeyEvents).values({
         userId: user.id,
         kind: previous === undefined ? "created" : "replaced",
@@ -130,13 +141,12 @@ export class LlmKeysService {
         detail: previous === undefined ? null : `replaces the key ending in ${previous.last4}`,
         at: now,
       });
-      const listed = new Set(result.models);
-      const missingModels = this.configuredModels().filter((model) => !listed.has(model));
-      this.logger.log(`@${user.githubLogin} saved a key for ${endpoint.name}`);
-      return { saved: { key: toView(stored, endpoint), missingModels } };
+      return row;
     });
-    if ("refusal" in outcome) throw outcome.refusal;
-    return outcome.saved;
+    const listed = new Set(result.models);
+    const missingModels = this.configuredModels().filter((model) => !listed.has(model));
+    this.logger.log(`@${user.githubLogin} saved a key for ${endpoint.name}`);
+    return { key: toView(stored, endpoint), missingModels };
   }
 
   /** Deletes the user's key: its ciphertext leaves the database; its history stays. */

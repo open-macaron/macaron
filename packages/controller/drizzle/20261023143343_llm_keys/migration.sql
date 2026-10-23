@@ -31,10 +31,17 @@ ALTER TABLE "llm_key_events" ADD CONSTRAINT "llm_key_events_endpoint_id_llm_endp
 ALTER TABLE "llm_key_events" ADD CONSTRAINT "llm_key_events_run_id_runs_id_fkey" FOREIGN KEY ("run_id") REFERENCES "runs"("id") ON DELETE RESTRICT;--> statement-breakpoint
 ALTER TABLE "llm_keys" ADD CONSTRAINT "llm_keys_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "llm_keys" ADD CONSTRAINT "llm_keys_endpoint_id_llm_endpoints_id_fkey" FOREIGN KEY ("endpoint_id") REFERENCES "llm_endpoints"("id") ON DELETE RESTRICT;--> statement-breakpoint
+-- The key history is append-only: no update, no delete, no truncate. Rows go only with their user
+-- (ON DELETE CASCADE runs from the users table's foreign-key trigger, one trigger level deeper).
 CREATE FUNCTION "llm_key_events_append_only"() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+  IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN
+    RETURN OLD;
+  END IF;
   RAISE EXCEPTION 'llm_key_events is append-only';
 END;
 $$;
 --> statement-breakpoint
-CREATE TRIGGER "llm_key_events_no_update" BEFORE UPDATE ON "llm_key_events" FOR EACH ROW EXECUTE FUNCTION "llm_key_events_append_only"();
+CREATE TRIGGER "llm_key_events_no_change" BEFORE UPDATE OR DELETE ON "llm_key_events" FOR EACH ROW EXECUTE FUNCTION "llm_key_events_append_only"();
+--> statement-breakpoint
+CREATE TRIGGER "llm_key_events_no_truncate" BEFORE TRUNCATE ON "llm_key_events" FOR EACH STATEMENT EXECUTE FUNCTION "llm_key_events_append_only"();

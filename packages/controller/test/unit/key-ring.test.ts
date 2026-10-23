@@ -36,6 +36,12 @@ describe("KeyRing", () => {
     expect(() => ring.open({ ...sealed, tag }, aad)).toThrow(SealBroken);
   });
 
+  it("refuses a truncated tag or an IV of the wrong length", () => {
+    const sealed = ring.seal("sk-ant-secret-value", aad);
+    expect(() => ring.open({ ...sealed, tag: sealed.tag.subarray(0, 4) }, aad)).toThrow(/wrong length/);
+    expect(() => ring.open({ ...sealed, iv: Buffer.concat([sealed.iv, Buffer.alloc(4)]) }, aad)).toThrow(/wrong length/);
+  });
+
   it("opens an older version until it is retired", () => {
     const old = KeyRing.of(new Map([[1, kek(1)]])).seal("sk-old", aad);
     expect(ring.open(old, aad)).toBe("sk-old");

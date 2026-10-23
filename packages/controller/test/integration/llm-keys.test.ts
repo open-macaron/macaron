@@ -1,6 +1,6 @@
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Capability } from "@open-macaron/contracts";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { Logger } from "@nestjs/common";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "../../src/accounts/sessions.service.ts";
@@ -156,9 +156,12 @@ describe("LlmKeysService", () => {
     // user-a has made 4 attempts above (2 refused, 2 saved).
     await keys().save(signedIn("user-a"), { endpointId, key: GOOD });
     expect(await rejection(keys().save(signedIn("user-a"), { endpointId, key: GOOD }))).toBeInstanceOf(TooManyAttempts);
-    // Concurrent attempts are serialised: none of them slips past the count.
-    const concurrent = await Promise.allSettled([1, 2, 3].map(() => keys().save(signedIn("user-b"), { endpointId, key: "sk-ant-wrong-0000000000000000" })));
-    expect(concurrent.filter((result) => result.status === "rejected")).toHaveLength(3);
+    // One save at a time per user: a concurrent one is refused before it reaches the endpoint.
+    const service = keys();
+    const concurrent = await Promise.allSettled([1, 2, 3].map(() => service.save(signedIn("user-b"), { endpointId, key: "sk-ant-wrong-0000000000000000" })));
+    const reasons = concurrent.map((result): unknown => (result.status === "rejected" ? result.reason : undefined));
+    expect(reasons.filter((reason) => reason instanceof TooManyAttempts)).toHaveLength(2);
+    expect(reasons.filter((reason) => reason instanceof FieldRefused)).toHaveLength(1);
     clock.advance(61 * 60_000);
     expect((await keys().save(signedIn("user-a"), { endpointId, key: OTHER })).key.last4).toBe("5678");
   });
@@ -180,8 +183,14 @@ describe("LlmKeysService", () => {
     expect((await keys().events("user-a", 1, undefined)).events[0]?.kind).toBe("deleted");
   });
 
-  it("keeps the history append-only", async () => {
+  it("keeps the history append-only; it goes only with its user", async () => {
     await expect(db.update(llmKeyEvents).set({ detail: "rewritten" })).rejects.toThrow();
+    await expect(db.delete(llmKeyEvents).where(eq(llmKeyEvents.userId, "user-a"))).rejects.toThrow();
+    await expect(db.execute(sql`TRUNCATE llm_key_events`)).rejects.toThrow();
+    await db.insert(users).values({ id: "user-gone", name: "Gone", email: "gone@example.test", githubId: 99, githubLogin: "gone" });
+    await db.insert(llmKeyEvents).values({ userId: "user-gone", kind: "deleted" });
+    await db.delete(users).where(eq(users.id, "user-gone"));
+    expect(await db.select().from(llmKeyEvents).where(eq(llmKeyEvents.userId, "user-gone"))).toEqual([]);
   });
 });
 
