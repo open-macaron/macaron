@@ -220,3 +220,102 @@ export type SetUserCapabilitiesResponses = {
 };
 
 export type SetUserCapabilitiesResponse = SetUserCapabilitiesResponses[keyof SetUserCapabilitiesResponses];
+
+export type ListEndpointsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/admin/endpoints';
+};
+
+export type ListEndpointsResponses = {
+    200: {
+        endpoints: Array<{
+            id: string;
+            name: string;
+            baseUrl: string;
+            enabled: boolean;
+            pricingNote: string | null;
+            createdBy: string | null;
+            createdAt: string;
+        }>;
+    };
+};
+
+export type ListEndpointsResponse = ListEndpointsResponses[keyof ListEndpointsResponses];
+
+export type ApproveEndpointData = {
+    body: {
+        name: string;
+        baseUrl: string;
+        pricingNote?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/admin/endpoints';
+};
+
+export type ApproveEndpointErrors = {
+    /**
+     * A private or unresolvable host, or a base URL already approved
+     */
+    409: {
+        error: string;
+        field: string;
+        message: string;
+    };
+};
+
+export type ApproveEndpointError = ApproveEndpointErrors[keyof ApproveEndpointErrors];
+
+export type ApproveEndpointResponses = {
+    201: {
+        id: string;
+        name: string;
+        baseUrl: string;
+        enabled: boolean;
+        pricingNote: string | null;
+        createdBy: string | null;
+        createdAt: string;
+    };
+};
+
+export type ApproveEndpointResponse = ApproveEndpointResponses[keyof ApproveEndpointResponses];
+
+export type SetEndpointEnabledData = {
+    body: {
+        enabled: boolean;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/v1/admin/endpoints/{id}/enabled';
+};
+
+export type SetEndpointEnabledErrors = {
+    /**
+     * Unknown endpoint
+     */
+    409: {
+        error: string;
+        field: string;
+        message: string;
+    };
+};
+
+export type SetEndpointEnabledError = SetEndpointEnabledErrors[keyof SetEndpointEnabledErrors];
+
+export type SetEndpointEnabledResponses = {
+    200: {
+        id: string;
+        name: string;
+        baseUrl: string;
+        enabled: boolean;
+        pricingNote: string | null;
+        createdBy: string | null;
+        createdAt: string;
+    };
+};
+
+export type SetEndpointEnabledResponse = SetEndpointEnabledResponses[keyof SetEndpointEnabledResponses];

@@ -7,12 +7,17 @@ import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import type { z } from "zod";
 import {
+  zApproveEndpointBody,
+  zApproveEndpointResponse,
   zCreateInvitationBody,
   zCreateInvitationResponse,
   zGetMeResponse,
   zGetMyUsageResponse,
+  zListEndpointsResponse,
   zListInvitationsResponse,
   zListUsersResponse,
+  zSetEndpointEnabledBody,
+  zSetEndpointEnabledResponse,
   zSetUserCapabilitiesBody,
   zSetUserCapabilitiesResponse,
 } from "../src/lib/server/controller/generated/zod.gen.ts";
@@ -20,6 +25,7 @@ import { PORTS } from "./ports.ts";
 
 type User = z.infer<typeof zListUsersResponse>["users"][number];
 type Invitation = z.infer<typeof zListInvitationsResponse>["invitations"][number];
+type Endpoint = z.infer<typeof zListEndpointsResponse>["endpoints"][number];
 type Run = z.infer<typeof zGetMyUsageResponse>["runs"][number];
 
 export const SESSION_COOKIE = "__Secure-macaron.session_token";
@@ -29,6 +35,7 @@ const ALL: User["capabilities"] = ["triage", "plan", "implement", "reproduce", "
 interface State {
   users: User[];
   invitations: Invitation[];
+  endpoints: Endpoint[];
   runs: Run[];
   /** Session renewals the browser asked for (through the edge), counted for the session test. */
   renewals: number;
@@ -44,6 +51,9 @@ function fresh(): State {
   const invitations: Invitation[] = [
     { id: randomUUID(), githubId: 7, githubLogin: "hubot", capabilities: ["triage", "plan"], invitedBy: "octocat", createdAt: at(-1), expiresAt: at(6), status: "pending" },
   ];
+  const endpoints: Endpoint[] = [
+    { id: randomUUID(), name: "Anthropic API", baseUrl: "https://api.anthropic.com", enabled: true, pricingNote: null, createdBy: null, createdAt: at(-40) },
+  ];
   const modes = ["review", "plan", "implement", "triage", "verify"];
   const runs: Run[] = Array.from({ length: 31 }, (_, i) => ({
     id: randomUUID(),
@@ -56,7 +66,7 @@ function fresh(): State {
     costUsd: i === 0 ? null : 0.5,
     createdAt: at(-i / 10),
   }));
-  return { users, invitations, runs, renewals: 0 };
+  return { users, invitations, endpoints, runs, renewals: 0 };
 }
 
 let state = fresh();
@@ -147,6 +157,24 @@ async function route(request: IncomingMessage): Promise<Reply> {
   if (revoke !== null && method === "POST") {
     state.invitations = state.invitations.map((invitation) => (invitation.id === revoke[1] && invitation.status === "pending" ? { ...invitation, status: "revoked" } : invitation));
     return reply(204, undefined, undefined);
+  }
+  if (url.pathname === "/v1/admin/endpoints" && method === "GET") return reply(200, zListEndpointsResponse, { endpoints: state.endpoints });
+  if (url.pathname === "/v1/admin/endpoints" && method === "POST") {
+    const body = zApproveEndpointBody.parse(await readJson(request));
+    // As the controller does for a host resolving to a private address.
+    if (new URL(body.baseUrl).hostname.endsWith(".internal")) return reply(409, undefined, { error: "field_refused", field: "baseUrl", message: "This host resolves to a private or reserved address." });
+    if (state.endpoints.some((endpoint) => endpoint.baseUrl === body.baseUrl)) return reply(409, undefined, { error: "field_refused", field: "baseUrl", message: "This base URL is already an endpoint." });
+    const endpoint: Endpoint = { id: randomUUID(), name: body.name, baseUrl: body.baseUrl, enabled: true, pricingNote: body.pricingNote ?? null, createdBy: user.githubLogin, createdAt: new Date().toISOString() };
+    state.endpoints = [...state.endpoints, endpoint];
+    return reply(201, zApproveEndpointResponse, endpoint);
+  }
+  const enabled = /^\/v1\/admin\/endpoints\/([^/]+)\/enabled$/.exec(url.pathname);
+  if (enabled !== null && method === "PUT") {
+    const body = zSetEndpointEnabledBody.parse(await readJson(request));
+    state.endpoints = state.endpoints.map((endpoint) => (endpoint.id === enabled[1] ? { ...endpoint, enabled: body.enabled } : endpoint));
+    const updated = state.endpoints.find((endpoint) => endpoint.id === enabled[1]);
+    if (updated === undefined) return reply(409, undefined, { error: "field_refused", field: "id", message: "This endpoint no longer exists." });
+    return reply(200, zSetEndpointEnabledResponse, updated);
   }
   if (url.pathname === "/v1/admin/users") return reply(200, zListUsersResponse, { users: state.users });
   const capabilities = /^\/v1\/admin\/users\/([^/]+)\/capabilities$/.exec(url.pathname);

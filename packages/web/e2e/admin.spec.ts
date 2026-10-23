@@ -53,3 +53,48 @@ test("an admin changes a user's capabilities; admins have no capabilities to edi
   await expect(row.getByText("Plan")).toBeVisible();
   await expect(row.getByText("Review")).toBeVisible();
 });
+
+test("an admin approves an endpoint: validation, a private host refused, then success", async ({ signIn }) => {
+  const page = await signIn("octocat");
+  await page.goto("/admin/endpoints");
+  await expect(page.getByRole("row", { name: /Anthropic API/ }).getByText("from the deployment's defaults")).toBeVisible();
+  await page.getByRole("button", { name: "Approve endpoint" }).click();
+  const dialog = page.getByRole("dialog");
+
+  await dialog.getByLabel("Base URL").fill("http://gateway.example.com");
+  await dialog.getByRole("button", { name: "Approve" }).click();
+  await expect(dialog.getByText("Name it, in 2 to 60 characters.")).toBeVisible();
+  await expect(dialog.getByText("Enter an https:// URL, like https://api.anthropic.com.")).toBeVisible();
+
+  await dialog.getByLabel("Name").fill("Company gateway");
+  await dialog.getByLabel("Base URL").fill("https://llm.corp.internal");
+  await dialog.getByRole("button", { name: "Approve" }).click();
+  await expect(dialog.getByText("This host resolves to a private or reserved address.")).toBeVisible();
+
+  await dialog.getByLabel("Base URL").fill("https://gateway.example.com");
+  await dialog.getByLabel(/Pricing note/).fill("Billed by the company.");
+  await dialog.getByRole("button", { name: "Approve" }).click();
+  await expect(page.getByText("Company gateway is approved")).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  const row = page.getByRole("row", { name: /Company gateway/ });
+  await expect(row.getByText("https://gateway.example.com")).toBeVisible();
+  await expect(row.getByText("Billed by the company.")).toBeVisible();
+  await expect(row.getByText("Enabled")).toBeVisible();
+  await expect(row.getByText("by @octocat")).toBeVisible();
+});
+
+test("an admin disables an endpoint after confirming, then enables it again", async ({ signIn }) => {
+  const page = await signIn("octocat");
+  await page.goto("/admin/endpoints");
+  const row = page.getByRole("row", { name: /Anthropic API/ });
+  await page.getByRole("button", { name: "Actions for Anthropic API" }).click();
+  await page.getByRole("menuitem", { name: "Disable" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Disable" }).click();
+  await expect(page.getByText("Anthropic API is disabled")).toBeVisible();
+  await expect(row.getByText("Disabled")).toBeVisible();
+
+  await page.getByRole("button", { name: "Actions for Anthropic API" }).click();
+  await page.getByRole("menuitem", { name: "Enable" }).click();
+  await expect(page.getByText("Anthropic API is enabled")).toBeVisible();
+  await expect(row.getByText("Enabled")).toBeVisible();
+});
