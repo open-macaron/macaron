@@ -3,11 +3,11 @@ import { parseYamlStrict, type PullContext, statusOf } from "@open-macaron/owner
 import { z } from "zod";
 
 /**
- * Settings a project's owners may not change on their own (SCALING.md §2): who can trigger the
- * bot, and what it may spend or run on. Top-level in project.yaml and repos/*.yaml, and under a
+ * Settings a project's owners may not change on their own (SCALING.md §2): whose comments the
+ * bot counts, and what it may spend or run on. Top-level in project.yaml and repos/*.yaml, and under a
  * project's `defaults`.
  */
-const RESERVED: readonly string[] = ["users", "bots", "budget", "concurrency", "budgets", "caps", "reviewCost", "runsOn", "platforms"];
+const RESERVED: readonly string[] = ["bots", "budget", "concurrency", "budgets", "caps", "reviewCost", "runsOn", "platforms"];
 
 const Mapping = z.record(z.string(), z.unknown());
 

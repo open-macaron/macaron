@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { folderOf } from "../src/layout.ts";
 import { changesReserved } from "../src/reserved.ts";
 
-const project = (extra = "") => `project: sandbox\nowners: "@o/t"\nusers: [alice]\nbudget: { monthUsd: 10 }\nconcurrency: 1\n${extra}`;
+const project = (extra = "") => `project: sandbox\nowners: "@o/t"\nbots: [alice]\nbudget: { monthUsd: 10 }\nconcurrency: 1\n${extra}`;
 
 describe("changesReserved", () => {
   it("lets owners change what they own", () => {
@@ -12,7 +12,7 @@ describe("changesReserved", () => {
   });
 
   it("reserves who can trigger the bot, and what it may spend or run on", () => {
-    expect(changesReserved(project(), project().replace("users: [alice]", "users: [alice, mallory]"))).toBe(true);
+    expect(changesReserved(project(), project().replace("bots: [alice]", "bots: [alice, mallory]"))).toBe(true);
     expect(changesReserved(project(), project().replace("monthUsd: 10", "monthUsd: 1000"))).toBe(true);
     expect(changesReserved(project(), project("defaults:\n  runsOn: self-hosted\n"))).toBe(true);
     expect(changesReserved("repo: o/x\nfork: abc123-x\n", "repo: o/x\nfork: abc123-x\nbudgets: { implement: 50 }\n")).toBe(true);
@@ -21,8 +21,8 @@ describe("changesReserved", () => {
   });
 
   it("ignores key order, and reserves what it can't read", () => {
-    expect(changesReserved("budget: { monthUsd: 10 }\nusers: [a]\n", "users: [a]\nbudget:\n  monthUsd: 10\n")).toBe(false);
-    expect(changesReserved(project(), "users: [unterminated\n")).toBe(true);
+    expect(changesReserved("budget: { monthUsd: 10 }\nbots: [a]\n", "bots: [a]\nbudget:\n  monthUsd: 10\n")).toBe(false);
+    expect(changesReserved(project(), "bots: [unterminated\n")).toBe(true);
     expect(changesReserved(project(), null)).toBe(true);
     expect(changesReserved(project(), "- a list\n")).toBe(true);
   });

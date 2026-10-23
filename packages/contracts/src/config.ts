@@ -136,11 +136,6 @@ export type GlobalFile = z.infer<typeof GlobalFile>;
 export const ProjectFile = z.strictObject({
   project: Slug,
   owners: z.string().regex(/^@[A-Za-z0-9-]+\/[A-Za-z0-9-]+$/),
-  /**
-   * Deprecated and ignored: who may trigger the bot is an account of the web app (invited, with its
-   * capabilities). Still accepted so open-macaron/config's files parse until it drops them.
-   */
-  users: z.array(GitHubLogin).optional(),
   /** Review bots whose comments on the bot's pull requests count, for review loops only. */
   bots: z.array(GitHubLogin).default([]),
   budget: z.strictObject({ monthUsd: Usd }),

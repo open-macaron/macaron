@@ -4,8 +4,6 @@
 
 project: sandbox
 owners: "@open-macaron/maintainers"
-users:
-  - axel7083
 bots: []
 budget:
   monthUsd: 20.00

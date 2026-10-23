@@ -8,8 +8,6 @@
 
 project: podman-desktop-extensions
 owners: "@open-macaron/maintainers"
-users:
-  - axel7083
 bots: []
 budget:
   monthUsd: 30.00
