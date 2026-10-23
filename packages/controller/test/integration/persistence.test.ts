@@ -15,6 +15,7 @@ import { RunNotBoundYet, RunsRepository } from "../../src/runs/runs.repository.t
 import { testEnv } from "../support/env.ts";
 import { FakeClock } from "../support/fakes.ts";
 import { runContext } from "../support/fixtures.ts";
+import { insertPayer, PAYER_ID } from "../support/payer.ts";
 import { startPostgres } from "../support/postgres.ts";
 
 let container: StartedPostgreSqlContainer;
@@ -24,6 +25,7 @@ let runs: RunsRepository;
 beforeAll(async () => {
   container = await startPostgres();
   db = await connectAndMigrate(container.getConnectionUri());
+  await insertPayer(db);
   runs = new RunsRepository(db);
 });
 
@@ -48,6 +50,7 @@ async function newRun(n: number) {
     route: { mode: "implement", subject: { kind: "issue", number: 1000 + n }, checkout: { from: "defaultBranch" }, branch: `macaron/${String(1000 + n)}-work` },
     limitMicros: 1_000_000,
     triggerGithubId: 583231,
+    payerId: PAYER_ID,
   });
   return { thread, run };
 }
@@ -90,6 +93,7 @@ describe("RunsRepository", () => {
       route: { mode: "address_review", subject: { kind: "ownPullRequest", number: 7 }, checkout: { from: "botBranch" }, branch: "macaron/1001-work" },
       limitMicros: 1,
       triggerGithubId: 583231,
+      payerId: PAYER_ID,
     });
     expect([run.loop, second.loop]).toEqual([1, 2]);
     expect((await runs.byId(second.id)).route).toEqual({ mode: "address_review", subject: { kind: "ownPullRequest", number: 7 }, checkout: { from: "botBranch" }, branch: "macaron/1001-work" });

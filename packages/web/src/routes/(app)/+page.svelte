@@ -1,19 +1,31 @@
 <script lang="ts">
   import ActivityIcon from "@lucide/svelte/icons/activity";
   import ArrowRightIcon from "@lucide/svelte/icons/arrow-right";
+  import KeyRoundIcon from "@lucide/svelte/icons/key-round";
   import CircleDollarSignIcon from "@lucide/svelte/icons/circle-dollar-sign";
   import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
   import { resolve } from "$app/paths";
   import CapabilityBadges from "#lib/components/admin/capability-badges.svelte";
   import TableSkeleton from "#lib/components/admin/table-skeleton.svelte";
   import PageHeader from "#lib/components/shell/page-header.svelte";
+  import * as Alert from "#lib/components/ui/alert/index.js";
   import { Button } from "#lib/components/ui/button/index.js";
   import * as Card from "#lib/components/ui/card/index.js";
   import * as Empty from "#lib/components/ui/empty/index.js";
   import { Skeleton } from "#lib/components/ui/skeleton/index.js";
   import RunsTable from "#lib/components/usage/runs-table.svelte";
   import { formatUsd } from "#lib/format.js";
+  import type { MyLlmKey } from "#lib/keys/forms.js";
   import { getMe, getUsage } from "./me.remote.ts";
+  import { getMyKey } from "./settings/key/key.remote.ts";
+
+  /** Why the bot can't run for this user now, or undefined when their key is usable. */
+  function keyProblem(mine: MyLlmKey): string | undefined {
+    if (mine.key === null) return "Every run is billed to the LLM key of whoever asks for it, and you haven't saved one.";
+    if (!mine.key.endpoint.enabled) return `An administrator disabled ${mine.key.endpoint.name}, the endpoint of your key.`;
+    if (mine.key.status === "rejected") return `${mine.key.endpoint.name} refused your key.`;
+    return undefined;
+  }
 </script>
 
 <PageHeader title="Overview" description="What you asked the bot for this month, what it cost, and what you may ask for.">
@@ -26,7 +38,18 @@
 </PageHeader>
 
 <svelte:boundary>
-  {@const [me, usage] = await Promise.all([getMe(), getUsage({ limit: 5 })])}
+  {@const [me, usage, mine] = await Promise.all([getMe(), getUsage({ limit: 5 }), getMyKey()])}
+  {@const problem = keyProblem(mine)}
+  {#if problem !== undefined}
+    <Alert.Root variant="destructive">
+      <KeyRoundIcon />
+      <Alert.Title>The bot can't run for you yet</Alert.Title>
+      <Alert.Description>
+        <p>{problem} Until you save a working key, it answers your mentions with a refusal.</p>
+        <Button href={resolve("/(app)/settings/key")} size="sm" class="mt-2">Save your key</Button>
+      </Alert.Description>
+    </Alert.Root>
+  {/if}
   <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
     <Card.Root>
       <Card.Header>
@@ -35,7 +58,7 @@
         <Card.Action><CircleDollarSignIcon class="size-4 text-muted-foreground" /></Card.Action>
       </Card.Header>
       <Card.Content>
-        <p class="text-xs text-muted-foreground">Settled runs you asked for, at list prices.</p>
+        <p class="text-xs text-muted-foreground">Settled runs billed to your key, estimated at list prices.</p>
       </Card.Content>
     </Card.Root>
 

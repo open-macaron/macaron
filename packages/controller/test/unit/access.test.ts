@@ -26,17 +26,17 @@ describe("askedBy", () => {
 
 describe("capabilityRefusal", () => {
   it("lets every mode run for someone holding its capability", () => {
-    for (const mode of Mode.options) expect(capabilityRefusal({ githubId: 1, capabilities: Capability.options }, mode, WEB), mode).toBeUndefined();
+    for (const mode of Mode.options) expect(capabilityRefusal({ userId: "u1", githubId: 1, capabilities: Capability.options }, mode, WEB), mode).toBeUndefined();
   });
 
   it("refuses a mode whose capability the account lacks, naming it", () => {
-    expect(capabilityRefusal({ githubId: 1, capabilities: ["triage"] }, "implement", WEB)).toBe(`this account can't ask for \`implement\`: an administrator grants it on macaron (${WEB})`);
+    expect(capabilityRefusal({ userId: "u1", githubId: 1, capabilities: ["triage"] }, "implement", WEB)).toBe(`this account can't ask for \`implement\`: an administrator grants it on macaron (${WEB})`);
   });
 
   it("asks implement for addressing review comments, remember for retro", () => {
-    expect(capabilityRefusal({ githubId: 1, capabilities: ["review"] }, "address_review", WEB)).toMatch(/`implement`/);
-    expect(capabilityRefusal({ githubId: 1, capabilities: ["implement"] }, "address_review", WEB)).toBeUndefined();
-    expect(capabilityRefusal({ githubId: 1, capabilities: ["triage"] }, "retro", WEB)).toMatch(/`remember`/);
+    expect(capabilityRefusal({ userId: "u1", githubId: 1, capabilities: ["review"] }, "address_review", WEB)).toMatch(/`implement`/);
+    expect(capabilityRefusal({ userId: "u1", githubId: 1, capabilities: ["implement"] }, "address_review", WEB)).toBeUndefined();
+    expect(capabilityRefusal({ userId: "u1", githubId: 1, capabilities: ["triage"] }, "retro", WEB)).toMatch(/`remember`/);
   });
 
   it("refuses someone without an account, pointing to the web app", () => {
@@ -44,6 +44,6 @@ describe("capabilityRefusal", () => {
   });
 
   it("never mentions anyone", () => {
-    expect(capabilityRefusal({ githubId: 1, capabilities: [] }, "plan", WEB)).not.toMatch(/@/);
+    expect(capabilityRefusal({ userId: "u1", githubId: 1, capabilities: [] }, "plan", WEB)).not.toMatch(/@/);
   });
 });

@@ -2,6 +2,8 @@ import { type Capability, type Mode, requiredCapability } from "@open-macaron/co
 
 /** The account a run is for: what its owner may ask the bot for. */
 export interface Asker {
+  /** The account's id: who the run is billed to. */
+  readonly userId: string;
   readonly githubId: number;
   readonly capabilities: readonly Capability[];
 }

@@ -1,5 +1,5 @@
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { Capability } from "@open-macaron/contracts";
+import { Capability, Ticket } from "@open-macaron/contracts";
 import { eq, sql } from "drizzle-orm";
 import { Logger } from "@nestjs/common";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -11,7 +11,9 @@ import type { ProbeResult } from "../../src/keys/key-check.ts";
 import { KeyRing, keyAad, SealBroken } from "../../src/keys/key-ring.ts";
 import { KeyRotation } from "../../src/keys/key-rotation.ts";
 import { LlmKeysService } from "../../src/keys/llm-keys.service.ts";
+import { RunsRepository } from "../../src/runs/runs.repository.ts";
 import { FakeClock } from "../support/fakes.ts";
+import { runContext } from "../support/fixtures.ts";
 import { startPostgres } from "../support/postgres.ts";
 
 const GOOD = "sk-ant-good-key-0000000000001234";
@@ -194,6 +196,69 @@ describe("LlmKeysService", () => {
   });
 });
 
+describe("LlmKeysService at a run's start", () => {
+  const SETTINGS = "https://macaron.example.test/settings/key";
+
+  it("refuses an account without a key, pointing at the key page", async () => {
+    expect(await keys().upstreamFor("user-b", SETTINGS)).toEqual({ refusal: expect.stringContaining(`there's none saved for this account: save one on macaron (${SETTINGS})`) });
+  });
+
+  it("gives the payer's endpoint and key, checked with the endpoint first", async () => {
+    await keys().save(signedIn("user-b"), { endpointId, key: OTHER });
+    const before = clock.now();
+    const resolved = await keys().upstreamFor("user-b", SETTINGS);
+    expect(resolved).toEqual({ upstream: { endpointId, baseUrl: "https://api.anthropic.example", key: OTHER, last4: "5678" } });
+    const [row] = await db.select().from(llmKeys).where(eq(llmKeys.userId, "user-b"));
+    expect(row?.validatedAt.getTime()).toBeGreaterThan(before.getTime());
+  });
+
+  it("records the run in the key's history, with its thread", async () => {
+    const runs = new RunsRepository(db);
+    const thread = await runs.thread("org-x/repo-a", 77, "pull");
+    const run = await runs.createRun({
+      threadId: thread.id,
+      ticket: Ticket.parse(`t_${"9".repeat(43)}`),
+      mode: "review",
+      harness: "claude",
+      model: "claude-sonnet-5-5",
+      fastModel: "claude-haiku-4-5",
+      context: runContext(),
+      route: { mode: "review", subject: { kind: "pullRequest", number: 77 }, checkout: { from: "defaultBranch" }, branch: "macaron/77-review" },
+      limitMicros: 500_000,
+      triggerGithubId: 12,
+      payerId: "user-b",
+    });
+    await keys().recordUse("user-b", run.id, endpointId, "5678");
+    const [latest] = (await keys().events("user-b", 1, undefined)).events;
+    expect(latest).toMatchObject({ kind: "used", last4: "5678", thread: { repo: "org-x/repo-a", number: 77, kind: "pull" } });
+  });
+
+  it("marks a key the endpoint now refuses, and refuses the run", async () => {
+    // The endpoint revoked it: the probe answers 401 for it from now on.
+    await db.update(llmKeys).set({ last4: "9999" }).where(eq(llmKeys.userId, "user-b"));
+    const revoked = new LlmKeysService(db, v1, () => Promise.resolve({ outcome: "rejected", status: 401 }), resolve, models, clock);
+    expect(await revoked.upstreamFor("user-b", SETTINGS)).toEqual({ refusal: expect.stringContaining("refused this account's LLM key (HTTP 401)") });
+    expect((await keys().mine(signedIn("user-b"))).key?.status).toBe("rejected");
+    expect((await keys().events("user-b", 1, undefined)).events[0]).toMatchObject({ kind: "rejected", detail: "HTTP 401 before a run" });
+    // Until it's saved again, no run asks the endpoint.
+    expect(await keys().upstreamFor("user-b", SETTINGS)).toEqual({ refusal: expect.stringContaining("save it again, or another one") });
+  });
+
+  it("refuses without marking when the endpoint can't be reached, and when its endpoint is disabled", async () => {
+    await db.update(llmKeys).set({ status: "valid" }).where(eq(llmKeys.userId, "user-b"));
+    const down = new LlmKeysService(db, v1, () => Promise.resolve({ outcome: "unreachable", reason: "no answer within 10 seconds" }), resolve, models, clock);
+    expect(await down.upstreamFor("user-b", SETTINGS)).toEqual({ refusal: expect.stringContaining("couldn't be reached") });
+    expect((await keys().mine(signedIn("user-b"))).key?.status).toBe("valid");
+    await db.update(llmEndpoints).set({ enabled: false }).where(eq(llmEndpoints.id, endpointId));
+    expect(await keys().upstreamFor("user-b", SETTINGS)).toEqual({ refusal: expect.stringContaining("which an administrator disabled") });
+    await db.update(llmEndpoints).set({ enabled: true }).where(eq(llmEndpoints.id, endpointId));
+  });
+
+  it("refuses a key it can't read rather than failing the run later", async () => {
+    expect(await withoutStorage().upstreamFor("user-b", SETTINGS)).toEqual({ refusal: expect.stringContaining("can't be read on this deployment") });
+  });
+});
+
 describe("logs", () => {
   it("never hold a key, refused or saved", () => {
     expect(logged.some((line) => line.includes("saved a key"))).toBe(true);
@@ -206,7 +271,8 @@ describe("KeyRotation", () => {
   it("re-seals every key under the newest version, then old versions can be retired", async () => {
     await keys(v1).save(signedIn("user-a"), { endpointId, key: GOOD });
     const report = await new KeyRotation(db, v1v2).rotate();
-    expect(report).toEqual({ current: 2, resealed: 1, unreadable: 0 });
+    // user-a's key, and user-b's saved above.
+    expect(report).toEqual({ current: 2, resealed: 2, unreadable: 0 });
     const [row] = await db.select().from(llmKeys).where(eq(llmKeys.userId, "user-a"));
     if (row === undefined) throw new Error("no row");
     expect(row.kekVersion).toBe(2);
@@ -217,6 +283,6 @@ describe("KeyRotation", () => {
 
   it("counts keys under a version the ring no longer has", async () => {
     const v3 = KeyRing.of(new Map([[3, Buffer.alloc(32, 3)]]));
-    expect(await new KeyRotation(db, v3).rotate()).toEqual({ current: 3, resealed: 0, unreadable: 1 });
+    expect(await new KeyRotation(db, v3).rotate()).toEqual({ current: 3, resealed: 0, unreadable: 2 });
   });
 });

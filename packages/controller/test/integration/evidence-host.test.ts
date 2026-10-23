@@ -9,6 +9,7 @@ import { EvidenceHost } from "../../src/publish/evidence-host.ts";
 import type { VettedAttachment } from "../../src/publish/gate.ts";
 import { RunsRepository } from "../../src/runs/runs.repository.ts";
 import { PNG, runContext } from "../support/fixtures.ts";
+import { insertPayer, PAYER_ID } from "../support/payer.ts";
 import { startPostgres } from "../support/postgres.ts";
 
 const FORK = { owner: "macaron-bot", repo: "abc123-repo-a" };
@@ -22,6 +23,7 @@ const server = setupServer();
 beforeAll(async () => {
   container = await startPostgres();
   db = await connectAndMigrate(container.getConnectionUri());
+  await insertPayer(db);
   runs = new RunsRepository(db);
   // After the container: Testcontainers talks HTTP to the container runtime, which must not be intercepted.
   server.listen({ onUnhandledFrame: "bypass" });
@@ -57,6 +59,7 @@ async function newRun(n: number) {
     route: { mode: "reproduce", subject: { kind: "issue", number: 2000 + n }, checkout: { from: "defaultBranch" }, branch: `macaron/${String(2000 + n)}-work` },
     limitMicros: 1_000_000,
     triggerGithubId: 583231,
+    payerId: PAYER_ID,
   });
   return { thread, run };
 }

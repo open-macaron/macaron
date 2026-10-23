@@ -260,8 +260,8 @@ describe("UsersService", () => {
 
   it("finds who may trigger the bot by GitHub id, with their capabilities", async () => {
     const users_ = new UsersService(db);
-    expect(await users_.asker(102)).toEqual({ githubId: 102, capabilities: ["implement"] });
-    expect(await users_.asker(ADMIN_GITHUB_ID)).toEqual({ githubId: ADMIN_GITHUB_ID, capabilities: Capability.options });
+    expect(await users_.asker(102)).toMatchObject({ githubId: 102, capabilities: ["implement"] });
+    expect(await users_.asker(ADMIN_GITHUB_ID)).toEqual({ userId: admin.id, githubId: ADMIN_GITHUB_ID, capabilities: Capability.options });
     expect(await users_.asker(555)).toBeUndefined();
   });
 
@@ -286,6 +286,7 @@ describe("UsageService", () => {
         route: { mode: "plan", subject: { kind: "issue", number: 4242 }, checkout: { from: "defaultBranch" }, branch: "macaron/4242-work" },
         limitMicros: 1_000_000,
         triggerGithubId: 102,
+        payerId: admin.id,
       });
       await db.update(runsTable).set({ createdAt: new Date(`2026-10-0${String(n)}T00:00:00Z`) }).where(eq(runsTable.id, run.id));
       if (n !== 3) await runs.settle(run.id, 250_000 * n, { repo: "org-x/repo-a", project: "x" }, clock.now());

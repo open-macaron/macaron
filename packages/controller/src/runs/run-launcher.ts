@@ -12,8 +12,9 @@ import {
   Ticket,
 } from "@open-macaron/contracts";
 import { z } from "zod";
-import { capabilityRefusal } from "../accounts/access.ts";
+import { type Asker, capabilityRefusal } from "../accounts/access.ts";
 import { UsersService } from "../accounts/users.service.ts";
+import { LlmKeysService } from "../keys/llm-keys.service.ts";
 import { BudgetService, type RunKeyRef } from "../budget/budget.service.ts";
 import type { Route } from "../routing/routes.ts";
 import { decideSettlement, SETTLE_RECHECK_MS } from "../budget/settlement.ts";
@@ -93,11 +94,17 @@ export class RunLauncher {
     private readonly jobs: Jobs,
     private readonly clock: Clock,
     private readonly users: UsersService,
+    private readonly keys: LlmKeysService,
   ) {}
 
   async launch(request: LaunchRequest): Promise<LaunchOutcome> {
-    const refusal = await this.refusal(request);
-    if (refusal !== undefined) return refusal;
+    const checked = await this.check(request);
+    if ("outcome" in checked) return checked.outcome;
+    // Last, as it asks the payer's endpoint: whoever asked pays, on their own key.
+    const payer = checked.payer;
+    const resolved = await this.keys.upstreamFor(payer.userId, `${this.env.PUBLIC_URL}/settings/key`);
+    if ("refusal" in resolved) return { kind: "refused", reason: resolved.refusal };
+    const { upstream } = resolved;
 
     const { config, thread, route, context } = request;
     const mode = route.mode;
@@ -113,13 +120,15 @@ export class RunLauncher {
       route,
       limitMicros: toMicros(limitUsd),
       triggerGithubId: request.triggerGithubId,
+      payerId: payer.userId,
     });
 
     let key: RunKeyRef | undefined;
     let dispatched: RunRecord;
     try {
-      const minted = await this.budget.mint(run.id, limitUsd, config.timeoutMinutes + KEY_GRACE_MINUTES, [run.model, run.fastModel ?? run.model]);
+      const minted = await this.budget.mint(run.id, limitUsd, config.timeoutMinutes + KEY_GRACE_MINUTES, [run.model, run.fastModel ?? run.model], upstream);
       key = minted;
+      await this.keys.recordUse(payer.userId, run.id, upstream.endpointId, upstream.last4);
       await this.runs.attachKey(run.id, minted);
       const ghRunId = await this.dispatch(run, config, context);
       await this.runs.markDispatched(run.id, ghRunId);
@@ -263,36 +272,40 @@ export class RunLauncher {
     await this.jobs.settleCost(run.id, key === undefined ? 0 : this.budget.usageLagMs(key.backend));
   }
 
-  private async refusal(request: LaunchRequest): Promise<LaunchOutcome | undefined> {
+  /** Who pays for the run, or why it doesn't start now. */
+  private async check(request: LaunchRequest): Promise<{ readonly payer: Asker } | { readonly outcome: LaunchOutcome }> {
+    const refused = (reason: string): { readonly outcome: LaunchOutcome } => ({ outcome: { kind: "refused", reason } });
     const { config, thread } = request;
     const mode = request.route.mode;
-    if (!this.env.MACARON_ENABLED) return { kind: "refused", reason: "the bot is paused by its maintainers" };
+    if (!this.env.MACARON_ENABLED) return refused("the bot is paused by its maintainers");
+    // OpenRouter keys spend the workspace's credit: no run may be billed to anyone else than its payer.
+    if (this.budget.activeBackend !== "bifrost") return refused("the bot's LLM gateway can't bill users' keys: its maintainers must switch it to Bifrost");
     // The run is for an account (whoever asked, or for escalations and retries, whoever asked first),
-    // which must hold the capability its mode needs.
+    // which must hold the capability its mode needs, and pays for it.
     const asker = request.triggerGithubId === null ? undefined : await this.users.asker(request.triggerGithubId);
     const forbidden = capabilityRefusal(asker, mode, this.env.PUBLIC_URL);
-    if (forbidden !== undefined) return { kind: "refused", reason: forbidden };
+    if (forbidden !== undefined || asker === undefined) return refused(forbidden ?? "this needs an account on macaron");
 
     const limit = toMicros(runLimitUsd(config, mode, request.context));
     const caps = config.caps;
     if (mode === "address_review" && thread.loops >= caps.reviewLoops) {
-      return { kind: "refused", reason: `this thread reached its limit of ${String(caps.reviewLoops)} review loops` };
+      return refused(`this thread reached its limit of ${String(caps.reviewLoops)} review loops`);
     }
     if ((await this.runs.spentOnThread(thread.id)) + (await this.runs.reservedMicros({ threadId: thread.id })) + limit > toMicros(caps.perThreadUsd)) {
-      return { kind: "refused", reason: "this thread reached its budget" };
+      return refused("this thread reached its budget");
     }
     const now = this.clock.now();
     const repoCommitted = (await this.runs.spentOnRepoSince(thread.repo, monthStart(now))) + (await this.runs.reservedMicros({ repo: thread.repo }));
-    if (repoCommitted + limit > toMicros(caps.perRepoMonthUsd)) return { kind: "refused", reason: "this repository reached its monthly budget" };
+    if (repoCommitted + limit > toMicros(caps.perRepoMonthUsd)) return refused("this repository reached its monthly budget");
 
     const project = this.config.snapshot.projects.get(config.project);
     if (project !== undefined && (await this.runs.spentOnProjectSince(project.project, monthStart(now))) + limit > toMicros(project.budget.monthUsd)) {
-      return { kind: "refused", reason: "this project reached its monthly budget" };
+      return refused("this project reached its monthly budget");
     }
     if ((await this.runs.activeCount()) >= this.config.snapshot.global.concurrency.global) {
-      return { kind: "queued", reason: "all runners are busy" };
+      return { outcome: { kind: "queued", reason: "all runners are busy" } };
     }
-    return undefined;
+    return { payer: asker };
   }
 
   private async dispatch(run: RunRecord, config: RepoConfig, context: RunContext): Promise<number> {
