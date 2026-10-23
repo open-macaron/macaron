@@ -79,9 +79,9 @@ jobs:
           echo "names=$names" >> "$GITHUB_OUTPUT"
           echo "released: $PUBLISHED"
 
-  controller-image:
+  # The images production follows (docs/DEPLOYMENT.md §2), each built only when its package was released.
+  images:
     needs: changesets
-    if: contains(fromJSON(needs.changesets.outputs.released), '@open-macaron/controller')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -89,47 +89,59 @@ jobs:
       packages: write
       id-token: write
       attestations: write
+    strategy:
+      matrix:
+        include:
+          - { package: "@open-macaron/controller", image: controller, containerfile: packages/controller/Containerfile }
+          - { package: "@open-macaron/web", image: web, containerfile: packages/web/Containerfile }
     env:
       REGISTRY: ghcr.io/open-macaron
-      IMAGE: ghcr.io/open-macaron/controller
+      IMAGE: ghcr.io/open-macaron/${{ matrix.image }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
       - id: version
         env:
           VERSIONS: ${{ needs.changesets.outputs.versions }}
-        run: echo "version=$(jq -r '.[] | select(.name == "@open-macaron/controller") | .version' <<< "$VERSIONS")" >> "$GITHUB_OUTPUT"
+          PACKAGE: ${{ matrix.package }}
+        run: echo "version=$(jq -r --arg name "$PACKAGE" '.[] | select(.name == $name) | .version' <<< "$VERSIONS")" >> "$GITHUB_OUTPUT"
+      - if: steps.version.outputs.version != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # Three tags: `:<version>` matches the git tag and the release, `:sha-<commit>` records what
       # was built, and `:latest` is the moving pointer production follows.
-      - id: build
+      - if: steps.version.outputs.version != ''
+        id: build
         uses: redhat-actions/buildah-build@719e3c40d8af9790c23eca13f7daa339f2867034 # v3.1.0
         with:
-          image: controller
+          image: ${{ matrix.image }}
           tags: ${{ steps.version.outputs.version }} sha-${{ github.sha }} latest
-          containerfiles: packages/controller/Containerfile
+          containerfiles: ${{ matrix.containerfile }}
           context: .
           oci: true
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
             REVISION=${{ github.sha }}
-      - uses: redhat-actions/podman-login@50c2d9a331bb67c8fdab99b86455fad05e2e3252 # v2.0
+      - if: steps.version.outputs.version != ''
+        uses: redhat-actions/podman-login@50c2d9a331bb67c8fdab99b86455fad05e2e3252 # v2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: push
+      - if: steps.version.outputs.version != ''
+        id: push
         uses: redhat-actions/push-to-registry@94ade333c38ecc0e60e94785125d9a52ca423b37 # v3.0.0
         with:
           image: ${{ steps.build.outputs.image }}
           tags: ${{ steps.build.outputs.tags }}
           registry: ${{ env.REGISTRY }}
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      - if: steps.version.outputs.version != ''
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
-      - name: summary
+      - if: steps.version.outputs.version != ''
+        name: summary
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
           VERSION: ${{ steps.version.outputs.version }}
