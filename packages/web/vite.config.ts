@@ -1,6 +1,7 @@
 import adapter from "@sveltejs/adapter-node";
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import { defaultClientConditions, defaultServerConditions, defineConfig, loadEnv } from "vite";
 
 export default defineConfig(({ mode }) => ({
@@ -10,6 +11,10 @@ export default defineConfig(({ mode }) => ({
   // `pnpm dev` only: sign-in is the controller's (the edge routes /api/auth to it in production).
   server: { proxy: { "/api/auth": loadEnv(mode, import.meta.dirname, "")["CONTROLLER_URL"] ?? "http://127.0.0.1:8080" } },
   plugins: [
+    // `pnpm dev` and `vite preview` serve https (a self-signed certificate) as production does: the
+    // controller only accepts an https PUBLIC_URL, `__Secure-` cookies and remote forms' origin check
+    // then behave as in production. The build is untouched.
+    basicSsl(),
     tailwindcss(),
     sveltekit({
       compilerOptions: {
