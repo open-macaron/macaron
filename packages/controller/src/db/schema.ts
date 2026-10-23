@@ -302,3 +302,20 @@ export const adminAudit = pgTable(
   },
   (table) => [index("admin_audit_at").on(table.at)],
 );
+
+/**
+ * LLM endpoints an administrator approved: users' keys are only ever sent there. The base URL is
+ * unique and never updated (no route changes it): disabling one and approving another is the only
+ * way to move, so a saved key can't be redirected to a new host.
+ */
+export const llmEndpoints = pgTable("llm_endpoints", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  baseUrl: text("base_url").notNull().unique(),
+  enabled: boolean("enabled").notNull().default(true),
+  pricingNote: text("pricing_note"),
+  /** Null for the deployment's defaults (LLM_ENDPOINT_DEFAULTS). */
+  createdBy: text("created_by").references(() => users.id, { onDelete: "restrict" }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});

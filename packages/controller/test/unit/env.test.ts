@@ -89,3 +89,19 @@ describe("sign-in", () => {
     expect(() => testEnv({ ...signIn, BETTER_AUTH_SECRET: "short" })).toThrow(/BETTER_AUTH_SECRET/);
   });
 });
+
+describe("LLM_ENDPOINT_DEFAULTS", () => {
+  it("is empty when unset", () => {
+    expect(testEnv().LLM_ENDPOINT_DEFAULTS).toEqual([]);
+  });
+
+  it("parses approved endpoints, normalising their base URL", () => {
+    expect(testEnv({ LLM_ENDPOINT_DEFAULTS: '[{"name":"Anthropic API","baseUrl":"https://api.anthropic.com/"}]' }).LLM_ENDPOINT_DEFAULTS).toEqual([{ name: "Anthropic API", baseUrl: "https://api.anthropic.com", pricingNote: null }]);
+  });
+
+  it("refuses what isn't a list of https endpoints", () => {
+    expect(() => testEnv({ LLM_ENDPOINT_DEFAULTS: "not json" })).toThrow(/LLM_ENDPOINT_DEFAULTS/);
+    expect(() => testEnv({ LLM_ENDPOINT_DEFAULTS: '[{"name":"Plain","baseUrl":"http://api.example.com"}]' })).toThrow(/LLM_ENDPOINT_DEFAULTS/);
+    expect(() => testEnv({ LLM_ENDPOINT_DEFAULTS: '[{"name":"Creds","baseUrl":"https://user:pass@api.example.com"}]' })).toThrow(/LLM_ENDPOINT_DEFAULTS/);
+  });
+});

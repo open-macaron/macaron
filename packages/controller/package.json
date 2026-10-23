@@ -43,6 +43,7 @@
     "drizzle-orm": "catalog:",
     "fflate": "catalog:",
     "file-type": "catalog:",
+    "ipaddr.js": "catalog:",
     "jose": "catalog:",
     "markdown-table": "catalog:",
     "mdast-util-from-markdown": "catalog:",

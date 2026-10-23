@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RepoSlug } from "@open-macaron/contracts";
+import { CreateEndpoint, RepoSlug } from "@open-macaron/contracts";
 import { LlmBackend } from "../budget/run-keys.ts";
 
 const Secret = z.string().min(20, "looks too short to be a real credential");
@@ -68,6 +68,23 @@ const RawEnv = z.object({
   /** The org GitHub App users sign in with: Email addresses read-only, no repository access. */
   GITHUB_LOGIN_CLIENT_ID: z.string().min(1).optional(),
   GITHUB_LOGIN_CLIENT_SECRET: Secret.optional(),
+  /**
+   * LLM endpoints approved at every start, as JSON: [{"name", "baseUrl", "pricingNote"?}]. Inserted
+   * when their base URL is missing, never updated: administrators manage them from the web app.
+   */
+  LLM_ENDPOINT_DEFAULTS: z
+    .string()
+    .transform((json, ctx) => {
+      try {
+        const parsed: unknown = JSON.parse(json);
+        return parsed;
+      } catch {
+        ctx.addIssue({ code: "custom", message: "expected JSON" });
+        return z.NEVER;
+      }
+    })
+    .pipe(z.array(CreateEndpoint))
+    .default([]),
   /** GitHub user ids (comma-separated) who are admins: they sign in without an invitation and hold every capability. */
   MACARON_ADMIN_USER_IDS: z
     .string()

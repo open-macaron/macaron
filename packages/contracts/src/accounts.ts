@@ -95,3 +95,47 @@ export const UsageQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
 });
 export type UsageQuery = z.infer<typeof UsageQuery>;
+
+/**
+ * An LLM endpoint an administrator approved: users' keys are only ever sent there. Its base URL
+ * never changes (disable it and approve another): saved keys can't be redirected to a new host.
+ */
+export const Endpoint = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  baseUrl: z.url(),
+  enabled: z.boolean(),
+  pricingNote: z.string().nullable(),
+  /** Null for the deployment's defaults (LLM_ENDPOINT_DEFAULTS). */
+  createdBy: GitHubLogin.nullable(),
+  createdAt: Timestamp,
+});
+export type Endpoint = z.infer<typeof Endpoint>;
+
+export const Endpoints = z.object({ endpoints: z.array(Endpoint) });
+export type Endpoints = z.infer<typeof Endpoints>;
+
+/** https only, no credentials, query or fragment; a trailing slash is dropped. The controller also checks the host resolves to public addresses. */
+export const EndpointBaseUrl = z
+  .url({ protocol: /^https$/, error: "an https:// URL" })
+  // Runs even when the URL check failed: parse without throwing, that issue is already reported.
+  .refine((value) => {
+    const url = URL.parse(value);
+    return url === null || (url.username === "" && url.password === "" && url.search === "" && url.hash === "");
+  }, "no credentials, query or fragment in the URL")
+  .transform((value) => value.replace(/\/+$/, ""));
+
+export const CreateEndpoint = z.object({
+  name: z.string().trim().min(2).max(60),
+  baseUrl: EndpointBaseUrl,
+  pricingNote: z
+    .string()
+    .trim()
+    .max(280)
+    .nullish()
+    .transform((note) => (note === undefined || note === null || note === "" ? null : note)),
+});
+export type CreateEndpoint = z.infer<typeof CreateEndpoint>;
+
+export const SetEndpointEnabled = z.object({ enabled: z.boolean() });
+export type SetEndpointEnabled = z.infer<typeof SetEndpointEnabled>;

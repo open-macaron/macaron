@@ -4,8 +4,8 @@ import * as z from 'zod';
 
 import { client } from './client.gen.ts';
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client/index.ts';
-import type { CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, GetMeData, GetMeErrors, GetMeResponses, GetMyUsageData, GetMyUsageErrors, GetMyUsageResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListUsersData, ListUsersResponses, RevokeInvitationData, RevokeInvitationResponses, SetUserCapabilitiesData, SetUserCapabilitiesErrors, SetUserCapabilitiesResponses } from './types.gen.ts';
-import { zCreateInvitationBody, zCreateInvitationResponse, zGetMeResponse, zGetMyUsageQuery, zGetMyUsageResponse, zListInvitationsResponse, zListUsersResponse, zRevokeInvitationPath, zRevokeInvitationResponse, zSetUserCapabilitiesBody, zSetUserCapabilitiesPath, zSetUserCapabilitiesResponse } from './zod.gen.ts';
+import type { ApproveEndpointData, ApproveEndpointErrors, ApproveEndpointResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, GetMeData, GetMeErrors, GetMeResponses, GetMyUsageData, GetMyUsageErrors, GetMyUsageResponses, ListEndpointsData, ListEndpointsResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListUsersData, ListUsersResponses, RevokeInvitationData, RevokeInvitationResponses, SetEndpointEnabledData, SetEndpointEnabledErrors, SetEndpointEnabledResponses, SetUserCapabilitiesData, SetUserCapabilitiesErrors, SetUserCapabilitiesResponses } from './types.gen.ts';
+import { zApproveEndpointBody, zApproveEndpointResponse, zCreateInvitationBody, zCreateInvitationResponse, zGetMeResponse, zGetMyUsageQuery, zGetMyUsageResponse, zListEndpointsResponse, zListInvitationsResponse, zListUsersResponse, zRevokeInvitationPath, zRevokeInvitationResponse, zSetEndpointEnabledBody, zSetEndpointEnabledPath, zSetEndpointEnabledResponse, zSetUserCapabilitiesBody, zSetUserCapabilitiesPath, zSetUserCapabilitiesResponse } from './zod.gen.ts';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -155,6 +155,71 @@ export const setUserCapabilities = <ThrowOnError extends boolean = false>(option
             type: 'apiKey'
         }],
     url: '/v1/admin/users/{id}/capabilities',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Every LLM endpoint, approved first to last
+ */
+export const listEndpoints = <ThrowOnError extends boolean = false>(options?: Options<ListEndpointsData, ThrowOnError>): RequestResult<ListEndpointsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListEndpointsResponses, unknown, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: z.never().optional(),
+        path: z.never().optional(),
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zListEndpointsResponse.parseAsync(data),
+    security: [{
+            in: 'cookie',
+            name: '__Secure-macaron.session_token',
+            type: 'apiKey'
+        }],
+    url: '/v1/admin/endpoints',
+    ...options
+});
+
+/**
+ * Approve an LLM endpoint users may send their key to
+ */
+export const approveEndpoint = <ThrowOnError extends boolean = false>(options: Options<ApproveEndpointData, ThrowOnError>): RequestResult<ApproveEndpointResponses, ApproveEndpointErrors, ThrowOnError> => (options.client ?? client).post<ApproveEndpointResponses, ApproveEndpointErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: zApproveEndpointBody,
+        path: z.never().optional(),
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zApproveEndpointResponse.parseAsync(data),
+    security: [{
+            in: 'cookie',
+            name: '__Secure-macaron.session_token',
+            type: 'apiKey'
+        }],
+    url: '/v1/admin/endpoints',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Enable or disable an endpoint (its base URL never changes)
+ */
+export const setEndpointEnabled = <ThrowOnError extends boolean = false>(options: Options<SetEndpointEnabledData, ThrowOnError>): RequestResult<SetEndpointEnabledResponses, SetEndpointEnabledErrors, ThrowOnError> => (options.client ?? client).put<SetEndpointEnabledResponses, SetEndpointEnabledErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: zSetEndpointEnabledBody,
+        path: zSetEndpointEnabledPath,
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zSetEndpointEnabledResponse.parseAsync(data),
+    security: [{
+            in: 'cookie',
+            name: '__Secure-macaron.session_token',
+            type: 'apiKey'
+        }],
+    url: '/v1/admin/endpoints/{id}/enabled',
     ...options,
     headers: {
         'Content-Type': 'application/json',
