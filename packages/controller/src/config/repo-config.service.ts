@@ -109,14 +109,14 @@ export class RepoConfigService implements OnModuleInit, OnApplicationShutdown {
     return this.snapshot.repos.get(repoKey(fullName));
   }
 
-  /** May `login` trigger work on `repo`? Users can; known review bots only for review loops. */
-  trigger(fullName: string, login: string): "user" | "bot" | undefined {
+  /**
+   * Is `login` one of the review bots the configuration trusts on `repo`? Their comments on the
+   * bot's pull requests count, for review loops only. People are trusted by their account
+   * (accounts/), not by the configuration.
+   */
+  isBot(fullName: string, login: string): boolean {
     const config = this.repo(fullName);
-    if (config === undefined) return undefined;
-    const same = (candidate: GitHubLogin) => candidate.toLowerCase() === login.toLowerCase();
-    if (config.users.some(same)) return "user";
-    if (config.bots.some(same)) return "bot";
-    return undefined;
+    return config?.bots.some((candidate: GitHubLogin) => candidate.toLowerCase() === login.toLowerCase()) ?? false;
   }
 
   /** Boot: the published snapshot, else the one applied last; checks registered later (pricing) run at bootstrap. */

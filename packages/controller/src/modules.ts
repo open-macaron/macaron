@@ -104,9 +104,16 @@ export class PublishModule {}
 @Module({ providers: [KnowledgeClient, PullDiffReader], exports: [KnowledgeClient, PullDiffReader] })
 export class ReviewModule {}
 
+/** The web app's users: sign-in (better-auth), invitations, capabilities, usage. */
+@Module({
+  providers: [InvitationsService, SessionsService, UsersService, UsageService],
+  exports: [InvitationsService, SessionsService, UsersService, UsageService],
+})
+export class AccountsModule {}
+
 /** A run's lifecycle: launch, bootstrap, completion, safety nets. */
 @Module({
-  imports: [BudgetModule, PublishModule, ReviewModule],
+  imports: [BudgetModule, PublishModule, ReviewModule, AccountsModule],
   providers: [{ provide: OIDC_KEYS, useFactory: githubJwks }, OidcVerifier, ArtifactDownloader, RunLauncher, Housekeeping],
   exports: [RunLauncher],
 })
@@ -114,7 +121,7 @@ export class RunsModule {}
 
 /** From GitHub notifications to launched runs. */
 @Module({
-  imports: [RunsModule, PublishModule, ReviewModule],
+  imports: [RunsModule, PublishModule, ReviewModule, AccountsModule],
   providers: [
     { provide: NotificationsApi, useClass: NotificationsSource },
     { provide: NotificationSink, useClass: IngestService },
@@ -127,12 +134,6 @@ export class RunsModule {}
 })
 export class IngestModule {}
 
-/** The web app's users: sign-in (better-auth), invitations, capabilities, usage. */
-@Module({
-  providers: [InvitationsService, SessionsService, UsersService, UsageService],
-  exports: [InvitationsService, SessionsService, UsersService, UsageService],
-})
-export class AccountsModule {}
 
 /**
  * The edge exposes /v1/bootstrap and /v1/webhook (and better-auth's /api/auth, mounted in main.ts).

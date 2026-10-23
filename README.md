@@ -6,7 +6,7 @@
 
 ## What the bot can do
 
-Only trusted users of trusted repositories ([open-macaron/config](https://github.com/open-macaron/config)) can trigger it. Anyone else who mentions it on a trusted repository gets 👎 and nothing more: no reply, no cost. It answers with 👀 within a minute, then 👍 or 😕, and answers each request where it was asked: a status comment with a link to its run, edited until the run's cost settles. `implement`, `plan` and `reproduce` work from an issue; `verify` and `review` on a pull request.
+Only people with an account of its web app (invited by an administrator, who grants each one capabilities: triage, plan, implement, reproduce, verify, review, remember) can trigger it, on trusted repositories ([open-macaron/config](https://github.com/open-macaron/config)). Anyone else who mentions it on a trusted repository gets 👎 and nothing more: no reply, no cost; asking for something one's account can't is refused with a reply. It answers with 👀 within a minute, then 👍 or 😕, and answers each request where it was asked: a status comment with a link to its run, edited until the run's cost settles. `implement`, `plan` and `reproduce` work from an issue; `verify` and `review` on a pull request.
 
 | Comment | What happens |
 |---|---|
@@ -20,7 +20,7 @@ Only trusted users of trusted repositories ([open-macaron/config](https://github
 | `@macaron-bot stop` | Stops the running loop now |
 | A bare mention | Same as `triage` |
 
-**On its own pull requests,** no mention is needed: reviews from trusted users are addressed (code changes, a new commit, an answer in each review thread), and other comments are triaged.
+**On its own pull requests,** no mention is needed: reviews from people with an account (and the review bots open-macaron/config lists) are addressed (code changes, a new commit, an answer in each review thread), and other comments are triaged.
 
 **Reviews check one thing per rule.** A violation is only reported with a quote of a line the pull request adds; the reviewer reads code and history but can't change or run anything. The same review runs locally, before you push, with your own agent: `npx @open-macaron/review --project <project>` ([packages/review](packages/review/README.md)).
 
@@ -44,7 +44,7 @@ Read [docs/DESIGN.md](docs/DESIGN.md) first; [docs/SCALING.md](docs/SCALING.md),
 | `packages/review` | The review engine of `@macaron-bot review`, also the `macaron-review` CLI to run the same review locally ([README](packages/review/README.md)) |
 | `packages/owners` | The owner-approved merge (`OWNERS.yaml` per folder) shared by knowledge-cli and config-cli |
 | `packages/knowledge-cli` | Validation, owner-approved merges and the read API of open-macaron/knowledge |
-| `packages/config-cli` | Validation, owner-approved merges and the published snapshot of [open-macaron/config](https://github.com/open-macaron/config), which holds the trusted projects, repositories, users and budgets |
+| `packages/config-cli` | Validation, owner-approved merges and the published snapshot of [open-macaron/config](https://github.com/open-macaron/config), which holds the trusted projects, repositories, review bots and budgets |
 | `deploy/` | OpenShift manifests and scripts, Bifrost's config and the local stack ([DEPLOYMENT.md](docs/DEPLOYMENT.md)) |
 | `docs/` | Design documents |
 

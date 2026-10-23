@@ -9,9 +9,9 @@
 # Re-running replaces the GitHub, webhook and LLM-upstream values. Generated once, then kept: the
 # database passwords, and Bifrost's admin password and encryption key (Bifrost can't change its
 # encryption key: keep a copy outside the cluster, docs/DEPLOYMENT.md §4). Settings keep their current
-# values unless given in the environment (MACARON_ENABLED, MACARON_ALLOWED_USER_IDS, LOG_LEVEL,
-# CONFIG_URL, CONFIG_REPO_ID and MACARON_ADMIN_USER_IDS); a fresh namespace starts disabled and needs
-# MACARON_ALLOWED_USER_IDS given, empty for no restriction.
+# values unless given in the environment (MACARON_ENABLED, LOG_LEVEL, CONFIG_URL, CONFIG_REPO_ID and
+# MACARON_ADMIN_USER_IDS); a fresh namespace starts disabled. Who may trigger the bot is an account
+# of the web app (invited, with capabilities): without sign-in configured, nobody can.
 #
 # Sign-in (the web app) is configured when the env file has the org GitHub App's
 # GITHUB_LOGIN_CLIENT_ID and GITHUB_LOGIN_CLIENT_SECRET, and MACARON_ADMIN_USER_IDS is known; the
@@ -115,13 +115,6 @@ setting() { oc get configmap macaron-settings -o "jsonpath={.data.$1}" 2>/dev/nu
 MACARON_ENABLED="${MACARON_ENABLED:-$(setting MACARON_ENABLED)}"
 MACARON_ENABLED="${MACARON_ENABLED:-false}"
 [[ "$MACARON_ENABLED" == true || "$MACARON_ENABLED" == false ]] || { echo "MACARON_ENABLED must be true or false" >&2; exit 1; }
-if [[ -z "${MACARON_ALLOWED_USER_IDS+set}" ]]; then
-  # A fresh namespace never starts unrestricted by omission.
-  oc get configmap macaron-settings >/dev/null 2>&1 ||
-    { echo "a fresh namespace needs MACARON_ALLOWED_USER_IDS (comma-separated GitHub user ids, or empty for no restriction)" >&2; exit 1; }
-  MACARON_ALLOWED_USER_IDS="$(setting MACARON_ALLOWED_USER_IDS)"
-fi
-[[ -z "$MACARON_ALLOWED_USER_IDS" || "$MACARON_ALLOWED_USER_IDS" =~ ^[0-9]+(,[0-9]+)*$ ]] || { echo "MACARON_ALLOWED_USER_IDS must be comma-separated numeric ids" >&2; exit 1; }
 LOG_LEVEL="${LOG_LEVEL:-$(setting LOG_LEVEL)}"
 # The controller's configuration: open-macaron/config's published snapshot (docs/DEPLOYMENT.md §6,
 # "Configuration"). Kept unless given; a fresh namespace gets open-macaron/config's.
@@ -140,7 +133,6 @@ settings=(
   --from-literal=LLM_BACKEND=bifrost
   --from-literal=BIFROST_PUBLIC_URL="$PUBLIC_URL/llm/anthropic"
 )
-if [[ -n "$MACARON_ALLOWED_USER_IDS" ]]; then settings+=(--from-literal=MACARON_ALLOWED_USER_IDS="$MACARON_ALLOWED_USER_IDS"); fi
 settings+=(--from-literal=CONFIG_URL="$CONFIG_URL" --from-literal=CONFIG_REPO_ID="$CONFIG_REPO_ID")
 if [[ -n "$login_client_id" ]]; then
   # The admins: they sign in without an invitation and hold every capability. Kept unless given.
@@ -151,5 +143,5 @@ fi
 oc create configmap macaron-settings --dry-run=client -o yaml "${settings[@]}" |
   oc label --local -f - -o yaml app.kubernetes.io/part-of=macaron |
   oc apply --server-side --field-manager=macaron-provision --force-conflicts -f - >/dev/null
-echo "   configmap/macaron-settings (PUBLIC_URL=$PUBLIC_URL, MACARON_ENABLED=$MACARON_ENABLED, MACARON_ALLOWED_USER_IDS=${MACARON_ALLOWED_USER_IDS:-unrestricted}, config: $CONFIG_URL)"
+echo "   configmap/macaron-settings (PUBLIC_URL=$PUBLIC_URL, MACARON_ENABLED=$MACARON_ENABLED, config: $CONFIG_URL)"
 echo "   running pods keep their old values: oc -n $NS rollout restart deployment/macaron-controller deployment/macaron-bifrost"

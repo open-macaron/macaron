@@ -136,7 +136,12 @@ export type GlobalFile = z.infer<typeof GlobalFile>;
 export const ProjectFile = z.strictObject({
   project: Slug,
   owners: z.string().regex(/^@[A-Za-z0-9-]+\/[A-Za-z0-9-]+$/),
-  users: z.array(GitHubLogin).min(1),
+  /**
+   * Deprecated and ignored: who may trigger the bot is an account of the web app (invited, with its
+   * capabilities). Still accepted so open-macaron/config's files parse until it drops them.
+   */
+  users: z.array(GitHubLogin).optional(),
+  /** Review bots whose comments on the bot's pull requests count, for review loops only. */
   bots: z.array(GitHubLogin).default([]),
   budget: z.strictObject({ monthUsd: Usd }),
   concurrency: z.int().min(1).max(50),
@@ -165,7 +170,6 @@ export const RepoConfig = RepoSettings.extend({
   repo: RepoSlug,
   fork: ForkName,
   project: Slug,
-  users: z.array(GitHubLogin),
   bots: z.array(GitHubLogin),
 });
 export type RepoConfig = z.infer<typeof RepoConfig>;
@@ -187,7 +191,7 @@ export function applySettingsPatch(base: RepoSettings, patch: RepoSettingsPatch)
 export function resolveRepoConfig(global: GlobalFile, project: ProjectFile, repo: RepoFile): RepoConfig {
   const { repo: slug, fork, ...repoPatch } = repo;
   const settings = applySettingsPatch(applySettingsPatch(global.defaults, project.defaults), repoPatch);
-  return RepoConfig.parse({ ...settings, repo: slug, fork, project: project.project, users: project.users, bots: project.bots });
+  return RepoConfig.parse({ ...settings, repo: slug, fork, project: project.project, bots: project.bots });
 }
 
 /** The runner label for `platform`, or undefined when the repository doesn't enable it. */
