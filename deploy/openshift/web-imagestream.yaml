@@ -1,0 +1,20 @@
+# The web app follows its releases like the controller (controller-imagestream.yaml): `:latest` moves
+# when changesets releases a new web version, and the image trigger on deployment/macaron-web rolls it out.
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: macaron-web
+  labels:
+    app.kubernetes.io/part-of: macaron
+spec:
+  lookupPolicy:
+    local: false
+  tags:
+    - name: latest
+      from:
+        kind: DockerImage
+        name: ghcr.io/open-macaron/web:latest
+      importPolicy:
+        scheduled: true
+      referencePolicy:
+        type: Source

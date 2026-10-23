@@ -22,19 +22,20 @@ next_generation() { # kind/name
     -o jsonpath='{range .items[*]}{.kind}/{.metadata.name}={.metadata.generation}{"\n"}{end}' | sed -n "s|^$1=||p"
 }
 
-# The digest the macaron-controller ImageStream holds now (importing it on a first deploy): the
-# controller follows its releases through the image trigger, and a deploy applies that same digest,
-# so it never moves the controller forward or back.
-controller_image() {
-  oc apply --server-side --field-manager="$FIELD_MANAGER" --force-conflicts -f "$ROOT/deploy/openshift/controller-imagestream.yaml" >/dev/null
+# The digest the macaron-<image> ImageStream holds now (importing it on a first deploy): the
+# controller and the web app follow their releases through image triggers, and a deploy applies
+# that same digest, so it never moves either forward or back.
+stream_image() { # controller | web
+  local name="$1"
+  oc apply --server-side --field-manager="$FIELD_MANAGER" --force-conflicts -f "$ROOT/deploy/openshift/${name}-imagestream.yaml" >/dev/null
   local reference="" _
   for _ in $(seq 1 60); do
-    reference="$(oc get imagestream/macaron-controller -o jsonpath='{.status.tags[?(@.tag=="latest")].items[0].dockerImageReference}')"
+    reference="$(oc get "imagestream/macaron-$name" -o jsonpath='{.status.tags[?(@.tag=="latest")].items[0].dockerImageReference}')"
     [[ -n "$reference" ]] && break
     sleep 2
   done
-  [[ "$reference" =~ ^ghcr\.io/open-macaron/controller@sha256:[0-9a-f]{64}$ ]] ||
-    die "imagestream/macaron-controller has no imported digest: $(oc get imagestream/macaron-controller -o jsonpath='{.status.tags[?(@.tag=="latest")].conditions[0].message}')"
+  [[ "$reference" =~ ^ghcr\.io/open-macaron/${name}@sha256:[0-9a-f]{64}$ ]] ||
+    die "imagestream/macaron-$name has no imported digest: $(oc get "imagestream/macaron-$name" -o jsonpath='{.status.tags[?(@.tag=="latest")].conditions[0].message}')"
   printf '%s' "$reference"
 }
 
@@ -61,11 +62,13 @@ main() {
   BUILD="$(mktemp -d)"
   trap 'rm -rf "$BUILD"' EXIT
   command oc kustomize --load-restrictor LoadRestrictionsNone "$ROOT/deploy/openshift" >"$BUILD/manifests.yaml"
-  local image
-  image="$(controller_image)"
-  echo "   controller: ${image#*@}"
-  sed -i "s|image: ghcr.io/open-macaron/controller:latest$|image: ${image}|" "$BUILD/manifests.yaml"
-  grep -Eq 'image: ghcr.io/open-macaron/controller@sha256:[0-9a-f]{64}$' "$BUILD/manifests.yaml" || die "controller image is not pinned by digest"
+  local name image
+  for name in controller web; do
+    image="$(stream_image "$name")"
+    echo "   $name: ${image#*@}"
+    sed -i "s|image: ghcr.io/open-macaron/${name}:latest$|image: ${image}|" "$BUILD/manifests.yaml"
+    grep -Eq "image: ghcr.io/open-macaron/${name}@sha256:[0-9a-f]{64}$" "$BUILD/manifests.yaml" || die "$name image is not pinned by digest"
+  done
   ! grep -q '@sha256:0000000000000000000000000000000000000000000000000000000000000000' "$BUILD/manifests.yaml" || die "an image digest is still the placeholder"
 
   log "prerequisites"
@@ -107,7 +110,7 @@ main() {
   log "rollout"
   local failed=()
   oc rollout status statefulset/macaron-postgres --timeout=5m || failed+=(statefulset/macaron-postgres)
-  for object in deployment/macaron-bifrost deployment/macaron-controller deployment/macaron-edge; do
+  for object in deployment/macaron-bifrost deployment/macaron-controller deployment/macaron-web deployment/macaron-edge; do
     oc rollout status "$object" --timeout=5m || failed+=("$object")
   done
   if ((${#failed[@]})); then
