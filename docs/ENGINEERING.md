@@ -237,3 +237,19 @@ Signing in on a developer machine uses the same code as production: no dev-only 
 
    You sign in as an admin. Saving a key checks it with its endpoint, as in production. No run starts locally: mentions aren't polled.
 5. **Tear down:** `podman rm -f macaron-web-dev-postgres` (the database is gone with it) and `deploy/bifrost/dev.sh down`.
+
+## 10. Bumping the web app's framework
+
+The web app relies on two experimental features: SvelteKit's remote functions (`experimental.remoteFunctions`) and Svelte's `await` in components (`compilerOptions.experimental.async`). A minor release may change them. #69 tracks them until they stabilise. A bump of `@sveltejs/kit`, `svelte` or `@sveltejs/vite-plugin-svelte` goes in its own PR:
+
+1. **Read the changelogs** since the pinned versions (the packages' `CHANGELOG.md` on GitHub). Look for every entry that mentions remote functions, `query`, `form`, `command`, `prerender`, `getRequestEvent`, `invalid`, form fields (`.as(...)`, `issues()`, `preflight`, `enhance`, `requested`) or async Svelte (`await` expressions, `<svelte:boundary>` `pending` and `failed`, `hydratable`).
+2. **Check what the app relies on:**
+   - a field starting with an underscore (`_key`) is never sent back to the browser;
+   - each remote function is its own endpoint, which the page guard doesn't see: each checks its caller;
+   - a cross-origin remote form is refused;
+   - `query(...).refresh()` inside a form or command updates the page that called it.
+
+   The end-to-end tests cover each of these (`e2e/key.spec.ts`, `e2e/admin.spec.ts`).
+3. **Run** `pnpm --filter @open-macaron/web build`, `pnpm --filter @open-macaron/web test:e2e` and `pnpm check`. A CSP error in the browser console (the e2e tests fail on any) means an inline script changed: put its new hash in `vite.config.ts`.
+4. **When a feature stabilises:** remove its `experimental` flag, update AGENTS.md's web rules, and say so on #69. Close #69 when both have.
+
