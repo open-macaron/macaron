@@ -1,6 +1,6 @@
 {
   "name": "@open-macaron/knowledge-cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "knowledge-cli: validates open-macaron/knowledge, decides owner-approved merges, builds the Pages read API",
   "license": "Apache-2.0",

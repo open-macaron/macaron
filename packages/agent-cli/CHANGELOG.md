@@ -1,5 +1,14 @@
 # @open-macaron/agent-cli
 
+## 0.1.2
+
+### Patch Changes
+
+- ecfe30f: The controller client is generated for `POST /v1/bootstrap` only: the web app's routes stay out of the runner.
+- Updated dependencies [6b1ed0d]
+  - @open-macaron/contracts@0.2.0
+  - @open-macaron/review@0.3.2
+
 ## 0.1.1
 
 ### Patch Changes
