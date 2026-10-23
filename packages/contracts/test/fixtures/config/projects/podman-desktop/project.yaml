@@ -6,8 +6,6 @@
 
 project: podman-desktop
 owners: "@open-macaron/maintainers"
-users:
-  - axel7083
 bots: []
 budget:
   monthUsd: 30.00

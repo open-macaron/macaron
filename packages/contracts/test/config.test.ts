@@ -25,7 +25,6 @@ const global = GlobalFile.parse({
 const project = ProjectFile.parse({
   project: "podman-desktop",
   owners: "@open-macaron/podman-desktop",
-  users: ["axel7083"],
   budget: { monthUsd: 300 },
   concurrency: 4,
   defaults: {
@@ -49,13 +48,10 @@ describe("resolveRepoConfig", () => {
     expect(config.budgets.plan).toBe(1);
     expect(resolveRepoConfig(global, project, RepoFile.parse({ ...repo, reviewCost: { perRuleUsd: 0.06 } })).reviewCost).toEqual({ baseUsd: 0.1, perRuleUsd: 0.06 });
     expect(config.contribution).toEqual({ dco: true, fixCi: false });
-    expect(config).not.toHaveProperty("users");
   });
 
-  it("still parses a project file with a users list, and ignores it", () => {
-    const withUsers = ProjectFile.parse({ ...project, users: ["axel7083"] });
-    expect(resolveRepoConfig(global, withUsers, RepoFile.parse({ repo: "podman-desktop/extension-b", fork: "abc123-extension-b" }))).not.toHaveProperty("users");
-    expect(ProjectFile.parse({ project: project.project, owners: project.owners, budget: project.budget, concurrency: project.concurrency }).users).toBeUndefined();
+  it("refuses a users list: who may trigger the bot is an account of the web app", () => {
+    expect(() => ProjectFile.parse({ ...project, users: ["axel7083"] })).toThrow(/users/);
   });
 
   it("overrides a single shared parameter without dropping the others", () => {

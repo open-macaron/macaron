@@ -55,7 +55,7 @@ describe("loadConfigTree", () => {
     return root;
   }
 
-  const project = (name: string) => `project: ${name}\nowners: "@o/t"\nusers: [alice]\nbudget: { monthUsd: 10 }\nconcurrency: 1\n`;
+  const project = (name: string) => `project: ${name}\nowners: "@o/t"\nbudget: { monthUsd: 10 }\nconcurrency: 1\n`;
 
   async function problems(files: Readonly<Record<string, string>>): Promise<readonly string[]> {
     const root = await tree({ "global.yaml": await globalYaml(), ...files });
@@ -110,7 +110,7 @@ describe("loadConfigTree", () => {
 });
 
 describe("parseConfigTree", () => {
-  const project = `project: a\nowners: "@o/t"\nusers: [alice]\nbudget: { monthUsd: 10 }\nconcurrency: 1\n`;
+  const project = `project: a\nowners: "@o/t"\nbudget: { monthUsd: 10 }\nconcurrency: 1\n`;
 
   function problems(files: Readonly<Record<string, string>>): readonly string[] {
     try {

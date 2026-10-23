@@ -11,13 +11,6 @@
       "type": "string",
       "pattern": "^@[A-Za-z0-9-]+\\/[A-Za-z0-9-]+$"
     },
-    "users": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "pattern": "^(?!-)[A-Za-z0-9-]{1,39}(?<!-)(\\[bot\\])?$"
-      }
-    },
     "bots": {
       "default": [],
       "type": "array",
