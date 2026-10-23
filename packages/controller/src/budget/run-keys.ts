@@ -11,6 +11,13 @@ export interface ProvisionedKey {
   readonly hash: string;
 }
 
+/** Where a run's LLM calls go, and the key they're billed to: its payer's. */
+export interface Upstream {
+  readonly endpointId: string;
+  readonly baseUrl: string;
+  readonly key: string;
+}
+
 export interface KeyStatus {
   readonly hash: string;
   readonly name: string;
@@ -31,8 +38,8 @@ export abstract class RunKeys {
 
   /** Checks the backend is usable before the controller accepts work. */
   abstract init(): Promise<void>;
-  /** A key capped at `limitUsd`, refused after `expiresAt`, and usable only with `models` where the backend can restrict them. */
-  abstract create(name: string, limitUsd: number, expiresAt: Date, models: readonly string[]): Promise<ProvisionedKey>;
+  /** A key capped at `limitUsd`, refused after `expiresAt`, usable only with `models` where the backend can restrict them, over `upstream`'s key. */
+  abstract create(name: string, limitUsd: number, expiresAt: Date, models: readonly string[], upstream: Upstream): Promise<ProvisionedKey>;
   /** The models among `models` this backend can't bill, so a key's budget wouldn't limit them. */
   abstract unpriced(models: readonly string[]): Promise<string[]>;
   /** Immediate: the next request made with the key is refused. */
@@ -41,6 +48,8 @@ export abstract class RunKeys {
   abstract delete(hash: string): Promise<void>;
   /** Every key whose name starts with `prefix`, disabled ones included. */
   abstract listByPrefix(prefix: string): Promise<KeyStatus[]>;
+  /** Removes users' keys named `prefix`… left by interrupted mints, except those `keep` names; returns their names. */
+  abstract sweepUpstreamKeys(prefix: string, keep: ReadonlySet<string>): Promise<string[]>;
   /** What the key spent, in USD, between `since` (a little before the run started) and now. */
   abstract spentSince(hash: string, since: Date): Promise<number>;
 }

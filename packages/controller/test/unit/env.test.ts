@@ -12,6 +12,7 @@ describe("LLM backends", () => {
     BIFROST_ADMIN_URL: "http://macaron-bifrost:8080",
     BIFROST_PUBLIC_URL: "https://macaron.example.test/llm/anthropic",
     BIFROST_ADMIN_PASSWORD: "bifrost-admin-password-000",
+    LLM_PRICING_FILE: "/etc/macaron/pricing/pricing.json",
   };
 
   it("defaults to OpenRouter, with Bifrost unconfigured", () => {
@@ -28,7 +29,7 @@ describe("LLM backends", () => {
       publicUrl: "https://macaron.example.test/llm/anthropic",
       username: "macaron",
       password: "bifrost-admin-password-000",
-      provider: "anthropic",
+      pricingFile: "/etc/macaron/pricing/pricing.json",
       requestsPerMinute: 60,
     });
     expect(env.openRouter).toBeDefined();
@@ -41,6 +42,9 @@ describe("LLM backends", () => {
 
   it("refuses a half-configured backend even when it isn't selected", () => {
     expect(() => testEnv({ BIFROST_ADMIN_URL: "http://macaron-bifrost:8080" })).toThrow(/BIFROST_PUBLIC_URL: required/);
+    // Without prices, no endpoint's provider could be priced: every key would be refused.
+    const withoutPrices = Object.fromEntries(Object.entries(bifrost).filter(([name]) => name !== "LLM_PRICING_FILE"));
+    expect(() => testEnv(withoutPrices)).toThrow(/LLM_PRICING_FILE: required for the Bifrost backend/);
   });
 
   it("refuses a public URL runners would reach in clear text", () => {

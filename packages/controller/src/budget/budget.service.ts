@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Clock } from "../common/clock.ts";
 import { describeError, UpstreamError } from "../common/errors.ts";
 import { toMicros, type UsdMicros } from "../common/money.ts";
-import type { KeyStatus, LlmBackend } from "./run-keys.ts";
+import type { KeyStatus, LlmBackend, Upstream } from "./run-keys.ts";
 import { RunKeysRegistry } from "./run-keys.registry.ts";
 
 /** Prefix of every key we mint; the sweeper only ever touches keys with this prefix. */
@@ -33,14 +33,14 @@ export class BudgetService {
   ) {}
 
   /**
-   * A key for one run, on the active backend: capped at `limitUsd`, usable only with `models`
-   * where the backend can enforce it, and expiring by itself `ttlMinutes` from now even if the
-   * controller never gets to settle it.
+   * A key for one run, on the active backend, over `upstream` (the payer's endpoint and key):
+   * capped at `limitUsd`, usable only with `models` where the backend can enforce it, and expiring
+   * by itself `ttlMinutes` from now even if the controller never gets to settle it.
    */
-  async mint(runId: string, limitUsd: number, ttlMinutes: number, models: readonly string[]): Promise<MintedKey> {
+  async mint(runId: string, limitUsd: number, ttlMinutes: number, models: readonly string[], upstream: Upstream): Promise<MintedKey> {
     const backend = this.keys.active;
     const expiresAt = new Date(this.clock.now().getTime() + ttlMinutes * 60_000);
-    const key = await backend.create(`${RUN_KEY_PREFIX}${runId}`, limitUsd, expiresAt, models);
+    const key = await backend.create(`${RUN_KEY_PREFIX}${runId}`, limitUsd, expiresAt, models, upstream);
     return { backend: backend.backend, ...key };
   }
 
@@ -74,6 +74,24 @@ export class BudgetService {
       if (httpStatusOf(error) === 404) return;
       this.logger.error(`revoking ${ref.backend} key ${ref.hash.slice(0, 8)}… failed: ${describeError(error)}`);
     }
+  }
+
+  /** The backend new runs are minted on. */
+  get activeBackend(): LlmBackend {
+    return this.keys.activeBackend;
+  }
+
+  /** Users' keys left on a backend by an interrupted mint, except the runs `keep` names: removed, for the sweeper. */
+  async sweepUpstreamKeys(keep: ReadonlySet<string>): Promise<string[]> {
+    const removed: string[] = [];
+    for (const keys of this.keys.all) {
+      try {
+        removed.push(...(await keys.sweepUpstreamKeys(RUN_KEY_PREFIX, keep)));
+      } catch (error: unknown) {
+        this.logger.error(`sweeping ${keys.backend} upstream keys failed: ${describeError(error)}`);
+      }
+    }
+    return removed;
   }
 
   /** Every run key on every reachable backend, for the sweeper: a backend that fails is logged and skipped. */

@@ -1,6 +1,5 @@
 import { Logger } from "@nestjs/common";
 import { OpenRouterCore } from "@openrouter/sdk/core.js";
-import { apiKeysCreate } from "@openrouter/sdk/funcs/apiKeysCreate.js";
 import { apiKeysDelete } from "@openrouter/sdk/funcs/apiKeysDelete.js";
 import { apiKeysGet } from "@openrouter/sdk/funcs/apiKeysGet.js";
 import { apiKeysList } from "@openrouter/sdk/funcs/apiKeysList.js";
@@ -9,7 +8,7 @@ import { workspacesList } from "@openrouter/sdk/funcs/workspacesList.js";
 import { z } from "zod";
 import { UpstreamError } from "../common/errors.ts";
 import type { OpenRouterEnv } from "../config/env.ts";
-import { type KeyStatus, type ProvisionedKey, RunKeys } from "./run-keys.ts";
+import { type KeyStatus, type ProvisionedKey, RunKeys, type Upstream } from "./run-keys.ts";
 
 /** Where Claude Code finds OpenRouter's Anthropic Messages endpoint. */
 const ANTHROPIC_BASE_URL = "https://openrouter.ai/api";
@@ -77,13 +76,17 @@ export class OpenRouterKeys extends RunKeys {
     return Promise.resolve([]);
   }
 
-  /** OpenRouter keys can't be restricted to models: `models` is only enforced by the backends that can. */
-  async create(name: string, limitUsd: number, expiresAt: Date, _models: readonly string[]): Promise<ProvisionedKey> {
-    const result = await apiKeysCreate(this.core, {
-      requestBody: { name, limit: limitUsd, limitReset: null, includeByokInLimit: true, expiresAt, workspaceId: this.workspaceId },
-    });
-    if (!result.ok) throw this.failure("create key", result.error);
-    return { key: result.value.key, hash: result.value.data.hash };
+  /**
+   * Refused: OpenRouter keys spend the workspace's credit, never the key of whoever the run is
+   * billed to. The backend stays to freeze, settle and sweep keys minted before, until it's removed.
+   */
+  create(name: string, _limitUsd: number, _expiresAt: Date, _models: readonly string[], _upstream: Upstream): Promise<ProvisionedKey> {
+    return Promise.reject(new UpstreamError("openrouter", `${name}: OpenRouter can't bill a user's key; runs need LLM_BACKEND=bifrost`, undefined));
+  }
+
+  /** OpenRouter never holds users' keys. */
+  sweepUpstreamKeys(_prefix: string, _keep: ReadonlySet<string>): Promise<string[]> {
+    return Promise.resolve([]);
   }
 
   async status(hash: string): Promise<OpenRouterKeyStatus> {

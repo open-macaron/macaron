@@ -89,5 +89,7 @@ export class Housekeeping implements OnApplicationBootstrap {
         await this.budget.revoke(key);
       }
     }
+    // A user's key added for a run whose virtual key was never created: it leaves the gateway too.
+    for (const name of await this.budget.sweepUpstreamKeys(active)) this.logger.warn(`deleted leftover upstream key ${name}`);
   }
 }
