@@ -175,6 +175,7 @@ Code conventions:
   - 403/429 with `Retry-After` waits at least that long;
   - an error burst never polls faster than the interval.
 - **Web tests** (`packages/web/test/`, project `web`) run with the app's own Vite config (the SvelteKit plugin, not SWC).
+- **Web end-to-end tests** (`packages/web/e2e/`, Playwright, `pnpm --filter @open-macaron/web test:e2e`) drive the production build in Chromium through a stand-in for the edge (`/api/auth` to the controller, the rest to the app) against a fake controller. The fake checks every request and answer against the Zod schemas generated from the OpenAPI document, so it can't drift from the real API; each test also fails on any browser console error (CSP violations included). Remote functions can't be faked at the component level without casts: the forms are tested this way, through the real app.
 - **Coverage** is measured (`@vitest/coverage-v8`, generated code excluded) but not gated yet.
 
 ## 8. CI gates (`ci.yml`, required on `main`)
