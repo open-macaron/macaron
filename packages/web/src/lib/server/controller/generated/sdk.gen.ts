@@ -4,8 +4,8 @@ import * as z from 'zod';
 
 import { client } from './client.gen.ts';
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client/index.ts';
-import type { ApproveEndpointData, ApproveEndpointErrors, ApproveEndpointResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, DeleteMyLlmKeyData, DeleteMyLlmKeyErrors, DeleteMyLlmKeyResponses, GetMeData, GetMeErrors, GetMeResponses, GetMyLlmKeyData, GetMyLlmKeyErrors, GetMyLlmKeyEventsData, GetMyLlmKeyEventsErrors, GetMyLlmKeyEventsResponses, GetMyLlmKeyResponses, GetMyUsageData, GetMyUsageErrors, GetMyUsageResponses, ListEndpointsData, ListEndpointsResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListUsersData, ListUsersResponses, RevokeInvitationData, RevokeInvitationResponses, SaveMyLlmKeyData, SaveMyLlmKeyErrors, SaveMyLlmKeyResponses, SetEndpointEnabledData, SetEndpointEnabledErrors, SetEndpointEnabledResponses, SetUserCapabilitiesData, SetUserCapabilitiesErrors, SetUserCapabilitiesResponses } from './types.gen.ts';
-import { zApproveEndpointBody, zApproveEndpointResponse, zCreateInvitationBody, zCreateInvitationResponse, zDeleteMyLlmKeyResponse, zGetMeResponse, zGetMyLlmKeyEventsQuery, zGetMyLlmKeyEventsResponse, zGetMyLlmKeyResponse, zGetMyUsageQuery, zGetMyUsageResponse, zListEndpointsResponse, zListInvitationsResponse, zListUsersResponse, zRevokeInvitationPath, zRevokeInvitationResponse, zSaveMyLlmKeyBody, zSaveMyLlmKeyResponse, zSetEndpointEnabledBody, zSetEndpointEnabledPath, zSetEndpointEnabledResponse, zSetUserCapabilitiesBody, zSetUserCapabilitiesPath, zSetUserCapabilitiesResponse } from './zod.gen.ts';
+import type { ApproveEndpointData, ApproveEndpointErrors, ApproveEndpointResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, DeleteMyLlmKeyData, DeleteMyLlmKeyErrors, DeleteMyLlmKeyResponses, GetMeData, GetMeErrors, GetMeResponses, GetMyLlmKeyData, GetMyLlmKeyErrors, GetMyLlmKeyEventsData, GetMyLlmKeyEventsErrors, GetMyLlmKeyEventsResponses, GetMyLlmKeyResponses, GetMyMonthData, GetMyMonthErrors, GetMyMonthResponses, GetMyUsageData, GetMyUsageErrors, GetMyUsageResponses, ListEndpointsData, ListEndpointsResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListUsersData, ListUsersResponses, RevokeInvitationData, RevokeInvitationResponses, SaveMyLlmKeyData, SaveMyLlmKeyErrors, SaveMyLlmKeyResponses, SetEndpointEnabledData, SetEndpointEnabledErrors, SetEndpointEnabledResponses, SetMyMonthlyCapData, SetMyMonthlyCapErrors, SetMyMonthlyCapResponses, SetUserCapabilitiesData, SetUserCapabilitiesErrors, SetUserCapabilitiesResponses } from './types.gen.ts';
+import { zApproveEndpointBody, zApproveEndpointResponse, zCreateInvitationBody, zCreateInvitationResponse, zDeleteMyLlmKeyResponse, zGetMeResponse, zGetMyLlmKeyEventsQuery, zGetMyLlmKeyEventsResponse, zGetMyLlmKeyResponse, zGetMyMonthResponse, zGetMyUsageQuery, zGetMyUsageResponse, zListEndpointsResponse, zListInvitationsResponse, zListUsersResponse, zRevokeInvitationPath, zRevokeInvitationResponse, zSaveMyLlmKeyBody, zSaveMyLlmKeyResponse, zSetEndpointEnabledBody, zSetEndpointEnabledPath, zSetEndpointEnabledResponse, zSetMyMonthlyCapBody, zSetMyMonthlyCapResponse, zSetUserCapabilitiesBody, zSetUserCapabilitiesPath, zSetUserCapabilitiesResponse } from './zod.gen.ts';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -137,6 +137,48 @@ export const getMyLlmKeyEvents = <ThrowOnError extends boolean = false>(options?
         }],
     url: '/v1/me/llm-key/events',
     ...options
+});
+
+/**
+ * The signed-in user's monthly cap, and what their key was billed this month
+ */
+export const getMyMonth = <ThrowOnError extends boolean = false>(options?: Options<GetMyMonthData, ThrowOnError>): RequestResult<GetMyMonthResponses, GetMyMonthErrors, ThrowOnError> => (options?.client ?? client).get<GetMyMonthResponses, GetMyMonthErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: z.never().optional(),
+        path: z.never().optional(),
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zGetMyMonthResponse.parseAsync(data),
+    security: [{
+            in: 'cookie',
+            name: '__Secure-macaron.session_token',
+            type: 'apiKey'
+        }],
+    url: '/v1/me/month',
+    ...options
+});
+
+/**
+ * Set or clear the signed-in user's monthly cap
+ */
+export const setMyMonthlyCap = <ThrowOnError extends boolean = false>(options: Options<SetMyMonthlyCapData, ThrowOnError>): RequestResult<SetMyMonthlyCapResponses, SetMyMonthlyCapErrors, ThrowOnError> => (options.client ?? client).put<SetMyMonthlyCapResponses, SetMyMonthlyCapErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: zSetMyMonthlyCapBody,
+        path: z.never().optional(),
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zSetMyMonthlyCapResponse.parseAsync(data),
+    security: [{
+            in: 'cookie',
+            name: '__Secure-macaron.session_token',
+            type: 'apiKey'
+        }],
+    url: '/v1/me/monthly-cap',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**

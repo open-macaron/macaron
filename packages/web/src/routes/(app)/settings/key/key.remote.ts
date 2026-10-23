@@ -1,10 +1,10 @@
 import { invalid } from "@sveltejs/kit";
 import { command, form, query } from "$app/server";
 import { z } from "zod";
-import { HISTORY_PAGE, KeyInput } from "#lib/keys/forms.js";
+import { CapInput, HISTORY_PAGE, KeyInput } from "#lib/keys/forms.js";
 import { requireUser } from "#lib/server/admin/access.js";
 import { controller, errorCode, fieldRefusal, unwrap, unwrapEmpty } from "#lib/server/controller/index.js";
-import { deleteMyLlmKey, getMyLlmKey, getMyLlmKeyEvents, saveMyLlmKey } from "#lib/server/controller/generated/sdk.gen.js";
+import { deleteMyLlmKey, getMyLlmKey, getMyLlmKeyEvents, getMyMonth, saveMyLlmKey, setMyMonthlyCap } from "#lib/server/controller/generated/sdk.gen.js";
 
 /** The signed-in user's key (never the key itself), the endpoints they may pick, and until when they may change it. */
 export const getMyKey = query(async () => {
@@ -45,4 +45,17 @@ export const deleteKey = command(async (): Promise<{ readonly deleted: boolean }
   void getMyKey().refresh();
   void getKeyEvents({ limit: HISTORY_PAGE }).refresh();
   return { deleted: true };
+});
+
+/** The signed-in user's monthly cap, and what their key was billed this month. */
+export const getMonth = query(async () => {
+  requireUser();
+  return unwrap(await getMyMonth({ client: controller() }));
+});
+
+export const setCap = form(CapInput, async ({ monthlyCapUsd }) => {
+  requireUser();
+  const month = unwrap(await setMyMonthlyCap({ client: controller(), body: { monthlyCapUsd } }));
+  void getMonth().refresh();
+  return { monthlyCapUsd: month.monthlyCapUsd };
 });

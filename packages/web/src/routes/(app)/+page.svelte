@@ -17,7 +17,8 @@
   import { formatUsd } from "#lib/format.js";
   import type { MyLlmKey } from "#lib/keys/forms.js";
   import { getMe, getUsage } from "./me.remote.ts";
-  import { getMyKey } from "./settings/key/key.remote.ts";
+  import { Progress } from "#lib/components/ui/progress/index.js";
+  import { getMonth, getMyKey } from "./settings/key/key.remote.ts";
 
   /** Why the bot can't run for this user now, or undefined when their key is usable. */
   function keyProblem(mine: MyLlmKey): string | undefined {
@@ -38,27 +39,30 @@
 </PageHeader>
 
 <svelte:boundary>
-  {@const [me, usage, mine] = await Promise.all([getMe(), getUsage({ limit: 5 }), getMyKey()])}
+  {@const [me, usage, mine, month] = await Promise.all([getMe(), getUsage({ limit: 5 }), getMyKey(), getMonth()])}
   {@const problem = keyProblem(mine)}
   {#if problem !== undefined}
     <Alert.Root variant="destructive">
       <KeyRoundIcon />
       <Alert.Title>The bot can't run for you yet</Alert.Title>
-      <Alert.Description>
-        <p>{problem} Until you save a working key, it answers your mentions with a refusal.</p>
-        <Button href={resolve("/(app)/settings/key")} size="sm" class="mt-2">Save your key</Button>
-      </Alert.Description>
+      <Alert.Description>{problem} Until you save a working key, it answers your mentions with a refusal.</Alert.Description>
+      <Button href={resolve("/(app)/settings/key")} size="sm" class="col-start-2 mt-2 w-fit">Save your key</Button>
     </Alert.Root>
   {/if}
   <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
     <Card.Root>
       <Card.Header>
         <Card.Description>Spend this month</Card.Description>
-        <Card.Title class="text-3xl font-semibold tabular-nums">{formatUsd(usage.monthUsd)}</Card.Title>
+        <Card.Title class="text-3xl font-semibold tabular-nums">{formatUsd(month.spentUsd)}</Card.Title>
         <Card.Action><CircleDollarSignIcon class="size-4 text-muted-foreground" /></Card.Action>
       </Card.Header>
-      <Card.Content>
-        <p class="text-xs text-muted-foreground">Settled runs billed to your key, estimated at list prices.</p>
+      <Card.Content class="grid gap-2">
+        {#if month.monthlyCapUsd !== null}
+          <Progress value={Math.min(100, ((month.spentUsd + month.reservedUsd) / month.monthlyCapUsd) * 100)} aria-label="Share of your monthly cap used" />
+          <p class="text-xs text-muted-foreground">Of your {formatUsd(month.monthlyCapUsd)} monthly cap, estimated at list prices.</p>
+        {:else}
+          <p class="text-xs text-muted-foreground">Billed to your key, estimated at list prices. <a class="underline underline-offset-4" href={resolve("/(app)/settings/key")}>Set a monthly cap</a>.</p>
+        {/if}
       </Card.Content>
     </Card.Root>
 
