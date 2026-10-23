@@ -30,6 +30,7 @@
     "@sveltejs/kit": "catalog:",
     "@sveltejs/vite-plugin-svelte": "catalog:",
     "@tailwindcss/vite": "catalog:",
+    "@vitejs/plugin-basic-ssl": "catalog:",
     "better-auth": "catalog:",
     "bits-ui": "catalog:",
     "cn": "catalog:",

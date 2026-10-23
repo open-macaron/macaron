@@ -29,7 +29,7 @@ pnpm install
 pnpm check                      # typecheck + lint + all tests
 pnpm exec vitest run --project controller        # unit tests of one package (contracts, review, agent-cli, controller, knowledge-cli, owners, config-cli, web)
 pnpm --filter @open-macaron/web test:e2e         # the web app's end-to-end tests: its production build (pnpm build first) in Chromium, against a fake controller (packages/web/e2e)
-pnpm --filter @open-macaron/web dev              # the web app (CONTROLLER_URL in packages/web/.env.local)
+pnpm --filter @open-macaron/web dev              # the web app over https, against a local controller with MACARON_ENABLED=false (docs/ENGINEERING.md §9)
 pnpm test:live                  # live tests against Bifrost/GitHub/OpenRouter (~/.config/macaron/dev.env; each skipped without its variables)
 deploy/bifrost/dev.sh up        # local Bifrost + Postgres behind the production edge, for the Bifrost live test (BIFROST_ADMIN_PASSWORD in dev.env; the test bills your LLM_UPSTREAM_URL and LLM_UPSTREAM_KEY, as a user's)
 pnpm --filter @open-macaron/controller gen:bifrost   # Bifrost admin client, when bumping the Bifrost image

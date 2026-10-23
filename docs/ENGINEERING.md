@@ -188,3 +188,52 @@ Code conventions:
 Actions are pinned by full SHA and bumped by hand. Wanted, not wired yet (#39): `actionlint` and `zizmor` on the workflows, Renovate, `knip`, `dependency-cruiser`, `gitleaks` and an image scan.
 
 Conventional commits. `main` has a ruleset: a PR for every change, the `check` and `image` jobs required, no bypass. Approvals aren't required (one maintainer can't approve their own PRs); the Version Packages PR merges itself once CI is green.
+
+## 9. Running the web app locally
+
+Signing in on a developer machine uses the same code as production: no dev-only route, session or flag. The browser sees one https origin, the Vite dev server (`@vitejs/plugin-basic-ssl`, a self-signed certificate to accept once), which proxies `/api/auth` to a local controller as the edge does. The controller runs on a throwaway database with `MACARON_ENABLED=false`: it polls no notifications and launches no run. It still reads GitHub at start, to verify the bot's tokens, and resolves logins when you invite someone. Its hourly sweep acts on the configured key backends, so it only ever gets the local Bifrost below, never OpenRouter or production's.
+
+1. **A development GitHub App**, once, owned by you, never the production one: Settings → Developer settings → GitHub Apps → New.
+   - Homepage URL `https://localhost:5173`, callback URL `https://localhost:5173/api/auth/callback/github`.
+   - "Request user authorization (OAuth) during installation" off, webhook off.
+   - Permissions: Account → Email addresses, read-only. Nothing else.
+   - Generate a client secret.
+2. **Bifrost and a throwaway Postgres:**
+
+   ```sh
+   deploy/bifrost/dev.sh up
+   podman run -d --rm --name macaron-web-dev-postgres -p 127.0.0.1:15432:5432 \
+     -e POSTGRESQL_USER=macaron -e POSTGRESQL_PASSWORD=macaron -e POSTGRESQL_DATABASE=macaron \
+     quay.io/sclorg/postgresql-18-c10s
+   mkdir -p ~/.config/macaron/llm-kek && (umask 077; openssl rand -hex 32 > ~/.config/macaron/llm-kek/v1)
+   ```
+
+3. **The controller's environment**, in its own file, `~/.config/macaron/web-dev.env` (mode 0600). Copy `GH_INTERACT`, `GH_PUSH`, `GH_ORG`, `RUNNER_REPO`, `RUNNER_REPO_ID`, `RUNNER_OWNER_ID`, `WEBHOOK_HMAC` and `BIFROST_ADMIN_PASSWORD` from `dev.env`, then add the following. Leave every `OPENROUTER_*` variable out.
+
+   ```sh
+   PUBLIC_URL=https://localhost:5173
+   DATABASE_URL=postgres://macaron:macaron@127.0.0.1:15432/macaron
+   MACARON_ENABLED=false
+   CONFIG_DIR=<repository>/packages/contracts/test/fixtures/config
+   LLM_BACKEND=bifrost
+   BIFROST_ADMIN_URL=http://127.0.0.1:18080
+   BIFROST_PUBLIC_URL=https://localhost:18443/llm/anthropic
+   LLM_PRICING_FILE=<repository>/deploy/bifrost/pricing.json
+   LLM_KEK_DIR=<home>/.config/macaron/llm-kek
+   BETTER_AUTH_SECRET=<openssl rand -hex 32>
+   GITHUB_LOGIN_CLIENT_ID=<the development app's client id>
+   GITHUB_LOGIN_CLIENT_SECRET=<its client secret>
+   MACARON_ADMIN_USER_IDS=<your GitHub id: gh api user --jq .id>
+   LLM_ENDPOINT_DEFAULTS=[{"name":"Anthropic API","baseUrl":"https://api.anthropic.com"}]
+   ```
+
+4. **Run both**, then open `https://localhost:5173`:
+
+   ```sh
+   MACARON_ENV_FILE=~/.config/macaron/web-dev.env pnpm --filter @open-macaron/controller dev
+   cp packages/web/.env.example packages/web/.env.local   # CONTROLLER_URL=http://127.0.0.1:8080
+   pnpm --filter @open-macaron/web dev
+   ```
+
+   You sign in as an admin. Saving a key checks it with its endpoint, as in production. No run starts locally: mentions aren't polled.
+5. **Tear down:** `podman rm -f macaron-web-dev-postgres` (the database is gone with it) and `deploy/bifrost/dev.sh down`.
