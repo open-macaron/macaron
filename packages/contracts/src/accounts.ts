@@ -139,3 +139,71 @@ export type CreateEndpoint = z.infer<typeof CreateEndpoint>;
 
 export const SetEndpointEnabled = z.object({ enabled: z.boolean() });
 export type SetEndpointEnabled = z.infer<typeof SetEndpointEnabled>;
+
+/** An endpoint as users pick it for their key. */
+export const EndpointChoice = Endpoint.pick({ id: true, name: true, baseUrl: true, pricingNote: true });
+export type EndpointChoice = z.infer<typeof EndpointChoice>;
+
+export const LlmKeyStatus = z.enum(["valid", "rejected"]);
+
+/** A user's saved key, as its owner sees it: never the key itself, only its last 4 characters. */
+export const LlmKey = z.object({
+  endpoint: Endpoint.pick({ id: true, name: true, baseUrl: true, pricingNote: true, enabled: true }),
+  last4: z.string(),
+  /** `rejected` once the endpoint refused it during a run: save it again, or another. */
+  status: LlmKeyStatus,
+  validatedAt: Timestamp,
+  createdAt: Timestamp,
+  updatedAt: Timestamp,
+});
+export type LlmKey = z.infer<typeof LlmKey>;
+
+export const MyLlmKey = z.object({
+  key: LlmKey.nullable(),
+  /** The enabled endpoints a key may be saved for. */
+  endpoints: z.array(EndpointChoice),
+  /** False when this deployment can't store keys (no key-encryption key): saving is refused. */
+  storage: z.boolean(),
+  /** Until when this session may save or delete a key; sign in again after. */
+  freshUntil: Timestamp,
+});
+export type MyLlmKey = z.infer<typeof MyLlmKey>;
+
+/** Printable ASCII without spaces: what every LLM API key looks like, and nothing a header could split on. */
+export const SaveLlmKey = z.object({
+  endpointId: z.uuid(),
+  key: z
+    .string()
+    .trim()
+    .min(8, "too short for an API key")
+    .max(1024, "too long for an API key")
+    .regex(/^[\x21-\x7e]+$/, "printable characters only, without spaces"),
+});
+export type SaveLlmKey = z.infer<typeof SaveLlmKey>;
+
+export const SavedLlmKey = z.object({
+  key: LlmKey,
+  /** Models the configuration uses that the endpoint didn't list: runs needing them would fail. */
+  missingModels: z.array(z.string()),
+});
+export type SavedLlmKey = z.infer<typeof SavedLlmKey>;
+
+export const LlmKeyEventKind = z.enum(["created", "replaced", "deleted", "used", "rejected", "unreachable"]);
+
+export const LlmKeyEvent = z.object({
+  id: z.uuid(),
+  kind: LlmKeyEventKind,
+  at: Timestamp,
+  endpointName: z.string().nullable(),
+  last4: z.string().nullable(),
+  /** The thread of the run that used the key, for `used` and `rejected` during a run. */
+  thread: z.object({ repo: z.string(), number: z.int().positive(), kind: z.enum(["issue", "pull"]) }).nullable(),
+  detail: z.string().nullable(),
+});
+export type LlmKeyEvent = z.infer<typeof LlmKeyEvent>;
+
+export const LlmKeyEvents = z.object({ events: z.array(LlmKeyEvent), nextCursor: z.string().nullable() });
+export type LlmKeyEvents = z.infer<typeof LlmKeyEvents>;
+
+export const LlmKeyEventsQuery = UsageQuery;
+export type LlmKeyEventsQuery = z.infer<typeof LlmKeyEventsQuery>;

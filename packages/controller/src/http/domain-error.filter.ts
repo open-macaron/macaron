@@ -1,6 +1,6 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpStatus, Logger } from "@nestjs/common";
 import type { Response } from "express";
-import { DomainError, FieldRefused, Forbidden, OidcRejected, SignInRequired, SignInUnavailable, TicketAlreadyRedeemed, TicketRejected } from "../common/errors.ts";
+import { DomainError, FieldRefused, Forbidden, FreshSessionRequired, KeyStorageUnavailable, OidcRejected, SignInRequired, SignInUnavailable, TicketAlreadyRedeemed, TicketRejected, TooManyAttempts } from "../common/errors.ts";
 import { RunNotBoundYet } from "../runs/runs.repository.ts";
 
 /**
@@ -33,5 +33,8 @@ function statusOf(error: DomainError | RunNotBoundYet): readonly [number, string
   if (error instanceof Forbidden) return [HttpStatus.FORBIDDEN, error.code];
   if (error instanceof SignInUnavailable) return [HttpStatus.SERVICE_UNAVAILABLE, error.code];
   if (error instanceof FieldRefused) return [HttpStatus.CONFLICT, error.code];
+  if (error instanceof FreshSessionRequired) return [HttpStatus.FORBIDDEN, error.code];
+  if (error instanceof TooManyAttempts) return [HttpStatus.TOO_MANY_REQUESTS, error.code];
+  if (error instanceof KeyStorageUnavailable) return [HttpStatus.SERVICE_UNAVAILABLE, error.code];
   return [HttpStatus.UNPROCESSABLE_ENTITY, error.code];
 }

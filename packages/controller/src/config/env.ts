@@ -85,6 +85,11 @@ const RawEnv = z.object({
     })
     .pipe(z.array(CreateEndpoint))
     .default([]),
+  /**
+   * The directory of the key-encryption keys users' LLM keys are sealed under (the Secret
+   * `macaron-llm-kek`, mounted as files v1, v2…). Without it, users can't save a key.
+   */
+  LLM_KEK_DIR: z.string().startsWith("/", "an absolute path").optional(),
   /** GitHub user ids (comma-separated) who are admins: they sign in without an invitation and hold every capability. */
   MACARON_ADMIN_USER_IDS: z
     .string()

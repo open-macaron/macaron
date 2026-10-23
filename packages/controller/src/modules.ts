@@ -5,7 +5,7 @@ import { BudgetService } from "./budget/budget.service.ts";
 import { OpenRouterKeys } from "./budget/openrouter-keys.ts";
 import { RunKeysRegistry } from "./budget/run-keys.registry.ts";
 import { APP_ENV, type AppEnv } from "./config/env.ts";
-import type { ConfigSnapshot } from "@open-macaron/contracts";
+import { configuredModels } from "./config/configured-models.ts";
 import { ConfigSnapshotStore, DrizzleConfigSnapshotStore } from "./config/config-snapshots.store.ts";
 import { ConfigUpdates } from "./config/config-updates.ts";
 import { PublishedConfigClient } from "./config/published-config.client.ts";
@@ -17,6 +17,9 @@ import { UsageService } from "./accounts/usage.service.ts";
 import { UsersService } from "./accounts/users.service.ts";
 import { EndpointsService, RESOLVE } from "./endpoints/endpoints.service.ts";
 import { resolveAll } from "./endpoints/public-address.ts";
+import { PROBE, probeEndpoint } from "./keys/endpoint-probe.ts";
+import { KeyRing } from "./keys/key-ring.ts";
+import { CONFIGURED_MODELS, KEY_RING, LlmKeysService } from "./keys/llm-keys.service.ts";
 import { AdminController } from "./http/admin.controller.ts";
 import { BootstrapController } from "./http/bootstrap.controller.ts";
 import { MeController } from "./http/me.controller.ts";
@@ -63,11 +66,6 @@ import { ThreadStates } from "./routing/thread-states.ts";
 })
 export class CoreModule {}
 
-/** Every model a configuration can give a run. */
-function configuredModels(snapshot: ConfigSnapshot): string[] {
-  return [...snapshot.repos.values()].flatMap((repo) => [repo.model, repo.fastModel, ...Object.values(repo.models)]);
-}
-
 /** Run keys: the only module holding the credentials that mint them. */
 @Module({
   providers: [
@@ -106,10 +104,21 @@ export class PublishModule {}
 @Module({ providers: [KnowledgeClient, PullDiffReader], exports: [KnowledgeClient, PullDiffReader] })
 export class ReviewModule {}
 
-/** The web app's users: sign-in (better-auth), invitations, capabilities, usage. */
+/** The web app's users: sign-in (better-auth), invitations, capabilities, usage, endpoints and their LLM keys. */
 @Module({
-  providers: [InvitationsService, SessionsService, UsersService, UsageService, EndpointsService, { provide: RESOLVE, useValue: resolveAll }],
-  exports: [InvitationsService, SessionsService, UsersService, UsageService, EndpointsService],
+  providers: [
+    InvitationsService,
+    SessionsService,
+    UsersService,
+    UsageService,
+    EndpointsService,
+    LlmKeysService,
+    { provide: RESOLVE, useValue: resolveAll },
+    { provide: PROBE, useValue: probeEndpoint },
+    { provide: CONFIGURED_MODELS, inject: [RepoConfigService], useFactory: (config: RepoConfigService) => () => configuredModels(config.snapshot) },
+    { provide: KEY_RING, inject: [APP_ENV], useFactory: (env: AppEnv) => (env.LLM_KEK_DIR === undefined ? undefined : KeyRing.fromDirectory(env.LLM_KEK_DIR)) },
+  ],
+  exports: [InvitationsService, SessionsService, UsersService, UsageService, EndpointsService, LlmKeysService],
 })
 export class AccountsModule {}
 

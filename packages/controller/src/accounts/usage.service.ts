@@ -3,20 +3,10 @@ import { InjectDrizzle } from "@nestjs/drizzle";
 import type { UsagePage } from "@open-macaron/contracts";
 import { and, count, desc, eq, gte, isNotNull, lt, or, sum } from "drizzle-orm";
 import { Clock } from "../common/clock.ts";
+import { decodeCursor, encodeCursor } from "../common/cursor.ts";
 import { toUsd } from "../common/money.ts";
 import type { Db } from "../db/db.module.ts";
 import { runs, threads } from "../db/schema.ts";
-
-/** `<ISO date>|<run id>`, base64url: where the next page starts (newest first). */
-function encodeCursor(createdAt: Date, id: string): string {
-  return Buffer.from(`${createdAt.toISOString()}|${id}`).toString("base64url");
-}
-
-function decodeCursor(cursor: string): { readonly createdAt: Date; readonly id: string } | undefined {
-  const [at, id] = Buffer.from(cursor, "base64url").toString("utf8").split("|");
-  const createdAt = new Date(at ?? "");
-  return id === undefined || Number.isNaN(createdAt.getTime()) || !/^[0-9a-f-]{36}$/.test(id) ? undefined : { createdAt, id };
-}
 
 /** The runs a user asked for, and what they cost. */
 @Injectable()
@@ -29,7 +19,7 @@ export class UsageService {
   async page(githubId: number, limit: number, before: string | undefined): Promise<UsagePage> {
     const cursor = before === undefined ? undefined : decodeCursor(before);
     const mine = eq(runs.triggerGithubId, githubId);
-    const after = cursor === undefined ? undefined : or(lt(runs.createdAt, cursor.createdAt), and(eq(runs.createdAt, cursor.createdAt), lt(runs.id, cursor.id)));
+    const after = cursor === undefined ? undefined : or(lt(runs.createdAt, cursor.at), and(eq(runs.createdAt, cursor.at), lt(runs.id, cursor.id)));
     const rows = await this.db
       .select({ run: runs, repo: threads.repo, number: threads.number, kind: threads.kind })
       .from(runs)
