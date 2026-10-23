@@ -583,7 +583,9 @@ One file per folder, not pre-merged: which project a repository belongs to is op
 | Malicious media (huge files, disguised types, HTML/SVG) | Allow-list by magic bytes (no SVG or HTML), size and count caps, served by GitHub (user-attachments, uploaded against the bot's fork) rather than our host; the controller never decodes media |
 | Forged authorship | The Publisher creates the commit itself (bot author, signed) from the diff |
 | Fork CI with our pushes | Actions disabled on every fork at onboarding |
-| Forged webhooks or bootstrap calls | HMAC on webhooks; OIDC signature and claims checked on bootstrap; the edge only exposes `/v1/webhook`, `/v1/bootstrap` and three exact `/llm/anthropic/v1/…` routes to them; every other path goes to the web app, which holds no credential |
+| Forged webhooks or bootstrap calls | HMAC on webhooks; OIDC signature and claims checked on bootstrap; the edge only exposes `/v1/webhook`, `/v1/bootstrap` and three exact `/llm/anthropic/v1/…` routes to them, plus `/api/auth/*` (sign-in); every other path goes to the web app, which holds no credential |
+| Someone uninvited gets an account, or a user raises their own rights | Sign-in is GitHub only; a new account needs a pending invitation for its immutable GitHub id (or to be an operator's admin), checked on GitHub's raw profile; the GitHub id, login and role can't be set by any request; capabilities change only through admin routes, each audited |
+| A session is stolen or replayed | `__Secure-`, httpOnly, SameSite=Lax cookies, 7-day sessions; GitHub's OAuth tokens are never stored and no IP address is kept; `/v1/me` and `/v1/admin` aren't routed by the edge, only the web app reaches them, forwarding the session cookie alone |
 
 Self-hosted runners next to the controller are deliberately not used. The machine holding every credential must never run agent code; throwaway GitHub VMs isolate it for free.
 
