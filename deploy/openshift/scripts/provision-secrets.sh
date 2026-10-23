@@ -6,7 +6,8 @@
 # into `oc create secret --dry-run`, then a server-side apply (no last-applied annotation copying them).
 # One Secret per workload, holding only what that workload reads.
 #
-# Re-running replaces the GitHub, webhook and LLM-upstream values. Generated once, then kept: the
+# Re-running replaces the GitHub and webhook values. There is no LLM key here: every run is billed
+# to the key of whoever asked for it, saved in the web app. Generated once, then kept: the
 # database passwords, and Bifrost's admin password and encryption key (Bifrost can't change its
 # encryption key: keep a copy outside the cluster, docs/DEPLOYMENT.md §4). Settings keep their current
 # values unless given in the environment (MACARON_ENABLED, LOG_LEVEL, CONFIG_URL, CONFIG_REPO_ID,
@@ -151,8 +152,6 @@ expected="$(for version in "${!keks[@]}"; do echo "v$version"; done | sort)"
 echo "   secret/macaron-llm-kek ($(echo "$expected" | paste -sd, -))"
 
 apply_secret macaron-bifrost \
-  llm-upstream-url=<(value LLM_UPSTREAM_URL) \
-  llm-upstream-key=<(value LLM_UPSTREAM_KEY) \
   admin-password=<(printf %s "$bifrost_admin") \
   db-password=<(printf %s "$bifrost_db_password") \
   encryption-key=<(printf %s "$encryption_key")

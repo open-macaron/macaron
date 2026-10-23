@@ -68,3 +68,18 @@ test("a sign-in older than 10 minutes must be renewed before saving a key", asyn
   await expect(dialog.getByRole("button", { name: "Sign in again" })).toBeVisible();
   await expect(dialog.getByLabel("API key")).toHaveCount(0);
 });
+
+test("the overview says the bot can't run without a key, until one is saved", async ({ signIn }) => {
+  const page = await signIn("octocat");
+  await page.goto("/");
+  await expect(page.getByText("The bot can't run for you yet")).toBeVisible();
+  await page.getByRole("link", { name: "Save your key" }).click();
+  await expect(page).toHaveURL(/\/settings\/key$/);
+  await page.getByRole("button", { name: "Add a key" }).click();
+  await page.getByRole("dialog").getByLabel("API key").fill(KEY);
+  await page.getByRole("dialog").getByRole("button", { name: "Check and save" }).click();
+  await expect(page.getByText("••••••••1234")).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByText("Spend this month")).toBeVisible();
+  await expect(page.getByText("The bot can't run for you yet")).toHaveCount(0);
+});

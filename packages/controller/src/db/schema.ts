@@ -138,6 +138,8 @@ export const runs = pgTable(
     costMicros: usdMicros("cost_micros"),
     /** GitHub id of the user who asked for the run (retries and escalations keep it). Null for runs before this column existed. */
     triggerGithubId: bigint("trigger_github_id", { mode: "number" }),
+    /** The account the run is billed to, on its own LLM key. Null for runs before users' keys. */
+    payerId: text("payer_id").references(() => users.id, { onDelete: "set null" }),
     ghRunId: bigint("gh_run_id", { mode: "number" }),
     redeemedAt: timestamp("redeemed_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
@@ -152,6 +154,7 @@ export const runs = pgTable(
     uniqueIndex("runs_thread_loop").on(table.threadId, table.loop),
     index("runs_status").on(table.status),
     index("runs_trigger_created").on(table.triggerGithubId, table.createdAt),
+    index("runs_payer_created").on(table.payerId, table.createdAt),
   ],
 );
 

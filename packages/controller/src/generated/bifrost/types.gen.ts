@@ -51,6 +51,1033 @@ export type MessageResponse = {
 };
 
 /**
+ * Provider configuration response
+ */
+export type ProviderResponse = {
+    name?: ModelProvider;
+    network_config?: NetworkConfig;
+    concurrency_and_buffer_size?: ConcurrencyAndBufferSize;
+    /**
+     * Proxy configuration
+     */
+    proxy_config?: {
+        type?: 'none' | 'http' | 'socks5' | 'environment';
+        url?: string;
+        username?: string;
+        password?: string;
+        ca_cert_pem?: string;
+    };
+    send_back_raw_request?: boolean;
+    send_back_raw_response?: boolean;
+    store_raw_request_response?: boolean;
+    /**
+     * Custom provider configuration
+     */
+    custom_provider_config?: {
+        is_key_less?: boolean;
+        /**
+         * Provider ends streams on finish_reason without sending a data: [DONE] marker. Without this, a provider that also keeps the connection open leaves the stream waiting for a marker it never sends.
+         */
+        does_not_send_done_marker?: boolean;
+        base_provider_type?: ModelProvider;
+        /**
+         * Allowed request types for custom providers
+         */
+        allowed_requests?: {
+            list_models?: boolean;
+            text_completion?: boolean;
+            text_completion_stream?: boolean;
+            chat_completion?: boolean;
+            chat_completion_stream?: boolean;
+            responses?: boolean;
+            responses_stream?: boolean;
+            count_tokens?: boolean;
+            embedding?: boolean;
+            /**
+             * Decision requests via /v1/decisions. A typesafe base serves them natively; other bases emulate them through the Responses API
+             */
+            decisions?: boolean;
+            speech?: boolean;
+            speech_stream?: boolean;
+            transcription?: boolean;
+            transcription_stream?: boolean;
+            image_generation?: boolean;
+            image_generation_stream?: boolean;
+            batch_create?: boolean;
+            batch_list?: boolean;
+            batch_retrieve?: boolean;
+            batch_cancel?: boolean;
+            batch_results?: boolean;
+            file_upload?: boolean;
+            file_list?: boolean;
+            file_retrieve?: boolean;
+            file_delete?: boolean;
+            file_content?: boolean;
+        };
+        request_path_overrides?: {
+            [key: string]: string;
+        };
+    };
+    /**
+     * Synthesize prompt-cache breakpoints for requests that carry none. Off by default. Requests that already carry their own cache markers are never modified.
+     */
+    prompt_cache?: {
+        /**
+         * Mark the first cacheable content block, keeping the cached prefix stable across agent turns.
+         */
+        auto_inject?: boolean;
+        /**
+         * Lifetime for injected markers. Omit for the provider default.
+         */
+        ttl?: '1h';
+        /**
+         * Target specific messages instead. When set, replaces auto_inject rather than adding to it.
+         */
+        cache_control_injection_points?: Array<{
+            location?: 'message';
+            role?: 'system' | 'developer' | 'user' | 'assistant';
+            /**
+             * Negative values count from the end, so -1 is the last message.
+             */
+            index?: number;
+        }>;
+    };
+    /**
+     * MCP tools injected into every chat and responses request served by this provider and executed server side when the model calls them. The client never sees the injected tool call, only the final answer. Names must be unique within a provider.
+     */
+    injected_tools?: Array<{
+        /**
+         * Tool name the model sees.
+         */
+        name: string;
+        /**
+         * Name of the configured MCP client that provides the tool.
+         */
+        mcp_client_name: string;
+        /**
+         * Tool name as the MCP server exposes it, without the client prefix.
+         */
+        tool_name: string;
+    }>;
+    /**
+     * Status of the provider
+     */
+    provider_status?: 'active' | 'error' | 'deleted';
+    /**
+     * Operational status (e.g., list_models_failed)
+     */
+    status?: string;
+    /**
+     * Error/status description
+     */
+    description?: string;
+    /**
+     * Hash of config.json version, used for change detection
+     */
+    config_hash?: string;
+};
+
+/**
+ * List providers response
+ */
+export type ListProvidersResponse = {
+    providers?: Array<ProviderResponse>;
+    total?: number;
+};
+
+/**
+ * Add provider request. Keys are managed separately via /api/providers/{provider}/keys.
+ */
+export type AddProviderRequest = {
+    provider: ModelProvider;
+    network_config?: NetworkConfig;
+    concurrency_and_buffer_size?: ConcurrencyAndBufferSize;
+    /**
+     * Proxy configuration
+     */
+    proxy_config?: {
+        type?: 'none' | 'http' | 'socks5' | 'environment';
+        url?: string;
+        username?: string;
+        password?: string;
+        ca_cert_pem?: string;
+    };
+    send_back_raw_request?: boolean;
+    send_back_raw_response?: boolean;
+    store_raw_request_response?: boolean;
+    /**
+     * Custom provider configuration
+     */
+    custom_provider_config?: {
+        is_key_less?: boolean;
+        /**
+         * Provider ends streams on finish_reason without sending a data: [DONE] marker. Without this, a provider that also keeps the connection open leaves the stream waiting for a marker it never sends.
+         */
+        does_not_send_done_marker?: boolean;
+        base_provider_type?: ModelProvider;
+        /**
+         * Allowed request types for custom providers
+         */
+        allowed_requests?: {
+            list_models?: boolean;
+            text_completion?: boolean;
+            text_completion_stream?: boolean;
+            chat_completion?: boolean;
+            chat_completion_stream?: boolean;
+            responses?: boolean;
+            responses_stream?: boolean;
+            count_tokens?: boolean;
+            embedding?: boolean;
+            /**
+             * Decision requests via /v1/decisions. A typesafe base serves them natively; other bases emulate them through the Responses API
+             */
+            decisions?: boolean;
+            speech?: boolean;
+            speech_stream?: boolean;
+            transcription?: boolean;
+            transcription_stream?: boolean;
+            image_generation?: boolean;
+            image_generation_stream?: boolean;
+            batch_create?: boolean;
+            batch_list?: boolean;
+            batch_retrieve?: boolean;
+            batch_cancel?: boolean;
+            batch_results?: boolean;
+            file_upload?: boolean;
+            file_list?: boolean;
+            file_retrieve?: boolean;
+            file_delete?: boolean;
+            file_content?: boolean;
+        };
+        request_path_overrides?: {
+            [key: string]: string;
+        };
+    };
+    /**
+     * Synthesize prompt-cache breakpoints for requests that carry none. Off by default. Requests that already carry their own cache markers are never modified.
+     */
+    prompt_cache?: {
+        /**
+         * Mark the first cacheable content block, keeping the cached prefix stable across agent turns.
+         */
+        auto_inject?: boolean;
+        /**
+         * Lifetime for injected markers. Omit for the provider default.
+         */
+        ttl?: '1h';
+        /**
+         * Target specific messages instead. When set, replaces auto_inject rather than adding to it.
+         */
+        cache_control_injection_points?: Array<{
+            location?: 'message';
+            role?: 'system' | 'developer' | 'user' | 'assistant';
+            /**
+             * Negative values count from the end, so -1 is the last message.
+             */
+            index?: number;
+        }>;
+    };
+    /**
+     * MCP tools injected into every chat and responses request served by this provider and executed server side when the model calls them. The client never sees the injected tool call, only the final answer. Names must be unique within a provider.
+     */
+    injected_tools?: Array<{
+        /**
+         * Tool name the model sees.
+         */
+        name: string;
+        /**
+         * Name of the configured MCP client that provides the tool.
+         */
+        mcp_client_name: string;
+        /**
+         * Tool name as the MCP server exposes it, without the client prefix.
+         */
+        tool_name: string;
+    }>;
+};
+
+/**
+ * API key configuration
+ */
+export type Key = {
+    /**
+     * Unique identifier for the key
+     */
+    id?: string;
+    /**
+     * Name of the key
+     */
+    name?: string;
+    /**
+     * API key value (redacted in responses)
+     */
+    value?: string | {
+        /**
+         * Resolved value (redacted in GET responses for secret fields)
+         */
+        value?: string;
+        /**
+         * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+         */
+        ref?: string;
+        /**
+         * Source type of the value
+         */
+        type?: 'plain_text' | 'env' | 'vault';
+    };
+    /**
+     * List of models this key can access (whitelist). `["*"]` allows every model. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name; an empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400. `blacklisted_models` wins over this list.
+     */
+    models?: Array<string>;
+    /**
+     * List of models this key cannot access (blacklist), which wins over `models`. `["*"]` blocks every model. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name; an empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400.
+     */
+    blacklisted_models?: Array<string>;
+    /**
+     * Weight for load balancing
+     */
+    weight?: number;
+    /**
+     * Model alias mappings - maps a user-facing model name to a provider-specific identifier (deployment name, inference profile ID, fine-tuned model ID, etc.)
+     */
+    aliases?: {
+        [key: string]: string;
+    };
+    /**
+     * Azure-specific key configuration
+     */
+    azure_key_config?: {
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        endpoint?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        api_version?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        client_id?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        client_secret?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        tenant_id?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * List of scopes to use for authentication
+         */
+        scopes?: Array<string>;
+    };
+    /**
+     * Vertex-specific key configuration
+     */
+    vertex_key_config?: {
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        project_id?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        project_number?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        region?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        auth_credentials?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * When true, always call the configured region and skip automatic promotion of multi-region-only models to a multi-region endpoint.
+         */
+        force_single_region?: boolean;
+        /**
+         * GCP Workload Identity Federation from the workload's AWS identity (EKS IRSA / Pod Identity, ECS task role, EC2 instance profile, AWS_* env vars). Takes precedence over auth_credentials; the two must not be combined. aws_role_arn is redacted in GET responses; the other fields are identifiers and are returned in clear.
+         */
+        aws_workload_identity?: {
+            /**
+             * A secret-capable value. Serialized as an object with the resolved `value` plus
+             * reference metadata; on input, a bare string is also accepted — plain text,
+             * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+             * only the reference is persisted).
+             *
+             */
+            audience: string | {
+                /**
+                 * Resolved value (redacted in GET responses for secret fields)
+                 */
+                value?: string;
+                /**
+                 * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+                 */
+                ref?: string;
+                /**
+                 * Source type of the value
+                 */
+                type?: 'plain_text' | 'env' | 'vault';
+            };
+            /**
+             * A secret-capable value. Serialized as an object with the resolved `value` plus
+             * reference metadata; on input, a bare string is also accepted — plain text,
+             * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+             * only the reference is persisted).
+             *
+             */
+            service_account_email?: string | {
+                /**
+                 * Resolved value (redacted in GET responses for secret fields)
+                 */
+                value?: string;
+                /**
+                 * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+                 */
+                ref?: string;
+                /**
+                 * Source type of the value
+                 */
+                type?: 'plain_text' | 'env' | 'vault';
+            };
+            /**
+             * Lifetime of the impersonated service-account token in seconds; only used with service_account_email. Default 3600. Lifetimes above 3600 require the target service account to be allowed by the organization policy constraint constraints/iam.allowServiceAccountCredentialLifetimeExtension; otherwise token generation fails.
+             */
+            token_lifetime_seconds?: number;
+            /**
+             * A secret-capable value. Serialized as an object with the resolved `value` plus
+             * reference metadata; on input, a bare string is also accepted — plain text,
+             * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+             * only the reference is persisted).
+             *
+             */
+            aws_region?: string | {
+                /**
+                 * Resolved value (redacted in GET responses for secret fields)
+                 */
+                value?: string;
+                /**
+                 * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+                 */
+                ref?: string;
+                /**
+                 * Source type of the value
+                 */
+                type?: 'plain_text' | 'env' | 'vault';
+            };
+            /**
+             * A secret-capable value. Serialized as an object with the resolved `value` plus
+             * reference metadata; on input, a bare string is also accepted — plain text,
+             * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+             * only the reference is persisted).
+             *
+             */
+            aws_role_arn?: string | {
+                /**
+                 * Resolved value (redacted in GET responses for secret fields)
+                 */
+                value?: string;
+                /**
+                 * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+                 */
+                ref?: string;
+                /**
+                 * Source type of the value
+                 */
+                type?: 'plain_text' | 'env' | 'vault';
+            };
+        };
+    };
+    /**
+     * AWS Bedrock-specific key configuration
+     */
+    bedrock_key_config?: {
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        access_key?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        secret_key?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        session_token?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        region?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        arn?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        batch_s3_config?: {
+            buckets?: Array<{
+                bucket_name?: string;
+                prefix?: string;
+                is_default?: boolean;
+            }>;
+        };
+    };
+    /**
+     * VLLM-specific key configuration
+     */
+    vllm_key_config?: {
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        url: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        model_name?: string;
+    };
+    /**
+     * Ollama-specific key configuration
+     */
+    ollama_key_config?: {
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        url: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+    };
+    /**
+     * SGLang-specific key configuration
+     */
+    sgl_key_config?: {
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        url: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+    };
+    /**
+     * Cloudflare Workers AI-specific key configuration
+     */
+    cloudflare_key_config?: {
+        /**
+         * A secret-capable value. Serialized as an object with the resolved `value` plus
+         * reference metadata; on input, a bare string is also accepted — plain text,
+         * `env.VAR_NAME`, or `vault.path/to/secret` (references resolve at runtime and
+         * only the reference is persisted).
+         *
+         */
+        account_id: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+    };
+    /**
+     * Replicate-specific key configuration
+     */
+    replicate_key_config?: {
+        /**
+         * Whether to use the deployments endpoint instead of the models endpoint
+         */
+        use_deployments_endpoint?: boolean;
+    };
+    /**
+     * OAuth-minted bearer for OpenAI-compatible providers (including custom providers on the openai base). Set this and leave value empty; Bifrost mints, caches and refreshes the access token. A non-empty value always wins. Secrets are redacted in responses.
+     */
+    oauth_key_config?: unknown & {
+        /**
+         * client_credentials (RFC 6749 §4.4) or jwt_bearer (RFC 7523, Bifrost signs an assertion with private_key)
+         */
+        grant_type: 'client_credentials' | 'jwt_bearer';
+        /**
+         * Token endpoint, absolute https URL (plain http is accepted for loopback hosts only). Must not carry userinfo, a query or a fragment; send extra parameters through extra_params
+         */
+        token_url: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * client_credentials client ID (redacted in responses)
+         */
+        client_id?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * client_credentials client secret (redacted in responses)
+         */
+        client_secret?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * jwt_bearer RSA or EC private key, PEM (redacted in responses)
+         */
+        private_key?: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
+        /**
+         * Scopes requested, sent space-joined
+         */
+        scopes?: Array<string>;
+        /**
+         * jwt_bearer aud claim (required for that grant); client_credentials optional audience form parameter
+         */
+        audience?: string;
+        /**
+         * jwt_bearer iss claim (required for that grant)
+         */
+        issuer?: string;
+        /**
+         * jwt_bearer sub claim (defaults to issuer)
+         */
+        subject?: string;
+        /**
+         * jwt_bearer kid header
+         */
+        key_id?: string;
+        /**
+         * jwt_bearer assertion signing algorithm
+         */
+        signing_algorithm?: 'RS256' | 'RS384' | 'RS512' | 'PS256' | 'PS384' | 'PS512' | 'ES256' | 'ES384' | 'ES512';
+        /**
+         * client_credentials credential placement (HTTP Basic header or form body)
+         */
+        auth_style?: 'header' | 'body';
+        /**
+         * Extra form parameters sent on the token request
+         */
+        extra_params?: {
+            [key: string]: string;
+        };
+        /**
+         * jwt_bearer: seconds from issue until the assertion expires (exp = now + value); 0 or omitted uses the default of 300. iat is backdated by 30 seconds for clock skew, so the assertion's exp - iat span is this value plus 30.
+         */
+        assertion_lifetime_seconds?: number;
+    };
+    /**
+     * Whether the key is active (defaults to true)
+     */
+    enabled?: boolean;
+    /**
+     * Whether this key can be used for batch API operations
+     */
+    use_for_batch_api?: boolean;
+    /**
+     * Hash of config.json version, used for change detection
+     */
+    config_hash?: string;
+    /**
+     * Status of key (e.g., success, list_models_failed)
+     */
+    status?: string;
+    /**
+     * Error or status description for the key
+     */
+    description?: string;
+};
+
+/**
+ * Response for listing keys for a provider
+ */
+export type ListProviderKeysResponse = {
+    keys?: Array<Key>;
+    total?: number;
+};
+
+/**
+ * Network configuration for provider connections
+ */
+export type NetworkConfig = {
+    /**
+     * Base URL for the provider (optional)
+     */
+    base_url?: string;
+    /**
+     * Additional headers to include in requests
+     */
+    extra_headers?: {
+        [key: string]: string;
+    };
+    /**
+     * Default timeout for requests
+     */
+    default_request_timeout_in_seconds?: number;
+    /**
+     * Maximum number of retries
+     */
+    max_retries?: number;
+    /**
+     * Initial backoff duration in milliseconds
+     */
+    retry_backoff_initial?: number;
+    /**
+     * Maximum backoff duration in milliseconds
+     */
+    retry_backoff_max?: number;
+    /**
+     * Disable TLS certificate verification for provider connections. This bypasses server certificate validation and should be used only as a last resort when a trusted CA chain cannot be configured. Prefer ca_cert_pem for self-signed or private CA deployments.
+     */
+    insecure_skip_verify?: boolean;
+    /**
+     * PEM-encoded CA certificate to trust for provider endpoint connections (e.g. self-signed or internal CA)
+     */
+    ca_cert_pem?: string;
+    /**
+     * Allow connections to RFC 1918 private IPs (10.x, 172.16.x, 192.168.x). Enable for providers on a k8s pod network, LAN, or private VPC. Loopback addresses (localhost, 127.0.0.1, ::1) remain allowed regardless of this setting. Link-local addresses (169.254.x.x) are always blocked.
+     */
+    allow_private_network?: boolean;
+};
+
+/**
+ * Concurrency settings
+ */
+export type ConcurrencyAndBufferSize = {
+    /**
+     * Number of concurrent operations
+     */
+    concurrency?: number;
+    /**
+     * Size of the buffer
+     */
+    buffer_size?: number;
+};
+
+/**
  * Full MCP client configuration (used in responses)
  */
 export type McpClientConfig = {
@@ -920,6 +1947,391 @@ export type TableKey = {
 };
 
 /**
+ * Scope that determines which requests a pricing override applies to. The virtual_key* family is checked before the user* family during cost resolution, which is checked before the provider/global scopes; within a family, more identifiers present means a more specific match.
+ *
+ */
+export type PricingOverrideScopeKind = 'global' | 'provider' | 'provider_key' | 'virtual_key' | 'virtual_key_provider' | 'virtual_key_provider_key' | 'user' | 'user_provider' | 'user_provider_key';
+
+/**
+ * Request type for pricing override filtering. Stream variants are treated identically to their base type - specifying `chat_completion` covers both streaming and non-streaming chat requests.
+ *
+ */
+export type PricingOverrideRequestType = 'chat_completion' | 'text_completion' | 'responses' | 'embedding' | 'rerank' | 'speech' | 'transcription' | 'image_generation' | 'image_variation' | 'image_edit' | 'video_generation' | 'video_remix';
+
+/**
+ * Pricing fields to override. All non-null fields are applied. Usage-based values are costs per unit in USD. cost_per_request is a flat fee in USD applied once per billed request.
+ *
+ */
+export type PricingPatch = {
+    input_cost_per_token?: number;
+    output_cost_per_token?: number;
+    input_cost_per_token_batches?: number;
+    output_cost_per_token_batches?: number;
+    input_cost_per_token_priority?: number;
+    output_cost_per_token_priority?: number;
+    input_cost_per_token_ultrafast?: number;
+    output_cost_per_token_ultrafast?: number;
+    input_cost_per_token_flex?: number;
+    output_cost_per_token_flex?: number;
+    /**
+     * Input token cost for decision requests. A decision rate always wins over input_cost_per_token, whether it comes from the datasheet or an override; input_cost_per_token is only the fallback when no decision rate is set.
+     */
+    input_cost_per_token_decisions?: number;
+    /**
+     * Output token cost for decision requests. A decision rate always wins over output_cost_per_token, whether it comes from the datasheet or an override; output_cost_per_token is only the fallback when no decision rate is set.
+     */
+    output_cost_per_token_decisions?: number;
+    /**
+     * Fast mode (Anthropic research preview). Flat rate across the full context window - no 128k/200k/272k tiering.
+     */
+    input_cost_per_token_fast?: number;
+    /**
+     * Fast mode (Anthropic research preview). Flat rate across the full context window - no 128k/200k/272k tiering.
+     */
+    output_cost_per_token_fast?: number;
+    input_cost_per_character?: number;
+    input_cost_per_token_above_128k_tokens?: number;
+    input_cost_per_image_above_128k_tokens?: number;
+    input_cost_per_video_per_second_above_128k_tokens?: number;
+    input_cost_per_audio_per_second_above_128k_tokens?: number;
+    output_cost_per_token_above_128k_tokens?: number;
+    input_cost_per_token_above_100k_tokens?: number;
+    output_cost_per_token_above_100k_tokens?: number;
+    input_cost_per_token_above_200k_tokens?: number;
+    input_cost_per_token_above_200k_tokens_priority?: number;
+    output_cost_per_token_above_200k_tokens?: number;
+    output_cost_per_token_above_200k_tokens_priority?: number;
+    input_cost_per_token_above_272k_tokens?: number;
+    input_cost_per_token_above_272k_tokens_priority?: number;
+    input_cost_per_token_flex_above_272k_tokens?: number;
+    output_cost_per_token_above_272k_tokens?: number;
+    output_cost_per_token_above_272k_tokens_priority?: number;
+    output_cost_per_token_flex_above_272k_tokens?: number;
+    input_cost_per_token_above_272k_tokens_ultrafast?: number;
+    output_cost_per_token_above_272k_tokens_ultrafast?: number;
+    cache_creation_input_token_cost?: number;
+    cache_read_input_token_cost?: number;
+    cache_creation_input_token_cost_above_200k_tokens?: number;
+    cache_read_input_token_cost_above_200k_tokens?: number;
+    cache_read_input_token_cost_above_200k_tokens_priority?: number;
+    cache_creation_input_token_cost_above_1hr?: number;
+    cache_creation_input_token_cost_above_1hr_above_200k_tokens?: number;
+    cache_creation_input_token_cost_above_100k_tokens?: number;
+    cache_read_input_token_cost_above_100k_tokens?: number;
+    cache_creation_input_token_cost_above_1hr_above_100k_tokens?: number;
+    cache_creation_input_audio_token_cost?: number;
+    cache_read_input_token_cost_priority?: number;
+    cache_read_input_token_cost_ultrafast?: number;
+    cache_read_input_token_cost_flex?: number;
+    cache_read_input_image_token_cost?: number;
+    cache_read_input_token_cost_above_272k_tokens?: number;
+    cache_read_input_token_cost_above_272k_tokens_priority?: number;
+    cache_read_input_token_cost_flex_above_272k_tokens?: number;
+    cache_read_input_token_cost_above_272k_tokens_ultrafast?: number;
+    cache_creation_input_token_cost_above_272k_tokens?: number;
+    cache_creation_input_token_cost_flex?: number;
+    cache_creation_input_token_cost_flex_above_272k_tokens?: number;
+    cache_creation_input_token_cost_priority?: number;
+    /**
+     * Cache creation above 272k context for priority (OpenAI Fast mode) requests.
+     */
+    cache_creation_input_token_cost_above_272k_tokens_priority?: number;
+    cache_creation_input_token_cost_ultrafast?: number;
+    cache_creation_input_token_cost_above_272k_tokens_ultrafast?: number;
+    /**
+     * Fast mode (Anthropic) cache rate - flat across the full context window, no tiering.
+     */
+    cache_creation_input_token_cost_fast?: number;
+    /**
+     * Fast mode (Anthropic) cache rate - flat across the full context window, no tiering.
+     */
+    cache_creation_input_token_cost_above_1hr_fast?: number;
+    /**
+     * Fast mode (Anthropic) cache rate - flat across the full context window, no tiering.
+     */
+    cache_read_input_token_cost_fast?: number;
+    input_cost_per_image?: number;
+    input_cost_per_pixel?: number;
+    output_cost_per_image?: number;
+    output_cost_per_pixel?: number;
+    output_cost_per_image_premium_image?: number;
+    output_cost_per_image_above_512_and_512_pixels?: number;
+    output_cost_per_image_above_512_and_512_pixels_and_premium_image?: number;
+    output_cost_per_image_above_1024_and_1024_pixels?: number;
+    output_cost_per_image_above_1024_and_1024_pixels_and_premium_image?: number;
+    output_cost_per_image_above_1024_and_1536_pixels?: number;
+    output_cost_per_image_above_1536_and_1024_pixels?: number;
+    output_cost_per_image_above_2048_and_2048_pixels?: number;
+    output_cost_per_image_above_4096_and_4096_pixels?: number;
+    output_cost_per_image_above_4_megapixels?: number;
+    output_cost_per_image_above_8_megapixels?: number;
+    output_cost_per_image_above_16_megapixels?: number;
+    output_cost_per_image_above_32_megapixels?: number;
+    output_cost_per_image_above_64_megapixels?: number;
+    output_cost_per_image_low_quality?: number;
+    output_cost_per_image_medium_quality?: number;
+    output_cost_per_image_high_quality?: number;
+    output_cost_per_image_auto_quality?: number;
+    output_cost_per_image_above_1024_and_1024_pixels_low_quality?: number;
+    output_cost_per_image_above_1024_and_1536_pixels_low_quality?: number;
+    output_cost_per_image_above_1536_and_1024_pixels_low_quality?: number;
+    output_cost_per_image_above_1024_and_1024_pixels_medium_quality?: number;
+    output_cost_per_image_above_1024_and_1536_pixels_medium_quality?: number;
+    output_cost_per_image_above_1536_and_1024_pixels_medium_quality?: number;
+    output_cost_per_image_above_1024_and_1024_pixels_high_quality?: number;
+    output_cost_per_image_above_1024_and_1536_pixels_high_quality?: number;
+    output_cost_per_image_above_1536_and_1024_pixels_high_quality?: number;
+    output_cost_per_image_above_1024_and_1024_pixels_standard_quality?: number;
+    output_cost_per_image_above_1024_and_1536_pixels_standard_quality?: number;
+    output_cost_per_image_above_1536_and_1024_pixels_standard_quality?: number;
+    input_cost_per_image_token?: number;
+    output_cost_per_image_token?: number;
+    input_cost_per_audio_token?: number;
+    input_cost_per_audio_per_second?: number;
+    input_cost_per_second?: number;
+    input_cost_per_video_per_second?: number;
+    output_cost_per_audio_token?: number;
+    output_cost_per_video_per_second?: number;
+    output_cost_per_second?: number;
+    /**
+     * Per-second output rate for 480p video. Matched on the short edge of the generated video's size; falls back to output_cost_per_video_per_second when unset.
+     */
+    output_cost_per_video_per_second_480p?: number;
+    /**
+     * Per-second output rate for 720p video. Matched on the short edge of the generated video's size; falls back to output_cost_per_video_per_second when unset.
+     */
+    output_cost_per_video_per_second_720p?: number;
+    /**
+     * Per-second output rate for 1024p video. Matched on the short edge of the generated video's size; falls back to output_cost_per_video_per_second when unset.
+     */
+    output_cost_per_video_per_second_1024p?: number;
+    /**
+     * Per-second output rate for 1080p video. Matched on the short edge of the generated video's size; falls back to output_cost_per_video_per_second when unset.
+     */
+    output_cost_per_video_per_second_1080p?: number;
+    /**
+     * Per-second output rate for 4K video. Matched on the short edge of the generated video's size; falls back to output_cost_per_video_per_second when unset.
+     */
+    output_cost_per_video_per_second_4k?: number;
+    /**
+     * Cost per server-side web search call, billed from usage.tool_usage.web_search.num_requests.
+     *
+     */
+    web_search_cost_per_request?: number;
+    /**
+     * Per-query rate for rerank models. One query covers up to 100 document chunks, so a request over that many chunks bills as several queries.
+     */
+    input_cost_per_query?: number;
+    code_interpreter_cost_per_session?: number;
+    /**
+     * Anthropic data-residency multiplier applied when usage.inference_geo == "us".
+     */
+    inference_geo_us_multiplier?: number;
+    /**
+     * Flat fee added once per billed request, on top of any usage-based cost.
+     */
+    cost_per_request?: number;
+    ocr_cost_per_page?: number;
+    annotation_cost_per_page?: number;
+    /**
+     * Multiplier applied to every usage-based charge when the request falls outside the windows declared in peak_hours. Every other rate on this object is the peak (higher) price, so this can only scale downward — e.g. 0.5 for a 50% off-peak discount. Flat per-request and per-query fees are not discounted. A discount applies only when the RESOLVED pricing row carries both this field and peak_hours. A patch may supply one and inherit the other from the model's datasheet entry, so setting this alone still discounts when the datasheet already declares a schedule; it bills at peak only when neither source provides one.
+     *
+     */
+    off_peak_cost_multiplier?: number;
+    /**
+     * Recurring weekly windows during which the model is billed at its peak (base) rates. Any instant outside every window is off-peak and is discounted by off_peak_cost_multiplier. Peak vs off-peak is decided by the request's start time, so a stream crossing a boundary bills entirely at its start-time rate.
+     *
+     */
+    peak_hours?: {
+        /**
+         * IANA location name (e.g. "UTC", "Asia/Shanghai"). Empty means UTC.
+         */
+        timezone?: string;
+        /**
+         * At least one window is required. A schedule with no usable window cannot be evaluated, and an unevaluable schedule bills at peak, so an empty list would silently discard the discount rather than make every instant off-peak.
+         *
+         */
+        windows: Array<{
+            /**
+             * Weekdays the window applies to, 0 = Sunday through 6 = Saturday. For a window that wraps past midnight, this is the weekday the window starts on. At least one is required, for the same reason windows itself is.
+             *
+             */
+            days: Array<number>;
+            /**
+             * Window start as "HH:MM" in the schedule's timezone (inclusive).
+             */
+            start: string;
+            /**
+             * Window end as "HH:MM" in the schedule's timezone (exclusive). A value less than or equal to start wraps past midnight. "24:00" is accepted as an end-of-day marker.
+             *
+             */
+            end: string;
+        }>;
+    };
+};
+
+/**
+ * A pricing override that applies custom rates to matching requests.
+ */
+export type PricingOverride = {
+    /**
+     * Unique override ID (UUID)
+     */
+    id?: string;
+    /**
+     * Human-readable label
+     */
+    name?: string;
+    scope_kind?: PricingOverrideScopeKind;
+    /**
+     * Required for user* scopes
+     */
+    user_id?: string | null;
+    /**
+     * Required for virtual_key* scopes
+     */
+    virtual_key_id?: string | null;
+    /**
+     * Required for provider, virtual_key_provider, and user_provider scopes
+     */
+    provider_id?: string | null;
+    /**
+     * Required for provider_key, virtual_key_provider_key, and user_provider_key scopes
+     */
+    provider_key_id?: string | null;
+    /**
+     * How the pattern is matched against the model name
+     */
+    match_type?: 'exact' | 'wildcard';
+    /**
+     * Model name or wildcard prefix (e.g. "gpt-4o" or "claude-3*")
+     */
+    pattern?: string;
+    /**
+     * Request types this override applies to. At least one value is required.
+     */
+    request_types?: Array<PricingOverrideRequestType>;
+    /**
+     * JSON-encoded pricing fields to override (as stored in the database)
+     */
+    pricing_patch?: string;
+    /**
+     * Decoded pricing fields (present in API responses)
+     */
+    patch?: PricingPatch;
+    /**
+     * Auto-managed hash for config-file-sourced overrides. Do not set manually.
+     */
+    config_hash?: string | null;
+    created_at?: string;
+    updated_at?: string;
+};
+
+/**
+ * Request body for creating a pricing override.
+ */
+export type CreatePricingOverrideRequest = {
+    /**
+     * Human-readable label
+     */
+    name: string;
+    scope_kind: PricingOverrideScopeKind;
+    /**
+     * Required for user* scopes
+     */
+    user_id?: string;
+    /**
+     * Required for virtual_key* scopes
+     */
+    virtual_key_id?: string;
+    /**
+     * Required for provider, virtual_key_provider, and user_provider scopes
+     */
+    provider_id?: string;
+    /**
+     * Required for provider_key, virtual_key_provider_key, and user_provider_key scopes
+     */
+    provider_key_id?: string;
+    match_type: 'exact' | 'wildcard';
+    /**
+     * Model name or wildcard prefix ending with * (e.g. "claude-3*")
+     */
+    pattern: string;
+    /**
+     * Request types this override applies to. At least one value is required.
+     */
+    request_types: Array<PricingOverrideRequestType>;
+    patch?: PricingPatch;
+};
+
+/**
+ * Request body for updating a pricing override. All fields are optional - omitted fields are merged from the existing record. The `patch` field is always replaced in full when provided.
+ *
+ */
+export type UpdatePricingOverrideRequest = {
+    /**
+     * Human-readable label
+     */
+    name?: string;
+    scope_kind?: PricingOverrideScopeKind;
+    /**
+     * Required for user* scopes
+     */
+    user_id?: string;
+    /**
+     * Required for virtual_key* scopes
+     */
+    virtual_key_id?: string;
+    /**
+     * Required for provider, virtual_key_provider, and user_provider scopes
+     */
+    provider_id?: string;
+    /**
+     * Required for provider_key, virtual_key_provider_key, and user_provider_key scopes
+     */
+    provider_key_id?: string;
+    match_type?: 'exact' | 'wildcard';
+    /**
+     * Model name or wildcard prefix ending with * (e.g. "claude-3*")
+     */
+    pattern?: string;
+    /**
+     * Request types this override applies to.
+     */
+    request_types?: Array<PricingOverrideRequestType>;
+    patch?: PricingPatch;
+};
+
+export type PricingOverrideResponse = {
+    message?: string;
+    pricing_override?: PricingOverride;
+};
+
+/**
+ * When `limit`, `offset`, or `search` is supplied, `count` reflects the returned page while `total_count` reflects the full matching set. Otherwise (backward-compatible, non-paginated path) `total_count` equals `count` and `limit`/`offset` describe the full unpaged result.
+ *
+ */
+export type ListPricingOverridesResponse = {
+    pricing_overrides?: Array<PricingOverride>;
+    /**
+     * Number of overrides in this response
+     */
+    count?: number;
+    /**
+     * Total number of overrides matching the filters
+     */
+    total_count?: number;
+    /**
+     * Page size used for this response
+     */
+    limit?: number;
+    /**
+     * Offset used for this response
+     */
+    offset?: number;
+};
+
+/**
  * Full MCP client configuration (used in responses)
  */
 export type McpClientConfigWritable = {
@@ -1248,6 +2660,232 @@ export type CustomerWritable = {
     updated_at?: string;
 };
 
+export type ListProvidersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/providers';
+};
+
+export type ListProvidersErrors = {
+    /**
+     * Internal server error
+     */
+    500: BifrostError;
+};
+
+export type ListProvidersError = ListProvidersErrors[keyof ListProvidersErrors];
+
+export type ListProvidersResponses = {
+    /**
+     * Successful response
+     */
+    200: ListProvidersResponse;
+};
+
+export type ListProvidersResponse2 = ListProvidersResponses[keyof ListProvidersResponses];
+
+export type AddProviderData = {
+    body: AddProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/api/providers';
+};
+
+export type AddProviderErrors = {
+    /**
+     * Bad request
+     */
+    400: BifrostError;
+    /**
+     * network_config.base_url, allow_private_network, a proxy URL, a CA certificate, insecure_skip_verify, or an absolute request path override was supplied and dashboard authentication is disabled or unconfigured (the request was not genuinely authenticated)
+     */
+    403: unknown;
+    /**
+     * Provider already exists
+     */
+    409: BifrostError;
+    /**
+     * Internal server error
+     */
+    500: BifrostError;
+};
+
+export type AddProviderError = AddProviderErrors[keyof AddProviderErrors];
+
+export type AddProviderResponses = {
+    /**
+     * Provider added successfully
+     */
+    200: ProviderResponse;
+};
+
+export type AddProviderResponse = AddProviderResponses[keyof AddProviderResponses];
+
+export type GetProviderData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name
+         */
+        provider: string;
+    };
+    query?: never;
+    url: '/api/providers/{provider}';
+};
+
+export type GetProviderErrors = {
+    /**
+     * Bad request
+     */
+    400: BifrostError;
+    /**
+     * Provider not found
+     */
+    404: BifrostError;
+    /**
+     * Internal server error
+     */
+    500: BifrostError;
+};
+
+export type GetProviderError = GetProviderErrors[keyof GetProviderErrors];
+
+export type GetProviderResponses = {
+    /**
+     * Successful response
+     */
+    200: ProviderResponse;
+};
+
+export type GetProviderResponse = GetProviderResponses[keyof GetProviderResponses];
+
+export type ListProviderKeysData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name
+         */
+        provider: string;
+    };
+    query?: never;
+    url: '/api/providers/{provider}/keys';
+};
+
+export type ListProviderKeysErrors = {
+    /**
+     * Bad request
+     */
+    400: BifrostError;
+    /**
+     * Provider not found
+     */
+    404: BifrostError;
+    /**
+     * Internal server error
+     */
+    500: BifrostError;
+};
+
+export type ListProviderKeysError = ListProviderKeysErrors[keyof ListProviderKeysErrors];
+
+export type ListProviderKeysResponses = {
+    /**
+     * Successful response
+     */
+    200: ListProviderKeysResponse;
+};
+
+export type ListProviderKeysResponse2 = ListProviderKeysResponses[keyof ListProviderKeysResponses];
+
+export type CreateProviderKeyData = {
+    body: Key;
+    path: {
+        /**
+         * Provider name
+         */
+        provider: string;
+    };
+    query?: never;
+    url: '/api/providers/{provider}/keys';
+};
+
+export type CreateProviderKeyErrors = {
+    /**
+     * Bad request
+     */
+    400: BifrostError;
+    /**
+     * A key endpoint field was set, changed, or removed and dashboard authentication is disabled or unconfigured (the request was not genuinely authenticated)
+     */
+    403: unknown;
+    /**
+     * Provider not found
+     */
+    404: BifrostError;
+    /**
+     * Key ID already exists
+     */
+    409: BifrostError;
+    /**
+     * Internal server error
+     */
+    500: BifrostError;
+};
+
+export type CreateProviderKeyError = CreateProviderKeyErrors[keyof CreateProviderKeyErrors];
+
+export type CreateProviderKeyResponses = {
+    /**
+     * Key created successfully
+     */
+    200: Key;
+};
+
+export type CreateProviderKeyResponse = CreateProviderKeyResponses[keyof CreateProviderKeyResponses];
+
+export type DeleteProviderKeyData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name
+         */
+        provider: string;
+        /**
+         * Key ID
+         */
+        key_id: string;
+    };
+    query?: never;
+    url: '/api/providers/{provider}/keys/{key_id}';
+};
+
+export type DeleteProviderKeyErrors = {
+    /**
+     * Bad request
+     */
+    400: BifrostError;
+    /**
+     * Provider or key not found
+     */
+    404: BifrostError;
+    /**
+     * Internal server error
+     */
+    500: BifrostError;
+};
+
+export type DeleteProviderKeyError = DeleteProviderKeyErrors[keyof DeleteProviderKeyErrors];
+
+export type DeleteProviderKeyResponses = {
+    /**
+     * Key deleted successfully
+     */
+    200: Key;
+};
+
+export type DeleteProviderKeyResponse = DeleteProviderKeyResponses[keyof DeleteProviderKeyResponses];
+
 export type ListModelDetailsManagementData = {
     body?: never;
     path?: never;
@@ -1533,3 +3171,128 @@ export type UpdateVirtualKeyResponses = {
 };
 
 export type UpdateVirtualKeyResponse = UpdateVirtualKeyResponses[keyof UpdateVirtualKeyResponses];
+
+export type ListPricingOverridesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Filter by scope kind
+         */
+        scope_kind?: PricingOverrideScopeKind;
+        /**
+         * Filter by user ID (for user* scopes)
+         */
+        user_id?: string;
+        /**
+         * Filter by virtual key ID (for virtual_key* scopes)
+         */
+        virtual_key_id?: string;
+        /**
+         * Filter by provider ID
+         */
+        provider_id?: string;
+        /**
+         * Filter by provider key ID
+         */
+        provider_key_id?: string;
+        /**
+         * Case-insensitive substring match against the pricing override name. A non-empty value switches the response to the paginated shape.
+         */
+        search?: string;
+        /**
+         * Maximum number of results to return. A non-empty `limit`, `offset`, or `search` value switches the response to the paginated shape.
+         */
+        limit?: number;
+        /**
+         * Number of results to skip
+         */
+        offset?: number;
+    };
+    url: '/api/governance/pricing-overrides';
+};
+
+export type ListPricingOverridesErrors = {
+    /**
+     * Internal server error
+     */
+    500: BifrostError;
+};
+
+export type ListPricingOverridesError = ListPricingOverridesErrors[keyof ListPricingOverridesErrors];
+
+export type ListPricingOverridesResponses = {
+    /**
+     * Successful response
+     */
+    200: ListPricingOverridesResponse;
+};
+
+export type ListPricingOverridesResponse2 = ListPricingOverridesResponses[keyof ListPricingOverridesResponses];
+
+export type CreatePricingOverrideData = {
+    body: CreatePricingOverrideRequest;
+    path?: never;
+    query?: never;
+    url: '/api/governance/pricing-overrides';
+};
+
+export type CreatePricingOverrideErrors = {
+    /**
+     * Bad request
+     */
+    400: BifrostError;
+    /**
+     * Internal server error
+     */
+    500: BifrostError;
+};
+
+export type CreatePricingOverrideError = CreatePricingOverrideErrors[keyof CreatePricingOverrideErrors];
+
+export type CreatePricingOverrideResponses = {
+    /**
+     * Pricing override created successfully
+     */
+    201: PricingOverrideResponse;
+};
+
+export type CreatePricingOverrideResponse = CreatePricingOverrideResponses[keyof CreatePricingOverrideResponses];
+
+export type UpdatePricingOverrideData = {
+    body: UpdatePricingOverrideRequest;
+    path: {
+        /**
+         * Pricing override ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/governance/pricing-overrides/{id}';
+};
+
+export type UpdatePricingOverrideErrors = {
+    /**
+     * Bad request
+     */
+    400: BifrostError;
+    /**
+     * Pricing override not found
+     */
+    404: BifrostError;
+    /**
+     * Internal server error
+     */
+    500: BifrostError;
+};
+
+export type UpdatePricingOverrideError = UpdatePricingOverrideErrors[keyof UpdatePricingOverrideErrors];
+
+export type UpdatePricingOverrideResponses = {
+    /**
+     * Pricing override updated successfully
+     */
+    200: PricingOverrideResponse;
+};
+
+export type UpdatePricingOverrideResponse = UpdatePricingOverrideResponses[keyof UpdatePricingOverrideResponses];

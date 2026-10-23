@@ -3,8 +3,9 @@
 # the production edge (deploy/openshift/edge/nginx.conf) and a TLS terminator standing in for the
 # OpenShift router, for the live test and manual checks. Rootless, on one Podman network.
 #   deploy/bifrost/dev.sh up|down [env-file]
-# Reads LLM_UPSTREAM_URL, LLM_UPSTREAM_KEY and BIFROST_ADMIN_PASSWORD from the env file (default ~/.config/macaron/dev.env)
-# through stdin into local Podman secrets: values are never printed or passed as arguments.
+# Reads BIFROST_ADMIN_PASSWORD from the env file (default ~/.config/macaron/dev.env) through stdin into
+# a local Podman secret: it is never printed or passed as an argument. Bifrost holds no LLM key: the
+# live test adds the developer's (LLM_UPSTREAM_URL, LLM_UPSTREAM_KEY) for each run, as for a user.
 # Then: BIFROST_ADMIN_URL=http://127.0.0.1:18080 (admin API, as the controller sees it) and
 # https://localhost:18443/llm/anthropic (what runners see, through the edge; self-signed).
 set -euo pipefail
@@ -25,7 +26,7 @@ image() { sed -n 's/^ *image: //p' "$OPENSHIFT/$1" | head -n 1; } # the digest p
 down() {
   podman rm --force --ignore "$NAME-tls" "$NAME-edge" "$NAME-bifrost" "$NAME-postgres" >/dev/null
   podman network rm --force "$NAME" >/dev/null 2>&1 || true
-  podman secret rm macaron-dev-llm-upstream-key macaron-dev-bifrost-admin macaron-dev-bifrost-db >/dev/null 2>&1 || true
+  podman secret rm macaron-dev-bifrost-admin macaron-dev-bifrost-db >/dev/null 2>&1 || true
   rm -rf "${XDG_RUNTIME_DIR:-/tmp}/macaron-bifrost-dev"
 }
 
@@ -47,12 +48,11 @@ secret_from_env() { # secret name, variable: the value goes through stdin only
 }
 
 down
-secret_from_env macaron-dev-llm-upstream-key LLM_UPSTREAM_KEY
 secret_from_env macaron-dev-bifrost-admin BIFROST_ADMIN_PASSWORD
 openssl rand -hex 24 | tr -d '\n' | podman secret create --replace macaron-dev-bifrost-db - >/dev/null
 RENDERED="${XDG_RUNTIME_DIR:-/tmp}/macaron-bifrost-dev"
 mkdir -p "$RENDERED" && chmod 0700 "$RENDERED"
-value LLM_UPSTREAM_URL | sh "$HERE/render-config.sh" "$RENDERED/config.json"
+sh "$HERE/render-config.sh" "$RENDERED/config.json"
 podman network create "$NAME" >/dev/null
 
 # Postgres with the bifrost role and database only, and no TLS (render-config's default sslmode).
@@ -66,7 +66,6 @@ podman run -d --network "$NAME" --network-alias macaron-bifrost --name "$NAME-bi
   --read-only --tmpfs /app/data:rw,size=64m,mode=1777 \
   -v "$RENDERED/config.json:/app/data/config.json:ro,Z" -v "$HERE:/etc/bifrost:ro,Z" \
   -e LOG_STYLE=json -e BIFROST_ADMIN_USERNAME=macaron \
-  --secret macaron-dev-llm-upstream-key,type=env,target=LLM_UPSTREAM_KEY \
   --secret macaron-dev-bifrost-admin,type=env,target=BIFROST_ADMIN_PASSWORD \
   --secret macaron-dev-bifrost-db,type=env,target=BIFROST_DB_PASSWORD \
   --secret macaron-dev-bifrost-db,type=env,target=BIFROST_ENCRYPTION_KEY \

@@ -77,6 +77,600 @@ export const zMessageResponse = z.object({
 });
 
 /**
+ * API key configuration
+ */
+export const zKey = z.object({
+    id: z.string().optional(),
+    name: z.string().optional(),
+    value: z.union([
+        z.string(),
+        z.object({
+            value: z.string().optional(),
+            ref: z.string().optional(),
+            type: z.enum([
+                'plain_text',
+                'env',
+                'vault'
+            ]).optional()
+        })
+    ]).optional(),
+    models: z.array(z.string()).optional(),
+    blacklisted_models: z.array(z.string()).optional(),
+    weight: z.number().optional(),
+    aliases: z.record(z.string(), z.string().min(1)).optional(),
+    azure_key_config: z.object({
+        endpoint: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        api_version: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        client_id: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        client_secret: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        tenant_id: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        scopes: z.array(z.string()).optional()
+    }).optional(),
+    vertex_key_config: z.object({
+        project_id: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        project_number: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        region: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        auth_credentials: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        force_single_region: z.boolean().optional().default(false),
+        aws_workload_identity: z.object({
+            audience: z.union([
+                z.string(),
+                z.object({
+                    value: z.string().optional(),
+                    ref: z.string().optional(),
+                    type: z.enum([
+                        'plain_text',
+                        'env',
+                        'vault'
+                    ]).optional()
+                })
+            ]),
+            service_account_email: z.union([
+                z.string(),
+                z.object({
+                    value: z.string().optional(),
+                    ref: z.string().optional(),
+                    type: z.enum([
+                        'plain_text',
+                        'env',
+                        'vault'
+                    ]).optional()
+                })
+            ]).optional(),
+            token_lifetime_seconds: z.int().gte(600).lte(43200).optional(),
+            aws_region: z.union([
+                z.string(),
+                z.object({
+                    value: z.string().optional(),
+                    ref: z.string().optional(),
+                    type: z.enum([
+                        'plain_text',
+                        'env',
+                        'vault'
+                    ]).optional()
+                })
+            ]).optional(),
+            aws_role_arn: z.union([
+                z.string(),
+                z.object({
+                    value: z.string().optional(),
+                    ref: z.string().optional(),
+                    type: z.enum([
+                        'plain_text',
+                        'env',
+                        'vault'
+                    ]).optional()
+                })
+            ]).optional()
+        }).optional()
+    }).optional(),
+    bedrock_key_config: z.object({
+        access_key: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        secret_key: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        session_token: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        region: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        arn: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        batch_s3_config: z.object({
+            buckets: z.array(z.object({
+                bucket_name: z.string().optional(),
+                prefix: z.string().optional(),
+                is_default: z.boolean().optional()
+            })).optional()
+        }).optional()
+    }).optional(),
+    vllm_key_config: z.object({
+        url: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]),
+        model_name: z.string().optional()
+    }).optional(),
+    ollama_key_config: z.object({
+        url: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ])
+    }).optional(),
+    sgl_key_config: z.object({
+        url: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ])
+    }).optional(),
+    cloudflare_key_config: z.object({
+        account_id: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ])
+    }).optional(),
+    replicate_key_config: z.object({
+        use_deployments_endpoint: z.boolean().optional()
+    }).optional(),
+    oauth_key_config: z.intersection(z.unknown(), z.object({
+        grant_type: z.enum(['client_credentials', 'jwt_bearer']),
+        token_url: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]),
+        client_id: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        client_secret: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        private_key: z.union([
+            z.string(),
+            z.object({
+                value: z.string().optional(),
+                ref: z.string().optional(),
+                type: z.enum([
+                    'plain_text',
+                    'env',
+                    'vault'
+                ]).optional()
+            })
+        ]).optional(),
+        scopes: z.array(z.string()).optional(),
+        audience: z.string().optional(),
+        issuer: z.string().min(1).optional(),
+        subject: z.string().optional(),
+        key_id: z.string().optional(),
+        signing_algorithm: z.enum([
+            'RS256',
+            'RS384',
+            'RS512',
+            'PS256',
+            'PS384',
+            'PS512',
+            'ES256',
+            'ES384',
+            'ES512'
+        ]).optional().default('RS256'),
+        auth_style: z.enum(['header', 'body']).optional().default('header'),
+        extra_params: z.record(z.string(), z.string()).optional(),
+        assertion_lifetime_seconds: z.int().gte(0).lte(3600).optional().default(300)
+    })).optional(),
+    enabled: z.boolean().optional(),
+    use_for_batch_api: z.boolean().optional(),
+    config_hash: z.string().optional(),
+    status: z.string().optional(),
+    description: z.string().optional()
+});
+
+/**
+ * Response for listing keys for a provider
+ */
+export const zListProviderKeysResponse = z.object({
+    keys: z.array(zKey).optional(),
+    total: z.int().optional()
+});
+
+/**
+ * Network configuration for provider connections
+ */
+export const zNetworkConfig = z.object({
+    base_url: z.string().optional(),
+    extra_headers: z.record(z.string(), z.string()).optional(),
+    default_request_timeout_in_seconds: z.int().optional(),
+    max_retries: z.int().optional(),
+    retry_backoff_initial: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }).optional(),
+    retry_backoff_max: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }).optional(),
+    insecure_skip_verify: z.boolean().optional(),
+    ca_cert_pem: z.string().optional(),
+    allow_private_network: z.boolean().optional().default(false)
+});
+
+/**
+ * Concurrency settings
+ */
+export const zConcurrencyAndBufferSize = z.object({
+    concurrency: z.int().optional(),
+    buffer_size: z.int().optional()
+});
+
+/**
+ * Provider configuration response
+ */
+export const zProviderResponse = z.object({
+    name: zModelProvider.optional(),
+    network_config: zNetworkConfig.optional(),
+    concurrency_and_buffer_size: zConcurrencyAndBufferSize.optional(),
+    proxy_config: z.object({
+        type: z.enum([
+            'none',
+            'http',
+            'socks5',
+            'environment'
+        ]).optional(),
+        url: z.string().optional(),
+        username: z.string().optional(),
+        password: z.string().optional(),
+        ca_cert_pem: z.string().optional()
+    }).optional(),
+    send_back_raw_request: z.boolean().optional(),
+    send_back_raw_response: z.boolean().optional(),
+    store_raw_request_response: z.boolean().optional(),
+    custom_provider_config: z.object({
+        is_key_less: z.boolean().optional(),
+        does_not_send_done_marker: z.boolean().optional(),
+        base_provider_type: zModelProvider.optional(),
+        allowed_requests: z.object({
+            list_models: z.boolean().optional(),
+            text_completion: z.boolean().optional(),
+            text_completion_stream: z.boolean().optional(),
+            chat_completion: z.boolean().optional(),
+            chat_completion_stream: z.boolean().optional(),
+            responses: z.boolean().optional(),
+            responses_stream: z.boolean().optional(),
+            count_tokens: z.boolean().optional(),
+            embedding: z.boolean().optional(),
+            decisions: z.boolean().optional(),
+            speech: z.boolean().optional(),
+            speech_stream: z.boolean().optional(),
+            transcription: z.boolean().optional(),
+            transcription_stream: z.boolean().optional(),
+            image_generation: z.boolean().optional(),
+            image_generation_stream: z.boolean().optional(),
+            batch_create: z.boolean().optional(),
+            batch_list: z.boolean().optional(),
+            batch_retrieve: z.boolean().optional(),
+            batch_cancel: z.boolean().optional(),
+            batch_results: z.boolean().optional(),
+            file_upload: z.boolean().optional(),
+            file_list: z.boolean().optional(),
+            file_retrieve: z.boolean().optional(),
+            file_delete: z.boolean().optional(),
+            file_content: z.boolean().optional()
+        }).optional(),
+        request_path_overrides: z.record(z.string(), z.string()).optional()
+    }).optional(),
+    prompt_cache: z.object({
+        auto_inject: z.boolean().optional(),
+        ttl: z.enum(['1h']).optional(),
+        cache_control_injection_points: z.array(z.object({
+            location: z.enum(['message']).optional(),
+            role: z.enum([
+                'system',
+                'developer',
+                'user',
+                'assistant'
+            ]).optional(),
+            index: z.int().optional()
+        })).optional()
+    }).optional(),
+    injected_tools: z.array(z.object({
+        name: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+        mcp_client_name: z.string().min(1),
+        tool_name: z.string().min(1)
+    })).optional(),
+    provider_status: z.enum([
+        'active',
+        'error',
+        'deleted'
+    ]).optional(),
+    status: z.string().optional(),
+    description: z.string().optional(),
+    config_hash: z.string().optional()
+});
+
+/**
+ * List providers response
+ */
+export const zListProvidersResponse = z.object({
+    providers: z.array(zProviderResponse).optional(),
+    total: z.int().optional()
+});
+
+/**
+ * Add provider request. Keys are managed separately via /api/providers/{provider}/keys.
+ */
+export const zAddProviderRequest = z.object({
+    provider: zModelProvider,
+    network_config: zNetworkConfig.optional(),
+    concurrency_and_buffer_size: zConcurrencyAndBufferSize.optional(),
+    proxy_config: z.object({
+        type: z.enum([
+            'none',
+            'http',
+            'socks5',
+            'environment'
+        ]).optional(),
+        url: z.string().optional(),
+        username: z.string().optional(),
+        password: z.string().optional(),
+        ca_cert_pem: z.string().optional()
+    }).optional(),
+    send_back_raw_request: z.boolean().optional(),
+    send_back_raw_response: z.boolean().optional(),
+    store_raw_request_response: z.boolean().optional(),
+    custom_provider_config: z.object({
+        is_key_less: z.boolean().optional(),
+        does_not_send_done_marker: z.boolean().optional(),
+        base_provider_type: zModelProvider.optional(),
+        allowed_requests: z.object({
+            list_models: z.boolean().optional(),
+            text_completion: z.boolean().optional(),
+            text_completion_stream: z.boolean().optional(),
+            chat_completion: z.boolean().optional(),
+            chat_completion_stream: z.boolean().optional(),
+            responses: z.boolean().optional(),
+            responses_stream: z.boolean().optional(),
+            count_tokens: z.boolean().optional(),
+            embedding: z.boolean().optional(),
+            decisions: z.boolean().optional(),
+            speech: z.boolean().optional(),
+            speech_stream: z.boolean().optional(),
+            transcription: z.boolean().optional(),
+            transcription_stream: z.boolean().optional(),
+            image_generation: z.boolean().optional(),
+            image_generation_stream: z.boolean().optional(),
+            batch_create: z.boolean().optional(),
+            batch_list: z.boolean().optional(),
+            batch_retrieve: z.boolean().optional(),
+            batch_cancel: z.boolean().optional(),
+            batch_results: z.boolean().optional(),
+            file_upload: z.boolean().optional(),
+            file_list: z.boolean().optional(),
+            file_retrieve: z.boolean().optional(),
+            file_delete: z.boolean().optional(),
+            file_content: z.boolean().optional()
+        }).optional(),
+        request_path_overrides: z.record(z.string(), z.string()).optional()
+    }).optional(),
+    prompt_cache: z.object({
+        auto_inject: z.boolean().optional(),
+        ttl: z.enum(['1h']).optional(),
+        cache_control_injection_points: z.array(z.object({
+            location: z.enum(['message']).optional(),
+            role: z.enum([
+                'system',
+                'developer',
+                'user',
+                'assistant'
+            ]).optional(),
+            index: z.int().optional()
+        })).optional()
+    }).optional(),
+    injected_tools: z.array(z.object({
+        name: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+        mcp_client_name: z.string().min(1),
+        tool_name: z.string().min(1)
+    })).optional()
+});
+
+/**
  * Full MCP client configuration (used in responses)
  */
 export const zMcpClientConfig = z.object({
@@ -481,6 +1075,246 @@ export const zVirtualKeyProviderConfig = z.object({
 });
 
 /**
+ * Scope that determines which requests a pricing override applies to. The virtual_key* family is checked before the user* family during cost resolution, which is checked before the provider/global scopes; within a family, more identifiers present means a more specific match.
+ *
+ */
+export const zPricingOverrideScopeKind = z.enum([
+    'global',
+    'provider',
+    'provider_key',
+    'virtual_key',
+    'virtual_key_provider',
+    'virtual_key_provider_key',
+    'user',
+    'user_provider',
+    'user_provider_key'
+]);
+
+/**
+ * Request type for pricing override filtering. Stream variants are treated identically to their base type - specifying `chat_completion` covers both streaming and non-streaming chat requests.
+ *
+ */
+export const zPricingOverrideRequestType = z.enum([
+    'chat_completion',
+    'text_completion',
+    'responses',
+    'embedding',
+    'rerank',
+    'speech',
+    'transcription',
+    'image_generation',
+    'image_variation',
+    'image_edit',
+    'video_generation',
+    'video_remix'
+]);
+
+/**
+ * Pricing fields to override. All non-null fields are applied. Usage-based values are costs per unit in USD. cost_per_request is a flat fee in USD applied once per billed request.
+ *
+ */
+export const zPricingPatch = z.object({
+    input_cost_per_token: z.number().gte(0).optional(),
+    output_cost_per_token: z.number().gte(0).optional(),
+    input_cost_per_token_batches: z.number().gte(0).optional(),
+    output_cost_per_token_batches: z.number().gte(0).optional(),
+    input_cost_per_token_priority: z.number().gte(0).optional(),
+    output_cost_per_token_priority: z.number().gte(0).optional(),
+    input_cost_per_token_ultrafast: z.number().gte(0).optional(),
+    output_cost_per_token_ultrafast: z.number().gte(0).optional(),
+    input_cost_per_token_flex: z.number().gte(0).optional(),
+    output_cost_per_token_flex: z.number().gte(0).optional(),
+    input_cost_per_token_decisions: z.number().gte(0).optional(),
+    output_cost_per_token_decisions: z.number().gte(0).optional(),
+    input_cost_per_token_fast: z.number().gte(0).optional(),
+    output_cost_per_token_fast: z.number().gte(0).optional(),
+    input_cost_per_character: z.number().gte(0).optional(),
+    input_cost_per_token_above_128k_tokens: z.number().gte(0).optional(),
+    input_cost_per_image_above_128k_tokens: z.number().gte(0).optional(),
+    input_cost_per_video_per_second_above_128k_tokens: z.number().gte(0).optional(),
+    input_cost_per_audio_per_second_above_128k_tokens: z.number().gte(0).optional(),
+    output_cost_per_token_above_128k_tokens: z.number().gte(0).optional(),
+    input_cost_per_token_above_100k_tokens: z.number().gte(0).optional(),
+    output_cost_per_token_above_100k_tokens: z.number().gte(0).optional(),
+    input_cost_per_token_above_200k_tokens: z.number().gte(0).optional(),
+    input_cost_per_token_above_200k_tokens_priority: z.number().gte(0).optional(),
+    output_cost_per_token_above_200k_tokens: z.number().gte(0).optional(),
+    output_cost_per_token_above_200k_tokens_priority: z.number().gte(0).optional(),
+    input_cost_per_token_above_272k_tokens: z.number().gte(0).optional(),
+    input_cost_per_token_above_272k_tokens_priority: z.number().gte(0).optional(),
+    input_cost_per_token_flex_above_272k_tokens: z.number().gte(0).optional(),
+    output_cost_per_token_above_272k_tokens: z.number().gte(0).optional(),
+    output_cost_per_token_above_272k_tokens_priority: z.number().gte(0).optional(),
+    output_cost_per_token_flex_above_272k_tokens: z.number().gte(0).optional(),
+    input_cost_per_token_above_272k_tokens_ultrafast: z.number().gte(0).optional(),
+    output_cost_per_token_above_272k_tokens_ultrafast: z.number().gte(0).optional(),
+    cache_creation_input_token_cost: z.number().gte(0).optional(),
+    cache_read_input_token_cost: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_above_200k_tokens: z.number().gte(0).optional(),
+    cache_read_input_token_cost_above_200k_tokens: z.number().gte(0).optional(),
+    cache_read_input_token_cost_above_200k_tokens_priority: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_above_1hr: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_above_1hr_above_200k_tokens: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_above_100k_tokens: z.number().gte(0).optional(),
+    cache_read_input_token_cost_above_100k_tokens: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_above_1hr_above_100k_tokens: z.number().gte(0).optional(),
+    cache_creation_input_audio_token_cost: z.number().gte(0).optional(),
+    cache_read_input_token_cost_priority: z.number().gte(0).optional(),
+    cache_read_input_token_cost_ultrafast: z.number().gte(0).optional(),
+    cache_read_input_token_cost_flex: z.number().gte(0).optional(),
+    cache_read_input_image_token_cost: z.number().gte(0).optional(),
+    cache_read_input_token_cost_above_272k_tokens: z.number().gte(0).optional(),
+    cache_read_input_token_cost_above_272k_tokens_priority: z.number().gte(0).optional(),
+    cache_read_input_token_cost_flex_above_272k_tokens: z.number().gte(0).optional(),
+    cache_read_input_token_cost_above_272k_tokens_ultrafast: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_above_272k_tokens: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_flex: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_flex_above_272k_tokens: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_priority: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_above_272k_tokens_priority: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_ultrafast: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_above_272k_tokens_ultrafast: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_fast: z.number().gte(0).optional(),
+    cache_creation_input_token_cost_above_1hr_fast: z.number().gte(0).optional(),
+    cache_read_input_token_cost_fast: z.number().gte(0).optional(),
+    input_cost_per_image: z.number().gte(0).optional(),
+    input_cost_per_pixel: z.number().gte(0).optional(),
+    output_cost_per_image: z.number().gte(0).optional(),
+    output_cost_per_pixel: z.number().gte(0).optional(),
+    output_cost_per_image_premium_image: z.number().gte(0).optional(),
+    output_cost_per_image_above_512_and_512_pixels: z.number().gte(0).optional(),
+    output_cost_per_image_above_512_and_512_pixels_and_premium_image: z.number().gte(0).optional(),
+    output_cost_per_image_above_1024_and_1024_pixels: z.number().gte(0).optional(),
+    output_cost_per_image_above_1024_and_1024_pixels_and_premium_image: z.number().gte(0).optional(),
+    output_cost_per_image_above_1024_and_1536_pixels: z.number().gte(0).optional(),
+    output_cost_per_image_above_1536_and_1024_pixels: z.number().gte(0).optional(),
+    output_cost_per_image_above_2048_and_2048_pixels: z.number().gte(0).optional(),
+    output_cost_per_image_above_4096_and_4096_pixels: z.number().gte(0).optional(),
+    output_cost_per_image_above_4_megapixels: z.number().gte(0).optional(),
+    output_cost_per_image_above_8_megapixels: z.number().gte(0).optional(),
+    output_cost_per_image_above_16_megapixels: z.number().gte(0).optional(),
+    output_cost_per_image_above_32_megapixels: z.number().gte(0).optional(),
+    output_cost_per_image_above_64_megapixels: z.number().gte(0).optional(),
+    output_cost_per_image_low_quality: z.number().gte(0).optional(),
+    output_cost_per_image_medium_quality: z.number().gte(0).optional(),
+    output_cost_per_image_high_quality: z.number().gte(0).optional(),
+    output_cost_per_image_auto_quality: z.number().gte(0).optional(),
+    output_cost_per_image_above_1024_and_1024_pixels_low_quality: z.number().gte(0).optional(),
+    output_cost_per_image_above_1024_and_1536_pixels_low_quality: z.number().gte(0).optional(),
+    output_cost_per_image_above_1536_and_1024_pixels_low_quality: z.number().gte(0).optional(),
+    output_cost_per_image_above_1024_and_1024_pixels_medium_quality: z.number().gte(0).optional(),
+    output_cost_per_image_above_1024_and_1536_pixels_medium_quality: z.number().gte(0).optional(),
+    output_cost_per_image_above_1536_and_1024_pixels_medium_quality: z.number().gte(0).optional(),
+    output_cost_per_image_above_1024_and_1024_pixels_high_quality: z.number().gte(0).optional(),
+    output_cost_per_image_above_1024_and_1536_pixels_high_quality: z.number().gte(0).optional(),
+    output_cost_per_image_above_1536_and_1024_pixels_high_quality: z.number().gte(0).optional(),
+    output_cost_per_image_above_1024_and_1024_pixels_standard_quality: z.number().gte(0).optional(),
+    output_cost_per_image_above_1024_and_1536_pixels_standard_quality: z.number().gte(0).optional(),
+    output_cost_per_image_above_1536_and_1024_pixels_standard_quality: z.number().gte(0).optional(),
+    input_cost_per_image_token: z.number().gte(0).optional(),
+    output_cost_per_image_token: z.number().gte(0).optional(),
+    input_cost_per_audio_token: z.number().gte(0).optional(),
+    input_cost_per_audio_per_second: z.number().gte(0).optional(),
+    input_cost_per_second: z.number().gte(0).optional(),
+    input_cost_per_video_per_second: z.number().gte(0).optional(),
+    output_cost_per_audio_token: z.number().gte(0).optional(),
+    output_cost_per_video_per_second: z.number().gte(0).optional(),
+    output_cost_per_second: z.number().gte(0).optional(),
+    output_cost_per_video_per_second_480p: z.number().gte(0).optional(),
+    output_cost_per_video_per_second_720p: z.number().gte(0).optional(),
+    output_cost_per_video_per_second_1024p: z.number().gte(0).optional(),
+    output_cost_per_video_per_second_1080p: z.number().gte(0).optional(),
+    output_cost_per_video_per_second_4k: z.number().gte(0).optional(),
+    web_search_cost_per_request: z.number().gte(0).optional(),
+    input_cost_per_query: z.number().gte(0).optional(),
+    code_interpreter_cost_per_session: z.number().gte(0).optional(),
+    inference_geo_us_multiplier: z.number().gte(0).optional(),
+    cost_per_request: z.number().gte(0).optional(),
+    ocr_cost_per_page: z.number().gte(0).optional(),
+    annotation_cost_per_page: z.number().gte(0).optional(),
+    off_peak_cost_multiplier: z.number().gt(0).lte(1).optional(),
+    peak_hours: z.object({
+        timezone: z.string().optional(),
+        windows: z.array(z.object({
+            days: z.array(z.int().gte(0).lte(6)).min(1),
+            start: z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/),
+            end: z.string().regex(/^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$/)
+        })).min(1)
+    }).optional()
+});
+
+/**
+ * A pricing override that applies custom rates to matching requests.
+ */
+export const zPricingOverride = z.object({
+    id: z.string().optional(),
+    name: z.string().optional(),
+    scope_kind: zPricingOverrideScopeKind.optional(),
+    user_id: z.string().nullish(),
+    virtual_key_id: z.string().nullish(),
+    provider_id: z.string().nullish(),
+    provider_key_id: z.string().nullish(),
+    match_type: z.enum(['exact', 'wildcard']).optional(),
+    pattern: z.string().optional(),
+    request_types: z.array(zPricingOverrideRequestType).min(1).optional(),
+    pricing_patch: z.string().optional(),
+    patch: zPricingPatch.optional(),
+    config_hash: z.string().nullish(),
+    created_at: z.iso.datetime().optional(),
+    updated_at: z.iso.datetime().optional()
+});
+
+/**
+ * Request body for creating a pricing override.
+ */
+export const zCreatePricingOverrideRequest = z.object({
+    name: z.string(),
+    scope_kind: zPricingOverrideScopeKind,
+    user_id: z.string().optional(),
+    virtual_key_id: z.string().optional(),
+    provider_id: z.string().optional(),
+    provider_key_id: z.string().optional(),
+    match_type: z.enum(['exact', 'wildcard']),
+    pattern: z.string(),
+    request_types: z.array(zPricingOverrideRequestType).min(1),
+    patch: zPricingPatch.optional()
+});
+
+/**
+ * Request body for updating a pricing override. All fields are optional - omitted fields are merged from the existing record. The `patch` field is always replaced in full when provided.
+ *
+ */
+export const zUpdatePricingOverrideRequest = z.object({
+    name: z.string().optional(),
+    scope_kind: zPricingOverrideScopeKind.optional(),
+    user_id: z.string().optional(),
+    virtual_key_id: z.string().optional(),
+    provider_id: z.string().optional(),
+    provider_key_id: z.string().optional(),
+    match_type: z.enum(['exact', 'wildcard']).optional(),
+    pattern: z.string().optional(),
+    request_types: z.array(zPricingOverrideRequestType).min(1).optional(),
+    patch: zPricingPatch.optional()
+});
+
+export const zPricingOverrideResponse = z.object({
+    message: z.string().optional(),
+    pricing_override: zPricingOverride.optional()
+});
+
+/**
+ * When `limit`, `offset`, or `search` is supplied, `count` reflects the returned page while `total_count` reflects the full matching set. Otherwise (backward-compatible, non-paginated path) `total_count` equals `count` and `limit`/`offset` describe the full unpaged result.
+ *
+ */
+export const zListPricingOverridesResponse = z.object({
+    pricing_overrides: z.array(zPricingOverride).optional(),
+    count: z.int().optional(),
+    total_count: z.int().optional(),
+    limit: z.int().optional(),
+    offset: z.int().optional()
+});
+
+/**
  * Full MCP client configuration (used in responses)
  */
 export const zMcpClientConfigWritable = z.object({
@@ -713,6 +1547,57 @@ export const zCustomerWritable = z.object({
     updated_at: z.iso.datetime().optional()
 });
 
+/**
+ * Successful response
+ */
+export const zListProvidersResponse2 = zListProvidersResponse;
+
+export const zAddProviderBody = zAddProviderRequest;
+
+/**
+ * Provider added successfully
+ */
+export const zAddProviderResponse = zProviderResponse;
+
+export const zGetProviderPath = z.object({
+    provider: z.string()
+});
+
+/**
+ * Successful response
+ */
+export const zGetProviderResponse = zProviderResponse;
+
+export const zListProviderKeysPath = z.object({
+    provider: z.string()
+});
+
+/**
+ * Successful response
+ */
+export const zListProviderKeysResponse2 = zListProviderKeysResponse;
+
+export const zCreateProviderKeyBody = zKey;
+
+export const zCreateProviderKeyPath = z.object({
+    provider: z.string()
+});
+
+/**
+ * Key created successfully
+ */
+export const zCreateProviderKeyResponse = zKey;
+
+export const zDeleteProviderKeyPath = z.object({
+    provider: z.string(),
+    key_id: z.string()
+});
+
+/**
+ * Key deleted successfully
+ */
+export const zDeleteProviderKeyResponse = zKey;
+
 export const zListModelDetailsManagementQuery = z.object({
     query: z.string().optional(),
     provider: z.string().optional(),
@@ -756,6 +1641,40 @@ export const zDeleteVirtualKeyPath = z.object({
  * Virtual key deleted successfully
  */
 export const zDeleteVirtualKeyResponse = zMessageResponse;
+
+export const zListPricingOverridesQuery = z.object({
+    scope_kind: zPricingOverrideScopeKind.optional(),
+    user_id: z.string().optional(),
+    virtual_key_id: z.string().optional(),
+    provider_id: z.string().optional(),
+    provider_key_id: z.string().optional(),
+    search: z.string().optional(),
+    limit: z.int().gte(0).optional(),
+    offset: z.int().gte(0).optional()
+});
+
+/**
+ * Successful response
+ */
+export const zListPricingOverridesResponse2 = zListPricingOverridesResponse;
+
+export const zCreatePricingOverrideBody = zCreatePricingOverrideRequest;
+
+/**
+ * Pricing override created successfully
+ */
+export const zCreatePricingOverrideResponse = zPricingOverrideResponse;
+
+export const zUpdatePricingOverrideBody = zUpdatePricingOverrideRequest;
+
+export const zUpdatePricingOverridePath = z.object({
+    id: z.string()
+});
+
+/**
+ * Pricing override updated successfully
+ */
+export const zUpdatePricingOverrideResponse = zPricingOverrideResponse;
 
 export const zListVirtualKeysQuery = z.object({
     from_memory: z.boolean().optional().default(false),

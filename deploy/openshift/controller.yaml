@@ -102,6 +102,9 @@ spec:
                   key: webhook-hmac
             - name: BIFROST_ADMIN_URL
               value: http://macaron-bifrost:8080
+            # The pinned list prices each endpoint's Bifrost provider is priced from: Bifrost's own file.
+            - name: LLM_PRICING_FILE
+              value: /etc/macaron/pricing/pricing.json
             # Users' LLM keys are sealed under these key-encryption keys: files, never variables.
             - name: LLM_KEK_DIR
               value: /etc/macaron/llm-kek
@@ -161,6 +164,9 @@ spec:
             - name: llm-kek
               mountPath: /etc/macaron/llm-kek
               readOnly: true
+            - name: pricing
+              mountPath: /etc/macaron/pricing
+              readOnly: true
       volumes:
         - name: service-ca
           configMap:
@@ -168,6 +174,12 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
+        - name: pricing
+          configMap:
+            name: macaron-bifrost-files
+            items:
+              - key: pricing.json
+                path: pricing.json
         # Readable by the pod's group only (the fsGroup OpenShift assigns), mounted in this pod only.
         - name: llm-kek
           secret:

@@ -5,7 +5,8 @@ import { and, count, desc, eq, gte, inArray, lt, or } from "drizzle-orm";
 import type { SessionUser } from "../accounts/sessions.service.ts";
 import { Clock } from "../common/clock.ts";
 import { decodeCursor, encodeCursor } from "../common/cursor.ts";
-import { FieldRefused, FreshSessionRequired, KeyStorageUnavailable, TooManyAttempts } from "../common/errors.ts";
+import { describeError, FieldRefused, FreshSessionRequired, KeyStorageUnavailable, TooManyAttempts } from "../common/errors.ts";
+import type { Upstream } from "../budget/run-keys.ts";
 import type { Db } from "../db/db.module.ts";
 import { llmEndpoints, llmKeyEvents, llmKeys, runs, threads } from "../db/schema.ts";
 import { RESOLVE } from "../endpoints/endpoints.service.ts";
@@ -147,6 +148,46 @@ export class LlmKeysService {
     const missingModels = this.configuredModels().filter((model) => !listed.has(model));
     this.logger.log(`@${user.githubLogin} saved a key for ${endpoint.name}`);
     return { key: toView(stored, endpoint), missingModels };
+  }
+
+  /**
+   * The payer's endpoint and key for a run about to start, or why there is none, in words for the
+   * thread (`settings` is the key page's address). The key is checked with its endpoint first: one
+   * it now refuses is marked rejected rather than given to a runner. The only other place a key is
+   * unsealed is the rotation.
+   */
+  async upstreamFor(userId: string, settings: string): Promise<{ readonly upstream: Upstream & { readonly last4: string } } | { readonly refusal: string }> {
+    const [row] = await this.db.select({ key: llmKeys, endpoint: llmEndpoints }).from(llmKeys).innerJoin(llmEndpoints, eq(llmEndpoints.id, llmKeys.endpointId)).where(eq(llmKeys.userId, userId));
+    if (row === undefined) return { refusal: `the bot runs on the LLM key of whoever asks, and there's none saved for this account: save one on macaron (${settings})` };
+    const { key, endpoint } = row;
+    if (!endpoint.enabled) return { refusal: `this account's LLM key is for ${endpoint.name}, which an administrator disabled: save a key for another endpoint (${settings})` };
+    if (key.status === "rejected") return { refusal: `${endpoint.name} refused this account's LLM key: save it again, or another one (${settings})` };
+    const ring = this.ring;
+    if (ring?.has(key.kekVersion) !== true) return { refusal: `this account's LLM key can't be read on this deployment: save it again (${settings})` };
+    let plain: string;
+    try {
+      plain = ring.open(key, keyAad(userId, endpoint.id));
+    } catch (error: unknown) {
+      this.logger.error(`the sealed key of user ${userId} doesn't open: ${describeError(error)}`);
+      return { refusal: `this account's LLM key can't be read: save it again (${settings})` };
+    }
+    const result = await this.probe(endpoint.baseUrl, plain);
+    const now = this.clock.now();
+    if (result.outcome === "rejected") {
+      await this.db.transaction(async (tx) => {
+        await tx.update(llmKeys).set({ status: "rejected", updatedAt: now }).where(eq(llmKeys.userId, userId));
+        await tx.insert(llmKeyEvents).values({ userId, kind: "rejected", endpointId: endpoint.id, last4: key.last4, detail: `HTTP ${String(result.status)} before a run`, at: now });
+      });
+      return { refusal: `${endpoint.name} refused this account's LLM key (HTTP ${String(result.status)}): save a valid one (${settings})` };
+    }
+    if (result.outcome === "unreachable") return { refusal: `${endpoint.name} couldn't be reached to check this account's LLM key (${result.reason}): try again in a moment` };
+    await this.db.update(llmKeys).set({ validatedAt: now }).where(eq(llmKeys.userId, userId));
+    return { upstream: { endpointId: endpoint.id, baseUrl: endpoint.baseUrl, key: plain, last4: key.last4 } };
+  }
+
+  /** The key's history: `runId` was started on it. */
+  async recordUse(userId: string, runId: string, endpointId: string, last4: string): Promise<void> {
+    await this.db.insert(llmKeyEvents).values({ userId, kind: "used", endpointId, runId, last4, at: this.clock.now() });
   }
 
   /** Deletes the user's key: its ciphertext leaves the database; its history stays. */

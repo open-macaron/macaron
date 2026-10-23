@@ -1,7 +1,7 @@
 import { defineConfig } from "@hey-api/openapi-ts";
 
 /**
- * Types and Zod validators for the part of Bifrost's admin API that BifrostKeys uses, generated
+ * Types and Zod validators for the part of Bifrost's admin API that BifrostKeys uses (virtual keys, endpoint providers and their keys, pricing overrides), generated
  * from Bifrost's OpenAPI document at the commit of the pinned image (transports/v2.3.0). Bump
  * both together, then run `pnpm --filter @open-macaron/controller gen:bifrost`.
  */
@@ -18,6 +18,15 @@ export default defineConfig({
           "PUT /api/governance/virtual-keys/{vk_id}",
           "DELETE /api/governance/virtual-keys/{vk_id}",
           "GET /api/models/details",
+          "GET /api/providers",
+          "POST /api/providers",
+          "GET /api/providers/{provider}",
+          "GET /api/providers/{provider}/keys",
+          "POST /api/providers/{provider}/keys",
+          "DELETE /api/providers/{provider}/keys/{key_id}",
+          "GET /api/governance/pricing-overrides",
+          "POST /api/governance/pricing-overrides",
+          "PUT /api/governance/pricing-overrides/{id}",
         ],
       },
     },

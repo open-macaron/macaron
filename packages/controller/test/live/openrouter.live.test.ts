@@ -1,48 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { BudgetService, RUN_KEY_PREFIX } from "../../src/budget/budget.service.ts";
+import { RUN_KEY_PREFIX } from "../../src/budget/budget.service.ts";
 import { OpenRouterKeys } from "../../src/budget/openrouter-keys.ts";
-import { RunKeysRegistry } from "../../src/budget/run-keys.registry.ts";
-import { SystemClock } from "../../src/common/clock.ts";
 import { liveEnv } from "../support/live.ts";
 
 const env = liveEnv()?.openRouter;
 
-/** Spends about $0.0001 of real OpenRouter credit. */
-describe.skipIf(env === undefined)("OpenRouter key lifecycle (live)", () => {
-  it("mints a capped, expiring key in the workspace, records its usage, and deletes it", { timeout: 240_000 }, async () => {
+/** Spends nothing: OpenRouter no longer mints run keys, it only manages those minted before. */
+describe.skipIf(env === undefined)("OpenRouter keys (live)", () => {
+  it("still reaches the workspace, and refuses to mint: it can't bill a user's key", { timeout: 60_000 }, async () => {
     if (env === undefined) return;
     const keys = new OpenRouterKeys(env);
-    const registry = new RunKeysRegistry("openrouter", [keys]);
-    await registry.onModuleInit();
-    const budget = new BudgetService(registry, new SystemClock());
-    const runId = `live-test-${String(Date.now())}`;
-
-    const key = await budget.mint(runId, 0.01, 10, ["anthropic/claude-haiku-5.5"]);
-    try {
-      const status = await keys.status(key.hash);
-      expect(status.name).toBe(`${RUN_KEY_PREFIX}${runId}`);
-      expect(status.disabled).toBe(false);
-
-      const response = await fetch(`${env.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${key.key}`, "content-type": "application/json" },
-        body: JSON.stringify({ model: "anthropic/claude-haiku-5.5", max_tokens: 5, messages: [{ role: "user", content: "Say ok." }] }),
-      });
-      expect(response.status).toBe(200);
-
-      // Same sequence as production: freeze at completion, read usage once it has arrived.
-      await budget.freeze(key);
-      let costMicros = 0;
-      for (let attempt = 0; attempt < 12 && costMicros === 0; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, 15_000));
-        costMicros = await budget.usage(key, new Date(Date.now() - 10 * 60_000));
-      }
-      expect(costMicros).toBeGreaterThan(0);
-      expect(costMicros).toBeLessThan(10_000);
-    } finally {
-      await budget.revoke(key);
-    }
-    const leftovers = await keys.listByPrefix(`${RUN_KEY_PREFIX}${runId}`);
-    expect(leftovers).toEqual([]);
+    await keys.init();
+    expect(Array.isArray(await keys.listByPrefix(RUN_KEY_PREFIX))).toBe(true);
+    await expect(keys.create(`${RUN_KEY_PREFIX}live`, 0.01, new Date(Date.now() + 600_000), ["anthropic/claude-haiku-5.5"], { endpointId: "e", baseUrl: "https://api.example.com", key: "sk-unused-0000" })).rejects.toThrow(/can't bill a user's key/);
   });
 });

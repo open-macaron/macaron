@@ -50,11 +50,5 @@
       "pricing_sync_interval": 86400
     }
   },
-  "providers": {
-    "anthropic": {
-      "keys": [{ "id": "upstream", "name": "upstream", "value": "env.LLM_UPSTREAM_KEY", "weight": 1, "models": ["*"] }],
-      "network_config": { "base_url": "__LLM_UPSTREAM_URL__" },
-      "concurrency_and_buffer_size": { "concurrency": 16, "buffer_size": 16 }
-    }
-  }
+  "providers": {}
 }

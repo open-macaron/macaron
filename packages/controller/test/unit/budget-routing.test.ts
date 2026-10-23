@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BudgetService, RUN_KEY_PREFIX, type RunKeyRef } from "../../src/budget/budget.service.ts";
-import { type KeyStatus, type LlmBackend, type ProvisionedKey, RunKeys } from "../../src/budget/run-keys.ts";
+import { type KeyStatus, type LlmBackend, type ProvisionedKey, RunKeys, type Upstream } from "../../src/budget/run-keys.ts";
 import { RunKeysRegistry } from "../../src/budget/run-keys.registry.ts";
 import { FakeClock } from "../support/fakes.ts";
 
@@ -29,8 +29,8 @@ class RecordingKeys extends RunKeys {
     return Promise.resolve(models.filter((model) => !this.priced.has(model)));
   }
 
-  create(name: string, limitUsd: number, expiresAt: Date, models: readonly string[]): Promise<ProvisionedKey> {
-    this.calls.push(`create ${name} ${String(limitUsd)} ${expiresAt.toISOString()} ${models.join(",")}`);
+  create(name: string, limitUsd: number, expiresAt: Date, models: readonly string[], upstream: Upstream): Promise<ProvisionedKey> {
+    this.calls.push(`create ${name} ${String(limitUsd)} ${expiresAt.toISOString()} ${models.join(",")} on ${upstream.endpointId}`);
     return Promise.resolve({ key: `${this.backend}-secret`, hash: `${this.backend}-hash` });
   }
 
@@ -49,6 +49,11 @@ class RecordingKeys extends RunKeys {
     return Promise.resolve([...this.listed]);
   }
 
+  sweepUpstreamKeys(prefix: string, keep: ReadonlySet<string>): Promise<string[]> {
+    this.calls.push(`sweep ${prefix} keeping ${[...keep].join(",")}`);
+    return Promise.resolve([`${prefix}orphan`]);
+  }
+
   spentSince(hash: string): Promise<number> {
     this.calls.push(`spent ${hash}`);
     return Promise.resolve(0.25);
@@ -56,6 +61,7 @@ class RecordingKeys extends RunKeys {
 }
 
 const now = new Date("2026-10-19T12:00:00Z");
+const upstream: Upstream = { endpointId: "ep-1", baseUrl: "https://gateway.example.com", key: "sk-user" };
 
 function setup(active: LlmBackend) {
   const openrouter = new RecordingKeys("openrouter", [{ hash: "or-1", name: `${RUN_KEY_PREFIX}a`, disabled: false, createdAt: now }]);
@@ -68,10 +74,10 @@ describe("BudgetService routing", () => {
   it("mints on the active backend and says where the key lives", async () => {
     const { openrouter, bifrost, budget } = setup("bifrost");
 
-    const minted = await budget.mint("run-1", 0.5, 75, ["claude-sonnet-5-5", "claude-haiku-4-5"]);
+    const minted = await budget.mint("run-1", 0.5, 75, ["claude-sonnet-5-5", "claude-haiku-4-5"], upstream);
 
     expect(minted).toEqual({ backend: "bifrost", key: "bifrost-secret", hash: "bifrost-hash" });
-    expect(bifrost.calls).toEqual([`create ${RUN_KEY_PREFIX}run-1 0.5 2026-10-19T13:15:00.000Z claude-sonnet-5-5,claude-haiku-4-5`]);
+    expect(bifrost.calls).toEqual([`create ${RUN_KEY_PREFIX}run-1 0.5 2026-10-19T13:15:00.000Z claude-sonnet-5-5,claude-haiku-4-5 on ep-1`]);
     expect(openrouter.calls).toEqual([]);
     expect(budget.baseUrl(minted.backend)).toBe("https://bifrost.example.test");
   });

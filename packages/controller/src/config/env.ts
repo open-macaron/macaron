@@ -47,14 +47,14 @@ const RawEnv = z.object({
   OPENROUTER_PROVISIONING_KEY: Secret.optional(),
   OPENROUTER_ROUTER_KEY: Secret.optional(),
 
-  /** Bifrost backend (virtual keys over the upstream LLM key): configured when BIFROST_ADMIN_URL is set. */
+  /** Bifrost backend (virtual keys over the key of whoever each run is billed to): configured when BIFROST_ADMIN_URL is set. */
   BIFROST_ADMIN_URL: z.url().optional(),
   /** What runners use as ANTHROPIC_BASE_URL: the edge's inference-only route to Bifrost. */
   BIFROST_PUBLIC_URL: z.url({ protocol: /^https$/ }).optional(),
   BIFROST_ADMIN_USERNAME: z.string().min(1).default("macaron"),
   BIFROST_ADMIN_PASSWORD: Secret.optional(),
-  /** Bifrost's provider holding the upstream key. */
-  BIFROST_PROVIDER: z.string().regex(/^[a-z0-9_-]+$/).default("anthropic"),
+  /** The pinned list prices (deploy/bifrost/pricing.json, mounted from Bifrost's ConfigMap): each endpoint's provider is priced from it. */
+  LLM_PRICING_FILE: z.string().startsWith("/", "an absolute path").optional(),
   /**
    * Requests per minute a run's key may start. Bifrost checks a budget before a request and charges
    * it after, so this bounds how many requests can be in flight past the limit.
@@ -122,7 +122,7 @@ export interface BifrostEnv {
   readonly publicUrl: string;
   readonly username: string;
   readonly password: string;
-  readonly provider: string;
+  readonly pricingFile: string;
   readonly requestsPerMinute: number;
 }
 
@@ -151,16 +151,16 @@ export const Env = RawEnv.transform((raw, ctx) => {
   let bifrost: BifrostEnv | undefined;
   if (raw.BIFROST_ADMIN_URL !== undefined || raw.LLM_BACKEND === "bifrost") {
     missing(
-      { BIFROST_ADMIN_URL: raw.BIFROST_ADMIN_URL, BIFROST_PUBLIC_URL: raw.BIFROST_PUBLIC_URL, BIFROST_ADMIN_PASSWORD: raw.BIFROST_ADMIN_PASSWORD },
+      { BIFROST_ADMIN_URL: raw.BIFROST_ADMIN_URL, BIFROST_PUBLIC_URL: raw.BIFROST_PUBLIC_URL, BIFROST_ADMIN_PASSWORD: raw.BIFROST_ADMIN_PASSWORD, LLM_PRICING_FILE: raw.LLM_PRICING_FILE },
       "for the Bifrost backend",
     );
-    if (raw.BIFROST_ADMIN_URL !== undefined && raw.BIFROST_PUBLIC_URL !== undefined && raw.BIFROST_ADMIN_PASSWORD !== undefined) {
+    if (raw.BIFROST_ADMIN_URL !== undefined && raw.BIFROST_PUBLIC_URL !== undefined && raw.BIFROST_ADMIN_PASSWORD !== undefined && raw.LLM_PRICING_FILE !== undefined) {
       bifrost = {
         adminUrl: raw.BIFROST_ADMIN_URL,
         publicUrl: raw.BIFROST_PUBLIC_URL,
         username: raw.BIFROST_ADMIN_USERNAME,
         password: raw.BIFROST_ADMIN_PASSWORD,
-        provider: raw.BIFROST_PROVIDER,
+        pricingFile: raw.LLM_PRICING_FILE,
         requestsPerMinute: raw.BIFROST_REQUESTS_PER_MINUTE,
       };
     }

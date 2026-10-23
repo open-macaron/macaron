@@ -26,6 +26,8 @@ export interface NewRun {
   readonly route: Route;
   readonly limitMicros: UsdMicros;
   readonly triggerGithubId: number | null;
+  /** The account billed for the run. */
+  readonly payerId: string;
 }
 
 export interface Redemption {
@@ -94,6 +96,7 @@ export class RunsRepository {
           route: run.route,
           limitMicros: run.limitMicros,
           triggerGithubId: run.triggerGithubId,
+          payerId: run.payerId,
           loop: thread.loops,
         })
         .returning();

@@ -33,8 +33,8 @@ export class UsersService {
 
   /** The account of a GitHub user, as far as triggering the bot goes; undefined without one. */
   async asker(githubId: number): Promise<Asker | undefined> {
-    const [row] = await this.db.select({ capabilities: users.capabilities }).from(users).where(eq(users.githubId, githubId)).limit(1);
-    return row === undefined ? undefined : { githubId, capabilities: row.capabilities };
+    const [row] = await this.db.select({ id: users.id, capabilities: users.capabilities }).from(users).where(eq(users.githubId, githubId)).limit(1);
+    return row === undefined ? undefined : { userId: row.id, githubId, capabilities: row.capabilities };
   }
 
   async get(id: string): Promise<UserAccount | undefined> {
