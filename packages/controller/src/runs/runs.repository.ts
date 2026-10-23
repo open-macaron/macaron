@@ -25,6 +25,7 @@ export interface NewRun {
   readonly context: RunContext;
   readonly route: Route;
   readonly limitMicros: UsdMicros;
+  readonly triggerGithubId: number | null;
 }
 
 export interface Redemption {
@@ -92,6 +93,7 @@ export class RunsRepository {
           context: run.context,
           route: run.route,
           limitMicros: run.limitMicros,
+          triggerGithubId: run.triggerGithubId,
           loop: thread.loops,
         })
         .returning();

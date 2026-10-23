@@ -23,6 +23,8 @@ export default tseslint.config(
       "packages/web/src/lib/components/ui/**",
       "packages/web/src/lib/hooks/is-mobile.svelte.ts",
       "packages/web/src/lib/utils.ts",
+      // Generated from the controller's OpenAPI document (pnpm --filter @open-macaron/web gen).
+      "packages/web/src/lib/server/controller/generated/**",
     ],
   },
   eslint.configs.recommended,

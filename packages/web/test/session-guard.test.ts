@@ -17,6 +17,12 @@ describe("sessionRedirect", () => {
     expect(sessionRedirect("/(app)/usage", user)).toBeUndefined();
   });
 
+  it("keeps administration pages for admins", () => {
+    expect(sessionRedirect("/(app)/admin/users", user)).toBe("/(app)");
+    expect(sessionRedirect("/(app)/admin/invitations", user)).toBe("/(app)");
+    expect(sessionRedirect("/(app)/admin/users", { ...user, isAdmin: true })).toBeUndefined();
+  });
+
   it("sends a signed-in user away from the sign-in page", () => {
     expect(sessionRedirect("/sign-in", user)).toBe("/(app)");
     expect(sessionRedirect("/sign-in", null)).toBeUndefined();

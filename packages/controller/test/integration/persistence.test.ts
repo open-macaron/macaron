@@ -47,6 +47,7 @@ async function newRun(n: number) {
     context,
     route: { mode: "implement", subject: { kind: "issue", number: 1000 + n }, checkout: { from: "defaultBranch" }, branch: `macaron/${String(1000 + n)}-work` },
     limitMicros: 1_000_000,
+    triggerGithubId: 583231,
   });
   return { thread, run };
 }
@@ -88,6 +89,7 @@ describe("RunsRepository", () => {
       context,
       route: { mode: "address_review", subject: { kind: "ownPullRequest", number: 7 }, checkout: { from: "botBranch" }, branch: "macaron/1001-work" },
       limitMicros: 1,
+      triggerGithubId: 583231,
     });
     expect([run.loop, second.loop]).toEqual([1, 2]);
     expect((await runs.byId(second.id)).route).toEqual({ mode: "address_review", subject: { kind: "ownPullRequest", number: 7 }, checkout: { from: "botBranch" }, branch: "macaron/1001-work" });
@@ -151,7 +153,7 @@ describe("EventsRepository", () => {
   it("records each trigger once", async () => {
     const events = new EventsRepository(db);
     const { thread } = await newRun(6);
-    const event = { threadId: thread.id, externalId: "issue-comment:1", subjectKind: "issue" as const, subjectNumber: 1006, author: "alice", kind: "mention" as const, url: "https://x", body: "@macaron-bot implement" };
+    const event = { threadId: thread.id, externalId: "issue-comment:1", subjectKind: "issue" as const, subjectNumber: 1006, author: "alice", authorId: 7, kind: "mention" as const, url: "https://x", body: "@macaron-bot implement" };
 
     expect(await events.add(event)).toBe(true);
     expect(await events.add(event)).toBe(false);

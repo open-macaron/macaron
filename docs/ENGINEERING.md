@@ -55,6 +55,7 @@ flowchart LR
   ING --> PUB
   ING --> REV
   CORE["CoreModule (global)<br/>RepoConfigService, PublishedConfigClient, ConfigSnapshotStore, ConfigUpdates,<br/>Jobs, BotIdentity, RunsRepository, EventsRepository, PollStateStore"]
+  HTTP --> ACC["AccountsModule<br/>SessionsService (better-auth), InvitationsService,<br/>UsersService, UsageService"]
 ```
 
 - **Routing is plain code, not a module.** `src/routing/routes.ts` (`ROUTES`, `route()`, subjects) is pure and table-tested; `ThreadStates` reads what it needs from GitHub and the ledger, and `ThreadWorker` applies it (DESIGN.md §4 "Subjects and routes").
@@ -72,8 +73,12 @@ export const events     = pgTable("events",     { /* threadId, sourceId, author,
 export const runs       = pgTable("runs",       { /* ticket, threadId, mode, ghRunId, keyHash, limitUsd, costUsd, status */ });
 export const ledger     = pgTable("ledger",     { /* runId | routerCallId, usd, at — append-only */ });
 export const effects    = pgTable("effects",    { /* threadId, loop, kind, externalId — idempotency */ });
+// Users (the web app), better-auth's tables hand-owned: users (githubId, githubLogin, role, capabilities),
+// sessions, accounts (no OAuth token kept), verifications; then invitations and admin_audit (append-only).
 export type Run = typeof runs.$inferSelect;
 ```
+
+`events.author_id` and `runs.trigger_github_id` record who asked for a run by GitHub id (retries and escalations keep the first run's): what `/v1/me/usage` lists.
 
 Migrations are generated with `drizzle-kit generate` and committed. They run at application start, before any provider can query: the Drizzle module's factory migrates under a Postgres advisory lock, then hands out the database. Nobody runs a migrate command by hand.
 

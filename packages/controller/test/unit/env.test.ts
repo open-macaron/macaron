@@ -76,3 +76,26 @@ describe("published configuration", () => {
     expect(() => testEnv({ CONFIG_URL: "http://open-macaron.github.io/config/v1", CONFIG_REPO_ID: "1" })).toThrow(/CONFIG_URL/);
   });
 });
+
+describe("sign-in", () => {
+  const signIn = {
+    BETTER_AUTH_SECRET: "better-auth-secret-for-tests-0123456789",
+    GITHUB_LOGIN_CLIENT_ID: "Iv23test",
+    GITHUB_LOGIN_CLIENT_SECRET: "github-login-secret-for-tests-0000",
+    MACARON_ADMIN_USER_IDS: "42176370",
+  };
+
+  it("is off until BETTER_AUTH_SECRET is set", () => {
+    expect(testEnv().auth).toBeUndefined();
+  });
+
+  it("is configured with its client and the admins' ids", () => {
+    expect(testEnv(signIn).auth).toEqual({ secret: signIn.BETTER_AUTH_SECRET, githubClientId: "Iv23test", githubClientSecret: signIn.GITHUB_LOGIN_CLIENT_SECRET, adminGithubIds: new Set([42_176_370]) });
+  });
+
+  it("names what is missing", () => {
+    expect(() => testEnv({ BETTER_AUTH_SECRET: signIn.BETTER_AUTH_SECRET })).toThrow(/GITHUB_LOGIN_CLIENT_ID.*required for sign-in/s);
+    expect(() => testEnv({ ...signIn, MACARON_ADMIN_USER_IDS: "axel7083" })).toThrow(/MACARON_ADMIN_USER_IDS/);
+    expect(() => testEnv({ ...signIn, BETTER_AUTH_SECRET: "short" })).toThrow(/BETTER_AUTH_SECRET/);
+  });
+});

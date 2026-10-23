@@ -102,6 +102,20 @@ spec:
                   key: webhook-hmac
             - name: BIFROST_ADMIN_URL
               value: http://macaron-bifrost:8080
+            # Sign-in (the web app's users): present once provision-secrets.sh had the GitHub App's
+            # credentials; without them the controller runs without sign-in.
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-controller
+                  key: better-auth-secret
+                  optional: true
+            - name: GITHUB_LOGIN_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: macaron-controller
+                  key: github-login-client-secret
+                  optional: true
             - name: BIFROST_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:

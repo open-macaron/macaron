@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   check,
   index,
   integer,
@@ -12,7 +13,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { RunContext } from "@open-macaron/contracts";
+import { Capability, type RunContext } from "@open-macaron/contracts";
 import { LlmBackend } from "../budget/run-keys.ts";
 import type { Route } from "../routing/routes.ts";
 
@@ -26,6 +27,11 @@ export const runStatus = pgEnum("run_status", ["pending", "dispatched", "running
 export const runMode = pgEnum("run_mode", ["triage", "plan", "implement", "address_review", "reproduce", "verify", "retro", "review"]);
 export const ledgerKind = pgEnum("ledger_kind", ["run", "router"]);
 export const llmBackend = pgEnum("llm_backend", LlmBackend.enum);
+/** What a user may ask the bot for: one value per capability, appended by migrations, never renamed. */
+export const capability = pgEnum("capability", Capability.enum);
+export const userRole = pgEnum("user_role", ["user", "admin"]);
+/** `expired` is written when a pending invitation past its date stands in the way of a new one. */
+export const invitationStatus = pgEnum("invitation_status", ["pending", "accepted", "revoked", "expired"]);
 
 /** Singleton row (id = 1): the notifications poller's state. Persisted so restarts never poll early. */
 export const pollState = pgTable(
@@ -90,6 +96,8 @@ export const events = pgTable(
     subjectKind: threadKind("subject_kind").notNull(),
     subjectNumber: integer("subject_number").notNull(),
     author: text("author").notNull(),
+    /** The author's immutable GitHub id: whose capabilities and key a run uses. Null before this column existed. */
+    authorId: bigint("author_id", { mode: "number" }),
     kind: text("kind").notNull(),
     url: text("url").notNull(),
     body: text("body").notNull(),
@@ -127,6 +135,8 @@ export const runs = pgTable(
     keySecret: text("key_secret"),
     limitMicros: usdMicros("limit_micros").notNull(),
     costMicros: usdMicros("cost_micros"),
+    /** GitHub id of the user who asked for the run (retries and escalations keep it). Null for runs before this column existed. */
+    triggerGithubId: bigint("trigger_github_id", { mode: "number" }),
     ghRunId: bigint("gh_run_id", { mode: "number" }),
     redeemedAt: timestamp("redeemed_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
@@ -140,6 +150,7 @@ export const runs = pgTable(
     uniqueIndex("runs_gh_run").on(table.ghRunId),
     uniqueIndex("runs_thread_loop").on(table.threadId, table.loop),
     index("runs_status").on(table.status),
+    index("runs_trigger_created").on(table.triggerGithubId, table.createdAt),
   ],
 );
 
@@ -172,4 +183,122 @@ export const effects = pgTable(
     createdAt: createdAt(),
   },
   (table) => [uniqueIndex("effects_thread_loop_kind").on(table.threadId, table.loop, table.kind)],
+);
+
+// Users and sessions: better-auth's tables (packages/controller/src/auth/auth.ts), hand-owned here.
+// Field names are better-auth's; the adapter maps them to these columns.
+
+const updatedAt = () =>
+  timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date());
+
+/** A person who signed in with GitHub. Only invited GitHub ids (or the operator's admins) can become one. */
+export const users = pgTable("users", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: text("image"),
+  /** Written when the GitHub account is linked, in the same request as the user's creation. */
+  githubId: bigint("github_id", { mode: "number" }).unique(),
+  githubLogin: text("github_login"),
+  role: userRole("role").notNull().default("user"),
+  /** Granted by an admin: at invitation, then on the Users page. Never set through better-auth. */
+  capabilities: capability("capabilities").array().notNull().default(sql`'{}'::capability[]`),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    token: text("token").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index("sessions_user").on(table.userId)],
+);
+
+/** The GitHub account behind a user. Its OAuth tokens are never stored (auth.ts drops them). */
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index("accounts_user").on(table.userId), uniqueIndex("accounts_provider_account").on(table.providerId, table.accountId)],
+);
+
+/** better-auth's short-lived values: the OAuth state of a sign-in in progress. */
+export const verifications = pgTable(
+  "verifications",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index("verifications_identifier").on(table.identifier)],
+);
+
+/** Who may create an account: a GitHub id, resolved from the login when invited, and what they may ask for. */
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    githubId: bigint("github_id", { mode: "number" }).notNull(),
+    githubLogin: text("github_login").notNull(),
+    capabilities: capability("capabilities").array().notNull(),
+    invitedBy: text("invited_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    status: invitationStatus("status").notNull().default("pending"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    // At most one pending invitation per GitHub account.
+    uniqueIndex("invitations_pending_github").on(table.githubId).where(sql`${table.status} = 'pending'`),
+    index("invitations_created").on(table.createdAt),
+  ],
+);
+
+/** Append-only record of what admins changed: invitations, capabilities. */
+export const adminAudit = pgTable(
+  "admin_audit",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorId: text("actor_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    action: text("action").notNull(),
+    target: text("target").notNull(),
+    details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
+    at: createdAt(),
+  },
+  (table) => [index("admin_audit_at").on(table.at)],
 );

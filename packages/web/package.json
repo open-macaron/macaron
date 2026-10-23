@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "start": "node build/index.js",
     "prepare": "svelte-kit sync || echo ''",
-    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings"
+    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
+    "gen": "openapi-ts"
   },
   "imports": {
     "#lib": "./src/lib/index.ts",
@@ -19,12 +20,15 @@
   },
   "devDependencies": {
     "@fontsource-variable/inter": "catalog:",
+    "@hey-api/openapi-ts": "catalog:",
     "@internationalized/date": "catalog:",
     "@lucide/svelte": "catalog:",
+    "@open-macaron/contracts": "workspace:*",
     "@sveltejs/adapter-node": "catalog:",
     "@sveltejs/kit": "catalog:",
     "@sveltejs/vite-plugin-svelte": "catalog:",
     "@tailwindcss/vite": "catalog:",
+    "better-auth": "catalog:",
     "bits-ui": "catalog:",
     "cn": "catalog:",
     "mode-watcher": "catalog:",

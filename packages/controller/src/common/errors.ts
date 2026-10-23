@@ -26,6 +26,33 @@ export class OidcRejected extends DomainError {
   readonly code = "oidc_rejected";
 }
 
+/** No session, or an expired one: sign in again. */
+export class SignInRequired extends DomainError {
+  readonly code = "sign_in_required";
+}
+
+/** Signed in, but not allowed: an admin-only route, for instance. */
+export class Forbidden extends DomainError {
+  readonly code = "forbidden";
+}
+
+/** Sign-in isn't configured on this deployment (BETTER_AUTH_SECRET unset). */
+export class SignInUnavailable extends DomainError {
+  readonly code = "sign_in_unavailable";
+}
+
+/** A request the web app shows on one of its form fields: an invitation that exists already, for instance. */
+export class FieldRefused extends DomainError {
+  readonly code = "field_refused";
+
+  constructor(
+    readonly field: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export class PolicyViolation extends DomainError {
   readonly code = "policy_violation";
 

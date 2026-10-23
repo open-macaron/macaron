@@ -7,6 +7,8 @@ import { defineConfig } from "@hey-api/openapi-ts";
  */
 export default defineConfig({
   input: "../contracts/openapi/controller.json",
+  // The runner's only call: the web app's routes (/v1/me, /v1/admin) stay out of its client.
+  parser: { filters: { operations: { include: ["POST /v1/bootstrap"] } } },
   output: { path: "./src/generated/controller", importFileExtension: ".ts" },
   plugins: ["@hey-api/typescript", { name: "zod", requests: true, responses: true }],
 });

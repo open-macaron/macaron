@@ -10,8 +10,12 @@
 # database passwords, and Bifrost's admin password and encryption key (Bifrost can't change its
 # encryption key: keep a copy outside the cluster, docs/DEPLOYMENT.md §4). Settings keep their current
 # values unless given in the environment (MACARON_ENABLED, MACARON_ALLOWED_USER_IDS, LOG_LEVEL,
-# CONFIG_URL and CONFIG_REPO_ID); a fresh namespace starts disabled and needs
+# CONFIG_URL, CONFIG_REPO_ID and MACARON_ADMIN_USER_IDS); a fresh namespace starts disabled and needs
 # MACARON_ALLOWED_USER_IDS given, empty for no restriction.
+#
+# Sign-in (the web app) is configured when the env file has the org GitHub App's
+# GITHUB_LOGIN_CLIENT_ID and GITHUB_LOGIN_CLIENT_SECRET, and MACARON_ADMIN_USER_IDS is known; the
+# session-signing secret is generated once, then kept (changing it signs everyone out).
 set -euo pipefail
 
 NS="${MACARON_NAMESPACE:?set MACARON_NAMESPACE to the target namespace}"
@@ -24,6 +28,13 @@ value() {
   local line
   line="$(grep -E "^$1=" "$ENV_FILE" | tail -n 1)" || true
   [[ -n "$line" ]] || { echo "$1 is not set in $ENV_FILE" >&2; exit 1; }
+  printf '%s' "${line#*=}"
+}
+
+# A variable of the env file, or nothing when it isn't there.
+optional_value() {
+  local line
+  line="$(grep -E "^$1=" "$ENV_FILE" | tail -n 1)" || true
   printf '%s' "${line#*=}"
 }
 
@@ -66,13 +77,32 @@ apply_secret macaron-postgres \
 apply_secret macaron-backup \
   macaron-password=<(printf %s "$macaron_password") \
   bifrost-password=<(printf %s "$bifrost_db_password")
-apply_secret macaron-controller \
-  database-password=<(printf %s "$macaron_password") \
-  gh-interact=<(value GH_INTERACT) \
-  gh-push=<(value GH_PUSH) \
-  gh-org=<(value GH_ORG) \
-  webhook-hmac=<(value WEBHOOK_HMAC) \
-  bifrost-admin-password=<(printf %s "$bifrost_admin")
+login_client_id="$(optional_value GITHUB_LOGIN_CLIENT_ID)"
+login_client_secret="$(optional_value GITHUB_LOGIN_CLIENT_SECRET)"
+# Process substitutions go straight to apply_secret (stored in a variable, their pipes would be closed by then).
+if [[ -n "$login_client_id" && -n "$login_client_secret" ]]; then
+  better_auth_secret="$(current macaron-controller better-auth-secret)"
+  [[ -n "$better_auth_secret" ]] || better_auth_secret="$(openssl rand -hex 32)"
+  apply_secret macaron-controller \
+    database-password=<(printf %s "$macaron_password") \
+    gh-interact=<(value GH_INTERACT) \
+    gh-push=<(value GH_PUSH) \
+    gh-org=<(value GH_ORG) \
+    webhook-hmac=<(value WEBHOOK_HMAC) \
+    bifrost-admin-password=<(printf %s "$bifrost_admin") \
+    better-auth-secret=<(printf %s "$better_auth_secret") \
+    github-login-client-secret=<(printf %s "$login_client_secret")
+  echo "   sign-in: configured (GitHub App $login_client_id)"
+else
+  apply_secret macaron-controller \
+    database-password=<(printf %s "$macaron_password") \
+    gh-interact=<(value GH_INTERACT) \
+    gh-push=<(value GH_PUSH) \
+    gh-org=<(value GH_ORG) \
+    webhook-hmac=<(value WEBHOOK_HMAC) \
+    bifrost-admin-password=<(printf %s "$bifrost_admin")
+  echo "   sign-in: not configured (no GITHUB_LOGIN_CLIENT_ID and GITHUB_LOGIN_CLIENT_SECRET in $ENV_FILE)"
+fi
 apply_secret macaron-bifrost \
   llm-upstream-url=<(value LLM_UPSTREAM_URL) \
   llm-upstream-key=<(value LLM_UPSTREAM_KEY) \
@@ -112,6 +142,12 @@ settings=(
 )
 if [[ -n "$MACARON_ALLOWED_USER_IDS" ]]; then settings+=(--from-literal=MACARON_ALLOWED_USER_IDS="$MACARON_ALLOWED_USER_IDS"); fi
 settings+=(--from-literal=CONFIG_URL="$CONFIG_URL" --from-literal=CONFIG_REPO_ID="$CONFIG_REPO_ID")
+if [[ -n "$login_client_id" ]]; then
+  # The admins: they sign in without an invitation and hold every capability. Kept unless given.
+  MACARON_ADMIN_USER_IDS="${MACARON_ADMIN_USER_IDS:-$(setting MACARON_ADMIN_USER_IDS)}"
+  [[ "$MACARON_ADMIN_USER_IDS" =~ ^[0-9]+(,[0-9]+)*$ ]] || { echo "sign-in needs MACARON_ADMIN_USER_IDS (comma-separated GitHub user ids)" >&2; exit 1; }
+  settings+=(--from-literal=GITHUB_LOGIN_CLIENT_ID="$login_client_id" --from-literal=MACARON_ADMIN_USER_IDS="$MACARON_ADMIN_USER_IDS")
+fi
 oc create configmap macaron-settings --dry-run=client -o yaml "${settings[@]}" |
   oc label --local -f - -o yaml app.kubernetes.io/part-of=macaron |
   oc apply --server-side --field-manager=macaron-provision --force-conflicts -f - >/dev/null

@@ -8,8 +8,11 @@ RUN npm install --global --no-fund --no-audit pnpm@12.13.0
 WORKDIR /src
 # Dependencies first, for layer caching: only manifests and the lockfile.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/contracts/package.json packages/contracts/
 COPY packages/web/package.json packages/web/
 RUN pnpm install --frozen-lockfile --filter @open-macaron/web...
+# Contracts are bundled from their TypeScript sources (the @open-macaron/source condition): no build.
+COPY packages/contracts packages/contracts
 COPY packages/web packages/web
 # adapter-node bundles every dependency into build/: the runtime image needs no node_modules.
 RUN pnpm --filter @open-macaron/web build

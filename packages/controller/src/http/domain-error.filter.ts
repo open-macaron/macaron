@@ -1,6 +1,6 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpStatus, Logger } from "@nestjs/common";
 import type { Response } from "express";
-import { DomainError, OidcRejected, TicketAlreadyRedeemed, TicketRejected } from "../common/errors.ts";
+import { DomainError, FieldRefused, Forbidden, OidcRejected, SignInRequired, SignInUnavailable, TicketAlreadyRedeemed, TicketRejected } from "../common/errors.ts";
 import { RunNotBoundYet } from "../runs/runs.repository.ts";
 
 /**
@@ -15,7 +15,9 @@ export class DomainErrorFilter implements ExceptionFilter<DomainError | RunNotBo
     const response = host.switchToHttp().getResponse<Response>();
     const [status, code] = statusOf(error);
     this.logger.warn(`${String(status)} ${code}: ${error.message}`);
-    response.status(status).json({ error: code });
+    // A field refusal is meant for the person filling the form: its message is written for them.
+    if (error instanceof FieldRefused) response.status(status).json({ error: code, field: error.field, message: error.message });
+    else response.status(status).json({ error: code });
   }
 }
 
@@ -27,5 +29,9 @@ function statusOf(error: DomainError | RunNotBoundYet): readonly [number, string
   if (error instanceof OidcRejected) return [HttpStatus.UNAUTHORIZED, error.code];
   if (error instanceof TicketAlreadyRedeemed) return [HttpStatus.CONFLICT, error.code];
   if (error instanceof TicketRejected) return [HttpStatus.FORBIDDEN, error.code];
+  if (error instanceof SignInRequired) return [HttpStatus.UNAUTHORIZED, error.code];
+  if (error instanceof Forbidden) return [HttpStatus.FORBIDDEN, error.code];
+  if (error instanceof SignInUnavailable) return [HttpStatus.SERVICE_UNAVAILABLE, error.code];
+  if (error instanceof FieldRefused) return [HttpStatus.CONFLICT, error.code];
   return [HttpStatus.UNPROCESSABLE_ENTITY, error.code];
 }

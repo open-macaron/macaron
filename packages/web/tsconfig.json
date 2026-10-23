@@ -12,7 +12,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "useUnknownInCatchVariables": true,
+    "customConditions": ["@open-macaron/source"],
     "types": ["$app/types", "node"]
   },
-  "include": ["src", "test", "vite.config.ts"]
+  "include": ["src", "test", "vite.config.ts", "openapi-ts.config.ts"]
 }

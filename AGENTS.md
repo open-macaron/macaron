@@ -50,6 +50,8 @@ Integration tests (`controller-integration`) need a container runtime (Testconta
   - Edit `.svelte` files with the official Svelte plugin (`.claude/settings.json`: skills, MCP server, `svelte-autofixer`) and the shadcn-svelte skill (`.claude/skills/`, locked in `skills-lock.json`).
   - Build screens from shadcn-svelte components only. Add them with the CLI at the catalog's version (`pnpm dlx shadcn-svelte@<version> add <name> --no-deps-install`), then pin any new dependency in the catalog. Never edit `src/lib/components/ui/` by hand: it is vendored and lint-ignored.
   - Imports use `#lib/…` (SvelteKit 3), links go through `resolve()`, configuration through `src/env.ts`.
+  - Reads and writes are remote functions (`*.remote.ts`, experimental in SvelteKit 3) calling the controller through the generated client (`#lib/server/controller`), which forwards the session cookie and nothing else. Each remote function checks its caller first (`requireUser()`, `requireAdmin()`): they are endpoints of their own, which the page guard in `hooks.server.ts` never sees by route.
+  - Import contracts through a browser-safe subpath (`@open-macaron/contracts/capability`, `/auth`), never the package root: it also exports the config-tree loader, which needs `node:fs`. Types only (`import type`) are fine.
   - The CSP lives in `vite.config.ts`. An inline script or handler needs its hash there, never `'unsafe-inline'`.
 - **Leave the code better, within scope.** Never include a fix outside your task. When you find a problem, something to improve or an idea, open an issue on open-macaron/macaron (`gh issue create`) with the matching label (`bug`, `enhancement`, `documentation`).
 
@@ -61,10 +63,11 @@ Changing `packages/contracts` usually means regenerating, in this order:
 pnpm --filter @open-macaron/contracts gen       # JSON Schemas
 pnpm --filter @open-macaron/contracts build     # the controller's gen compiles against contracts' dist: stale dist = wrong errors
 pnpm --filter @open-macaron/controller gen      # OpenAPI document
-pnpm --filter @open-macaron/agent-cli gen       # agent-cli's client from that document
+pnpm --filter @open-macaron/agent-cli gen       # agent-cli's client from that document (only POST /v1/bootstrap)
+pnpm --filter @open-macaron/web gen             # the web app's client from that document (everything but /v1/bootstrap)
 ```
 
-A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Record<Mode, …>` (`allowedActions`, `MODE_INSTRUCTIONS`, `Budgets`).
+A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Record<Mode, …>` (`allowedActions`, `MODE_INSTRUCTIONS`, `Budgets`, `requiredCapability`). A new `Capability` is a value appended to the `capability` enum by a migration, never a rename, and an entry in the web app's `capabilityInfo`.
 
 ## Security invariants (never weaken; see DESIGN.md §3, §7)
 
@@ -72,6 +75,7 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 - **The bot never has write access upstream:** it works from its forks. Uploads that need write access target the fork.
 - **Agent output is untrusted:** results are schema-validated and gated; review violations stand only with a quote of an added line; mentions are defused (`sanitize()`).
 - **Read-only sessions** (reviews) get `--permission-mode dontAsk`, a short tool list, and never MCP servers. They're defined once, in `packages/review` (`claudeReviewArgs`), for the bot and the local CLI alike.
+- **Users sign in with GitHub only, by invitation.** GitHub's OAuth tokens are never stored, no IP address is kept, session cookies are `__Secure-`, httpOnly and SameSite=Lax. `/v1/me` and `/v1/admin` are reached only by the web app through the cluster Service, never through the edge, and every handler resolves the session itself (`SessionsService`); admin handlers check the role first.
 - **Secrets are never printed, logged or committed.** Scripts read them from `~/.config/macaron/dev.env` without echoing; the cluster gets them through `deploy/openshift/scripts/provision-secrets.sh` (pipes and a server-side apply, never a command line).
 - **Nothing from a pull request's checkout is executed in a privileged context** (the `merge.yml` of open-macaron/knowledge and open-macaron/config; environments that run code only on trusted branches).
 
@@ -91,6 +95,10 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 6. Check the result live (status comment, run, review/PR, cost settlement) on the sandbox repositories in open-macaron/config (`projects/sandbox`), never on repositories outside it.
 
 ## Pitfalls already met
+
+- better-auth drops every `input: false` user field coming from a provider's profile (`mapProfileToUser`): the GitHub id and login are read from the raw profile in `validateUserInfo` and written when the account is linked (`accounts/auth.ts`). Never make them `input: true`: users could set them through `/api/auth/update-user`.
+- better-auth's default rate limit allows a few sign-ins per address every 10 seconds: tests sign in from distinct `X-Client-Address` values.
+- A remote form submitted to a local production build (`node build`) over plain http is refused as cross-site: adapter-node assumes https. Run it with `PROTOCOL_HEADER=x-forwarded-proto` and send that header, as the edge does.
 
 - The shadcn-svelte CLI has no flag for some confirmations ("update your CSS?", "overwrite?"): pipe the answer in after a pause, `(sleep 15; printf y; sleep 1; printf '\r'; sleep 20) | pnpm dlx shadcn-svelte@… init …`. `init --preset` takes an encoded code (`encodePreset` from `shadcn-svelte/preset`), not a style name.
 - Under the app's strict CSP, mode-watcher's head script and Svelte's `this.__e=event` replay handler on `<img>` are allowed by hash (`vite.config.ts`). A bump that changes them shows a CSP error in the browser console with the new hash.

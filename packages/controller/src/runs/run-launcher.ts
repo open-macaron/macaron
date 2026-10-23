@@ -38,6 +38,8 @@ export interface LaunchRequest {
   /** What the run does, and where it answers: stored on the run, followed until it is published. */
   readonly route: Route;
   readonly context: RunContext;
+  /** GitHub id of who asked for the run: whose usage it is. */
+  readonly triggerGithubId: number | null;
 }
 
 export type LaunchOutcome =
@@ -107,6 +109,7 @@ export class RunLauncher {
       context,
       route,
       limitMicros: toMicros(limitUsd),
+      triggerGithubId: request.triggerGithubId,
     });
 
     let key: RunKeyRef | undefined;
