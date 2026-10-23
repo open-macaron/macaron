@@ -71,6 +71,18 @@ const RawEnv = z.object({
   BIFROST_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(1_000).default(60),
 
   WEBHOOK_HMAC: z.string().min(32, "use at least 32 random characters"),
+
+  /** Sign-in (the web app's users): configured when BETTER_AUTH_SECRET is set. Signs session cookies. */
+  BETTER_AUTH_SECRET: z.string().min(32, "use at least 32 random characters").optional(),
+  /** The org GitHub App users sign in with: Email addresses read-only, no repository access. */
+  GITHUB_LOGIN_CLIENT_ID: z.string().min(1).optional(),
+  GITHUB_LOGIN_CLIENT_SECRET: Secret.optional(),
+  /** GitHub user ids (comma-separated) who are admins: they sign in without an invitation and hold every capability. */
+  MACARON_ADMIN_USER_IDS: z
+    .string()
+    .regex(/^\d+(,\d+)*$/, "expected comma-separated numeric GitHub user ids")
+    .transform((ids) => new Set(ids.split(",").map(Number)))
+    .optional(),
 });
 
 export interface OpenRouterEnv {
@@ -83,6 +95,13 @@ export interface OpenRouterEnv {
 export interface PublishedConfigEnv {
   readonly url: string;
   readonly repoId: number;
+}
+
+export interface AuthEnv {
+  readonly secret: string;
+  readonly githubClientId: string;
+  readonly githubClientSecret: string;
+  readonly adminGithubIds: ReadonlySet<number>;
 }
 
 export interface BifrostEnv {
@@ -138,7 +157,17 @@ export const Env = RawEnv.transform((raw, ctx) => {
     missing({ CONFIG_URL: raw.CONFIG_URL, CONFIG_REPO_ID: raw.CONFIG_REPO_ID }, "for the published configuration");
     if (raw.CONFIG_URL !== undefined && raw.CONFIG_REPO_ID !== undefined) publishedConfig = { url: raw.CONFIG_URL, repoId: raw.CONFIG_REPO_ID };
   }
-  return { ...raw, openRouter, bifrost, publishedConfig };
+  let auth: AuthEnv | undefined;
+  if (raw.BETTER_AUTH_SECRET !== undefined) {
+    missing(
+      { GITHUB_LOGIN_CLIENT_ID: raw.GITHUB_LOGIN_CLIENT_ID, GITHUB_LOGIN_CLIENT_SECRET: raw.GITHUB_LOGIN_CLIENT_SECRET, MACARON_ADMIN_USER_IDS: raw.MACARON_ADMIN_USER_IDS },
+      "for sign-in",
+    );
+    if (raw.GITHUB_LOGIN_CLIENT_ID !== undefined && raw.GITHUB_LOGIN_CLIENT_SECRET !== undefined && raw.MACARON_ADMIN_USER_IDS !== undefined) {
+      auth = { secret: raw.BETTER_AUTH_SECRET, githubClientId: raw.GITHUB_LOGIN_CLIENT_ID, githubClientSecret: raw.GITHUB_LOGIN_CLIENT_SECRET, adminGithubIds: raw.MACARON_ADMIN_USER_IDS };
+    }
+  }
+  return { ...raw, openRouter, bifrost, publishedConfig, auth };
 });
 export type AppEnv = z.output<typeof Env>;
 

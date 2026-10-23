@@ -14,6 +14,8 @@ export interface NewEvent {
   readonly subjectKind: "issue" | "pull";
   readonly subjectNumber: number;
   readonly author: string;
+  /** The author's GitHub id; null when GitHub gives no user (a deleted account). */
+  readonly authorId: number | null;
   readonly kind: "mention" | "review" | "comment";
   readonly url: string;
   readonly body: string;

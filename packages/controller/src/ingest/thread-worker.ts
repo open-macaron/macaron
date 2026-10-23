@@ -23,6 +23,8 @@ interface Request {
   readonly mode: Mode;
   readonly trigger: Trigger;
   readonly platform: Platform;
+  /** GitHub id of who asked; retries and escalations keep the first run's. */
+  readonly triggerGithubId: number | null;
 }
 
 /**
@@ -81,7 +83,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
   async escalate({ thread, from, mode, platform }: Escalation): Promise<void> {
     const config = this.config.repo(thread.repo);
     if (config === undefined) return;
-    const request: Request = { subject: subjectOfRun(from, thread), mode, trigger: from.context.trigger, platform: platform ?? platformOfRun(from) };
+    const request: Request = { subject: subjectOfRun(from, thread), mode, trigger: from.context.trigger, platform: platform ?? platformOfRun(from), triggerGithubId: from.triggerGithubId };
     const outcome = await this.routeAndStart(config, thread, await this.states.read(config.repo, thread), request);
     if (outcome.kind === "refused") await this.publisher.reportRefusal(thread, request.subject, outcome.reason);
     if (outcome.kind === "queued") this.logger.warn(`escalation of ${thread.repo}#${String(thread.number)} to ${mode} dropped: ${outcome.reason}`);
@@ -120,7 +122,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
         return this.publisher.reportRefusal(thread, subject, "there is no failed loop to retry");
       }
       await this.reactions.adopt(thread.id, previous.loop, thread.loops + 1, upstream);
-      request = { subject: subjectOfRun(previous, thread), mode: previous.mode, trigger: previous.context.trigger, platform: platform ?? platformOfRun(previous) };
+      request = { subject: subjectOfRun(previous, thread), mode: previous.mode, trigger: previous.context.trigger, platform: platform ?? platformOfRun(previous), triggerGithubId: previous.triggerGithubId };
     } else {
       const trigger: Trigger = {
         kind: eventKind(last),
@@ -128,7 +130,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
         url: last.url,
         instruction: (parseMention(last.body, login)?.instruction ?? last.body).slice(0, 4_096),
       };
-      request = { subject, mode: command === "remember" ? "retro" : command, trigger, platform: platform ?? "linux" };
+      request = { subject, mode: command === "remember" ? "retro" : command, trigger, platform: platform ?? "linux", triggerGithubId: last.authorId };
     }
 
     const outcome = await this.routeAndStart(config, thread, state, request);
@@ -147,10 +149,10 @@ export class ThreadWorker implements OnApplicationBootstrap {
   private async routeAndStart(config: RepoConfig, thread: ThreadRecord, state: ThreadState, request: Request): Promise<LaunchOutcome> {
     const routed = route(state, request.subject, request.mode, request.platform);
     if (isRefusal(routed)) return { kind: "refused", reason: routed.refused };
-    return this.start(config, thread, routed, request.trigger);
+    return this.start(config, thread, routed, request.trigger, request.triggerGithubId);
   }
 
-  private async start(config: RepoConfig, thread: ThreadRecord, routed: Route, trigger: Trigger): Promise<LaunchOutcome> {
+  private async start(config: RepoConfig, thread: ThreadRecord, routed: Route, trigger: Trigger, triggerGithubId: number | null): Promise<LaunchOutcome> {
     const platform = platformOf(routed);
     if (runnerFor(config, platform) === undefined) return { kind: "refused", reason: `\`${platform}\` isn't enabled for this repository` };
     const context = await this.contexts.build(config, thread, routed, trigger);
@@ -158,7 +160,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
     if (context.review?.rules.length === 0) {
       return { kind: "refused", reason: "no rule from open-macaron/knowledge applies to the files this pull request changes" };
     }
-    return this.launcher.launch({ config, thread, route: routed, context });
+    return this.launcher.launch({ config, thread, route: routed, context, triggerGithubId });
   }
 }
 

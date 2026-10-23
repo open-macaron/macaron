@@ -56,6 +56,7 @@ async function newRun(n: number) {
     context: runContext({ mode: "reproduce" }),
     route: { mode: "reproduce", subject: { kind: "issue", number: 2000 + n }, checkout: { from: "defaultBranch" }, branch: `macaron/${String(2000 + n)}-work` },
     limitMicros: 1_000_000,
+    triggerGithubId: 583231,
   });
   return { thread, run };
 }

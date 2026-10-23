@@ -52,6 +52,8 @@ catalog:
   "@octokit/webhooks": 14.2.0
   # OpenRouter (official SDK, generated from their OpenAPI spec)
   "@openrouter/sdk": 1.4.25
+  # Users: GitHub sign-in and sessions (controller), its client (web)
+  better-auth: 1.7.11
   # GitHub, OIDC
   "@octokit/core": 7.0.8
   "@octokit/rest": 22.0.1

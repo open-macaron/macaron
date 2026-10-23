@@ -39,6 +39,7 @@
     "@secretlint/secretlint-rule-pattern": "catalog:",
     "@secretlint/secretlint-rule-preset-recommend": "catalog:",
     "@sindresorhus/slugify": "catalog:",
+    "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
     "fflate": "catalog:",
     "file-type": "catalog:",

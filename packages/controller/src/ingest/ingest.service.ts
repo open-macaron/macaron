@@ -100,7 +100,7 @@ export class IngestService extends NotificationSink {
     if (new Date(issue.created_at) >= since && !this.isBot(opener) && parseMention(issue.body ?? "", this.bot.identity.login) !== undefined) {
       const target: ReactionTarget = { kind: "issue", number: subject.number };
       const trust = this.trusted(subject.repo, issue.user);
-      if (trust === "user") found.push({ event: { externalId: `issue:${String(subject.number)}`, author: opener, kind: "mention", url: issue.html_url, body: issue.body ?? "" }, target });
+      if (trust === "user") found.push({ event: { externalId: `issue:${String(subject.number)}`, author: opener, authorId: issue.user?.id ?? null, kind: "mention", url: issue.html_url, body: issue.body ?? "" }, target });
       else if (trust === undefined && issue.user !== null) refused.push({ author: opener, target });
     }
 
@@ -116,7 +116,7 @@ export class IngestService extends NotificationSink {
       // Mentions need a trusted user; plain comments only count on the bot's own PR.
       const kind = mention && trust === "user" ? "mention" : ownPull && trust !== undefined ? "comment" : undefined;
       if (kind === undefined) continue;
-      found.push({ event: { externalId: `issue-comment:${String(comment.id)}`, author, kind, url: comment.html_url, body }, target });
+      found.push({ event: { externalId: `issue-comment:${String(comment.id)}`, author, authorId: comment.user?.id ?? null, kind, url: comment.html_url, body }, target });
     }
     return { found, refused };
   }
@@ -138,7 +138,7 @@ export class IngestService extends NotificationSink {
         if (this.isBot(author) || this.trusted(subject.repo, review.user) === undefined) return [];
         return [
           {
-            event: { externalId: `review:${String(review.id)}`, author, kind: "review", url: review.html_url, body: review.body },
+            event: { externalId: `review:${String(review.id)}`, author, authorId: review.user?.id ?? null, kind: "review", url: review.html_url, body: review.body },
             target: { kind: "issue" as const, number: subject.number },
           },
         ];
@@ -151,7 +151,7 @@ export class IngestService extends NotificationSink {
     return comments
       .filter((comment) => this.trusted(subject.repo, comment.user) !== undefined)
       .map((comment) => ({
-        event: { externalId: `review-comment:${String(comment.id)}`, author: comment.user.login, kind: "review" as const, url: comment.html_url, body: comment.body },
+        event: { externalId: `review-comment:${String(comment.id)}`, author: comment.user.login, authorId: comment.user.id, kind: "review" as const, url: comment.html_url, body: comment.body },
         target: { kind: "review-comment" as const, id: comment.id },
       }));
   }

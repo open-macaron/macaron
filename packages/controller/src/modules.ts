@@ -11,7 +11,13 @@ import { ConfigUpdates } from "./config/config-updates.ts";
 import { PublishedConfigClient } from "./config/published-config.client.ts";
 import { RepoConfigService } from "./config/repo-config.service.ts";
 import { BotIdentity } from "./github/bot-identity.ts";
+import { InvitationsService } from "./accounts/invitations.service.ts";
+import { SessionsService } from "./accounts/sessions.service.ts";
+import { UsageService } from "./accounts/usage.service.ts";
+import { UsersService } from "./accounts/users.service.ts";
+import { AdminController } from "./http/admin.controller.ts";
 import { BootstrapController } from "./http/bootstrap.controller.ts";
+import { MeController } from "./http/me.controller.ts";
 import { HealthController } from "./http/health.controller.ts";
 import { WebhookController } from "./http/webhook.controller.ts";
 import { ContextBuilder } from "./ingest/context-builder.ts";
@@ -121,9 +127,19 @@ export class RunsModule {}
 })
 export class IngestModule {}
 
-/** The only routes the edge exposes are /v1/bootstrap and /v1/webhook. */
+/** The web app's users: sign-in (better-auth), invitations, capabilities, usage. */
 @Module({
-  imports: [RunsModule, TerminusModule],
-  controllers: [BootstrapController, WebhookController, HealthController],
+  providers: [InvitationsService, SessionsService, UsersService, UsageService],
+  exports: [InvitationsService, SessionsService, UsersService, UsageService],
+})
+export class AccountsModule {}
+
+/**
+ * The edge exposes /v1/bootstrap and /v1/webhook (and better-auth's /api/auth, mounted in main.ts).
+ * /v1/me and /v1/admin are reached only by the web app, through the cluster Service.
+ */
+@Module({
+  imports: [RunsModule, AccountsModule, TerminusModule],
+  controllers: [BootstrapController, WebhookController, HealthController, MeController, AdminController],
 })
 export class HttpModule {}
