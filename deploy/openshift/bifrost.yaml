@@ -44,21 +44,16 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        # config.json from the repository's template and the upstream's URL, which stays in the Secret.
+        # config.json from the repository's template.
         - name: render-config
           image: docker.io/maximhq/bifrost@sha256:8f37e33a8caa85faf59a875605c61d1d934738e517d8fe96e2d9fcf6f0ef9098
           command:
             - /bin/sh
             - -ceu
-            - printf %s "$LLM_UPSTREAM_URL" | sh /etc/bifrost/render-config.sh /app/data/config.json
+            - sh /etc/bifrost/render-config.sh /app/data/config.json
           env:
             - name: PG_SSL_MODE
               value: require
-            - name: LLM_UPSTREAM_URL
-              valueFrom:
-                secretKeyRef:
-                  name: macaron-bifrost
-                  key: llm-upstream-url
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -89,11 +84,6 @@ spec:
               value: json
             - name: BIFROST_ADMIN_USERNAME
               value: macaron
-            - name: LLM_UPSTREAM_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: macaron-bifrost
-                  key: llm-upstream-key
             - name: BIFROST_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -104,7 +94,7 @@ spec:
                 secretKeyRef:
                   name: macaron-bifrost
                   key: db-password
-            # Without it Bifrost stores the upstream LLM key and every virtual key in plain text in Postgres.
+            # Without it Bifrost stores users' keys (for the length of a run) and every virtual key in plain text in Postgres.
             - name: BIFROST_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
