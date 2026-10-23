@@ -12,7 +12,7 @@ import { UsageService } from "../../src/accounts/usage.service.ts";
 import { UsersService } from "../../src/accounts/users.service.ts";
 import { FieldRefused, Forbidden, SignInRequired } from "../../src/common/errors.ts";
 import { connectAndMigrate, type Db } from "../../src/db/db.module.ts";
-import { accounts, adminAudit, runs as runsTable, users } from "../../src/db/schema.ts";
+import { accounts, adminAudit, runs as runsTable, sessions as sessionsTable, users } from "../../src/db/schema.ts";
 import { createGitHub } from "../../src/github/github.ts";
 import { RunsRepository } from "../../src/runs/runs.repository.ts";
 import { testEnv } from "../support/env.ts";
@@ -206,6 +206,26 @@ describe("GitHub sign-in through better-auth", () => {
     await expect(sessions.admin(cookie)).rejects.toThrow(Forbidden);
     await expect(sessions.user({})).rejects.toThrow(SignInRequired);
     await expect(sessions.user({ cookie: "__Secure-macaron.session_token=forged.value" })).rejects.toThrow(SignInRequired);
+  });
+
+  it("extends a session used after a day, and sends the browser a renewed cookie", async () => {
+    githubAnswersAs({ id: 102, login: "Hubot" });
+    const signedIn = await signIn(authWith(service));
+    const cookie = signedIn.headers.getSetCookie().find((value) => value.startsWith("__Secure-macaron.session_token="))?.split(";")[0] ?? "";
+    // A session last renewed two days ago, five days from expiring.
+    const [hubot] = await db.select().from(users).where(eq(users.githubId, 102));
+    const day = 86_400_000;
+    await db.update(sessionsTable).set({ updatedAt: new Date(Date.now() - 2 * day), expiresAt: new Date(Date.now() + 5 * day) }).where(eq(sessionsTable.userId, hubot?.id ?? ""));
+
+    const response = await authWith(service).handler(new Request(`${env.PUBLIC_URL}/api/auth/get-session`, { headers: { cookie } }));
+    expect(response.status).toBe(200);
+    const renewed = response.headers.getSetCookie().find((value) => value.startsWith("__Secure-macaron.session_token="));
+    expect(renewed).toMatch(/Max-Age=604800/);
+    expect(renewed).toMatch(/HttpOnly/i);
+    // The cookie holds `<token>.<signature>`: the row renewed is that token's.
+    const token = decodeURIComponent(cookie.split("=")[1] ?? "").split(".")[0] ?? "";
+    const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.token, token));
+    expect(session?.expiresAt.getTime()).toBeGreaterThan(Date.now() + 6 * day);
   });
 
   it("follows a renamed login at the next sign-in", async () => {
