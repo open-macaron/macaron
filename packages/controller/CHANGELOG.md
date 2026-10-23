@@ -1,5 +1,13 @@
 # @open-macaron/controller
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [fbd5b6e]
+  - @open-macaron/contracts@0.5.0
+  - @open-macaron/review@0.3.5
+
 ## 0.4.0
 
 ### Minor Changes
