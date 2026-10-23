@@ -1,5 +1,11 @@
 # @open-macaron/contracts
 
+## 0.2.0
+
+### Minor Changes
+
+- 6b1ed0d: Users of the web app: `Capability` (what an admin grants each user: triage, plan, implement, reproduce, verify, review, remember) and `requiredCapability` (what each run mode needs); the `/v1/me` and `/v1/admin` schemas (`Me`, `Invitation`, `UserAccount`, `UsagePage`…); `authUserFields`, the user fields better-auth adds, shared by the controller and the web app. `@open-macaron/contracts/capability` and `/auth` are safe to import in a browser.
+
 ## 0.1.0
 
 ### Minor Changes
