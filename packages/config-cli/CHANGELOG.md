@@ -1,5 +1,14 @@
 # @open-macaron/config-cli
 
+## 0.1.5
+
+### Patch Changes
+
+- fbd5b6e: A project file no longer accepts a `users` list (deprecated and ignored since who may trigger the bot became an account of the web app): one with it is refused. open-macaron/config dropped its lists. config-cli no longer reserves `users` for the platform team: the schema refuses it outright.
+- Updated dependencies [fbd5b6e]
+  - @open-macaron/contracts@0.5.0
+  - @open-macaron/owners@0.1.5
+
 ## 0.1.4
 
 ### Patch Changes
