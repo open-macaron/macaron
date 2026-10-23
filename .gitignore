@@ -15,3 +15,7 @@ coverage/
 *-probe.ts
 dist-cli/
 dist-npm/
+
+# SvelteKit (packages/web)
+.svelte-kit/
+packages/web/build/

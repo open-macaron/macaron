@@ -8,3 +8,5 @@ deploy
 config
 **/test
 **/*.tsbuildinfo
+**/.svelte-kit
+packages/web/build
