@@ -1,7 +1,7 @@
 <script lang="ts">
-  import BotIcon from "@lucide/svelte/icons/bot";
   import CircleAlertIcon from "@lucide/svelte/icons/circle-alert";
   import { page } from "$app/state";
+  import MacaronMark from "#lib/components/brand/macaron-mark.svelte";
   import GithubIcon from "#lib/components/icons/github-mark.svelte";
   import * as Alert from "#lib/components/ui/alert/index.js";
   import { Button } from "#lib/components/ui/button/index.js";
@@ -36,9 +36,7 @@
 <main class="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
   <div class="flex w-full max-w-sm flex-col gap-6">
     <div class="flex items-center gap-2 self-center font-semibold">
-      <div class="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-        <BotIcon class="size-4" />
-      </div>
+      <MacaronMark class="size-8" />
       macaron
     </div>
     <Card.Root>

@@ -101,6 +101,8 @@ catalog:
   "@swc/core": 1.16.18
   msw: 3.0.3
   "@testcontainers/postgresql": 12.2.0
+  # The web app's end-to-end tests (packages/web/e2e)
+  "@playwright/test": 1.64.1
 
 allowBuilds:
   '@openrouter/sdk': false

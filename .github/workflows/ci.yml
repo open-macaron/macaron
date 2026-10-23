@@ -42,6 +42,12 @@ jobs:
       - run: pnpm lint
       # Unit and integration tests (Testcontainers uses the runner's Docker); live tests skip without credentials.
       - run: pnpm test
+      # The web app's production build in Chromium, behind a stand-in edge, against a fake controller
+      # checked against the OpenAPI document (packages/web/e2e).
+      - name: web end-to-end tests
+        run: |
+          pnpm --filter @open-macaron/web exec playwright install --with-deps --only-shell chromium
+          pnpm --filter @open-macaron/web test:e2e
       - name: generated code is up to date (JSON Schemas, OpenAPI document, agent-cli and web clients)
         run: |
           pnpm --filter @open-macaron/contracts gen

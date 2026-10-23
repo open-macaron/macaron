@@ -1,8 +1,8 @@
 <script lang="ts">
-  import BotIcon from "@lucide/svelte/icons/bot";
   import type { ComponentProps } from "svelte";
   import { page } from "$app/state";
   import { resolve } from "$app/paths";
+  import MacaronMark from "#lib/components/brand/macaron-mark.svelte";
   import * as Sidebar from "#lib/components/ui/sidebar/index.js";
   import { navigation } from "#lib/navigation.js";
   import type { ShellUser } from "#lib/session.js";
@@ -21,9 +21,7 @@
         <Sidebar.MenuButton size="lg">
           {#snippet child({ props })}
             <a href={resolve("/(app)")} {...props}>
-              <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <BotIcon class="size-4" />
-              </div>
+              <MacaronMark class="size-8 shrink-0" />
               <div class="grid flex-1 text-start text-sm leading-tight">
                 <span class="truncate font-semibold">macaron</span>
                 <span class="truncate text-xs text-muted-foreground">AI contributor console</span>
