@@ -1,6 +1,6 @@
 {
   "name": "@open-macaron/agent-cli",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "macaron-agent: runs inside open-macaron/runner \u2014 bootstrap over OIDC, harness, result and changes",
   "license": "Apache-2.0",
