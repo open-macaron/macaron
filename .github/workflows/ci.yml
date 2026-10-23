@@ -68,3 +68,12 @@ jobs:
           containerfiles: packages/controller/Containerfile
           context: .
           oci: true
+      # One job for both images: main's ruleset requires a check named `image`.
+      - name: build the web image (not pushed)
+        uses: redhat-actions/buildah-build@719e3c40d8af9790c23eca13f7daa339f2867034 # v3.1.0
+        with:
+          image: macaron-web
+          tags: ci
+          containerfiles: packages/web/Containerfile
+          context: .
+          oci: true

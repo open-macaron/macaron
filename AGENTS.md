@@ -14,6 +14,7 @@ Read first: [README.md](README.md) (what the bot does), [docs/DESIGN.md](docs/DE
 | `packages/review` | The review engine (rule selection, read-only judge session, evidence verification, rendering), shared by the controller and agent-cli, and the `macaron-review` CLI published to npm as `@open-macaron/review` |
 | `packages/knowledge-cli` | Validation, owner-approved merges and the Pages read API of open-macaron/knowledge |
 | `packages/config-cli` | Validation (`parseConfigTree` from contracts: the controller's own checks), owner-approved merges and the Pages snapshot of open-macaron/config. Changes to who can trigger the bot or what it may spend are left to the platform team |
+| `packages/web` | The SvelteKit 3 app (adapter-node, shadcn-svelte): GitHub sign-in, users' LLM keys, usage history. Holds no credential; talks to the controller's Service only |
 | `packages/owners` | The owner-approved merge both CLIs share: `OWNERS.yaml` per folder, matched by user id, status comment, merge at the evaluated commit |
 | [open-macaron/config](https://github.com/open-macaron/config) | Trusted projects, repositories, users, budgets (`global.yaml` → `projects/<p>/project.yaml` → `repos/<r>.yaml`), in its own repository: owner-approved, published on GitHub Pages, reloaded by the controller without a deploy. A copy for tests: `packages/contracts/test/fixtures/config` |
 | `deploy/` | `deploy/openshift/`: the production manifests and their scripts (`deploy.sh`, `provision-secrets.sh`), see docs/DEPLOYMENT.md; `deploy/bifrost/`: Bifrost's config template, pinned prices, `dev.sh` |
@@ -26,7 +27,8 @@ Related repositories: [open-macaron/runner](https://github.com/open-macaron/runn
 ```sh
 pnpm install
 pnpm check                      # typecheck + lint + all tests
-pnpm exec vitest run --project controller        # unit tests of one package (contracts, review, agent-cli, controller, knowledge-cli, owners, config-cli)
+pnpm exec vitest run --project controller        # unit tests of one package (contracts, review, agent-cli, controller, knowledge-cli, owners, config-cli, web)
+pnpm --filter @open-macaron/web dev              # the web app (CONTROLLER_URL in packages/web/.env.local)
 pnpm test:live                  # live tests against Bifrost/GitHub/OpenRouter (~/.config/macaron/dev.env; each skipped without its variables)
 deploy/bifrost/dev.sh up        # local Bifrost + Postgres behind the production edge, for the Bifrost live test (LLM_UPSTREAM_URL, LLM_UPSTREAM_KEY, BIFROST_ADMIN_PASSWORD in dev.env)
 pnpm --filter @open-macaron/controller gen:bifrost   # Bifrost admin client, when bumping the Bifrost image
@@ -44,6 +46,11 @@ Integration tests (`controller-integration`) need a container runtime (Testconta
 - **Dependencies** go in the `catalog:` of `pnpm-workspace.yaml`, pinned. `minimumReleaseAge` is 3 days: a version younger than that fails the install, so pick the newest that has matured.
 - **Comments** explain why, at the density of the surrounding code. No narration of what the code does.
 - **`process.env`** is read only at the validated entry points: the controller's `config/env.module.ts` (parsed by `config/env.ts`), `agent-cli/src/inputs.ts`, and the `cli.ts` of knowledge-cli and config-cli. Each has an `eslint-disable` of `no-restricted-syntax`.
+- **Web app (`packages/web`).**
+  - Edit `.svelte` files with the official Svelte plugin (`.claude/settings.json`: skills, MCP server, `svelte-autofixer`) and the shadcn-svelte skill (`.claude/skills/`, locked in `skills-lock.json`).
+  - Build screens from shadcn-svelte components only. Add them with the CLI at the catalog's version (`pnpm dlx shadcn-svelte@<version> add <name> --no-deps-install`), then pin any new dependency in the catalog. Never edit `src/lib/components/ui/` by hand: it is vendored and lint-ignored.
+  - Imports use `#lib/…` (SvelteKit 3), links go through `resolve()`, configuration through `src/env.ts`.
+  - The CSP lives in `vite.config.ts`. An inline script or handler needs its hash there, never `'unsafe-inline'`.
 - **Leave the code better, within scope.** Never include a fix outside your task. When you find a problem, something to improve or an idea, open an issue on open-macaron/macaron (`gh issue create`) with the matching label (`bug`, `enhancement`, `documentation`).
 
 ## Generated code (CI fails on drift)
@@ -84,6 +91,10 @@ A new `Mode` also needs a migration (`run_mode` enum) and entries in every `Reco
 6. Check the result live (status comment, run, review/PR, cost settlement) on the sandbox repositories in open-macaron/config (`projects/sandbox`), never on repositories outside it.
 
 ## Pitfalls already met
+
+- The shadcn-svelte CLI has no flag for some confirmations ("update your CSS?", "overwrite?"): pipe the answer in after a pause, `(sleep 15; printf y; sleep 1; printf '\r'; sleep 20) | pnpm dlx shadcn-svelte@… init …`. `init --preset` takes an encoded code (`encodePreset` from `shadcn-svelte/preset`), not a style name.
+- Under the app's strict CSP, mode-watcher's head script and Svelte's `this.__e=event` replay handler on `<img>` are allowed by hash (`vite.config.ts`). A bump that changes them shows a CSP error in the browser console with the new hash.
+- `adapter-node` bundles `devDependencies` and leaves `dependencies` external: the web app keeps everything in `devDependencies`, so its image ships `build/` alone.
 
 - `msw` in integration tests must start **after** Testcontainers (or bypass unknown hosts): it intercepts the container runtime's HTTP calls.
 - A merge by the knowledge repository's `GITHUB_TOKEN` fails (403) when the branch is behind `main` on `.github/workflows/`.

@@ -1,0 +1,96 @@
+# The web app (packages/web): holds no credential. The edge sends it every path it does not route
+# elsewhere; it reaches the controller over its Service only, never the internet.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: macaron-web
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: macaron-web
+spec:
+  selector:
+    app.kubernetes.io/name: macaron-web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: macaron-web
+  annotations:
+    # A new digest in the macaron-web ImageStream rolls the web app out.
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"macaron-web:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"web\")].image"}]'
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: macaron-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: macaron-web
+        app.kubernetes.io/component: web
+    spec:
+      serviceAccountName: macaron-web
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          # Set from the macaron-web ImageStream, as the controller's is (deploy.sh pins the digest).
+          image: ghcr.io/open-macaron/web:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: CONTROLLER_URL
+              value: http://macaron-controller:8080
+            # Behind the router and the edge, both trusted: the edge sets the protocol, and the client's
+            # address is the second from the right in X-Forwarded-For (router, then edge).
+            - name: PROTOCOL_HEADER
+              value: x-forwarded-proto
+            - name: ADDRESS_HEADER
+              value: x-forwarded-for
+            - name: XFF_DEPTH
+              value: "2"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 384Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

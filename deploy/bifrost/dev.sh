@@ -72,8 +72,8 @@ podman run -d --network "$NAME" --network-alias macaron-bifrost --name "$NAME-bi
   --secret macaron-dev-bifrost-db,type=env,target=BIFROST_ENCRYPTION_KEY \
   "$(image bifrost.yaml)" >/dev/null
 
-# The production edge. No controller runs here: its routes answer 502.
-podman run -d --network "$NAME" --network-alias macaron-edge --name "$NAME-edge" --add-host macaron-controller:127.0.0.1 \
+# The production edge. No controller or web app runs here: their routes answer 502.
+podman run -d --network "$NAME" --network-alias macaron-edge --name "$NAME-edge" --add-host macaron-controller:127.0.0.1 --add-host macaron-web:127.0.0.1 \
   --read-only --tmpfs /tmp -v "$OPENSHIFT/edge/nginx.conf:/etc/nginx-macaron/nginx.conf:ro,Z" \
   "$(image edge.yaml)" nginx -e stderr -c /etc/nginx-macaron/nginx.conf -g 'daemon off;' >/dev/null
 

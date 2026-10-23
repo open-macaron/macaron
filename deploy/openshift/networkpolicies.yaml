@@ -1,5 +1,5 @@
-# Default deny, then one policy per workload: Postgres is reached only by its clients, and only the
-# controller and Bifrost reach the internet, on TCP 443.
+# Default deny, then one policy per workload: Postgres is reached only by its clients, only the
+# controller and Bifrost reach the internet, on TCP 443, and the web app reaches the controller alone.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -69,7 +69,7 @@ spec:
             matchExpressions:
               - key: app.kubernetes.io/name
                 operator: In
-                values: [macaron-controller, macaron-bifrost]
+                values: [macaron-controller, macaron-bifrost, macaron-web]
       ports:
         - { protocol: TCP, port: 8080 }
 ---
@@ -85,8 +85,10 @@ spec:
   ingress:
     - from:
         - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: macaron-edge
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [macaron-edge, macaron-web]
       ports:
         - { protocol: TCP, port: 8080 }
   egress:
@@ -100,6 +102,30 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: macaron-bifrost
+      ports:
+        - { protocol: TCP, port: 8080 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: macaron-web
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: macaron-web
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: macaron-edge
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: macaron-controller
       ports:
         - { protocol: TCP, port: 8080 }
 ---

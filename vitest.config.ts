@@ -16,6 +16,8 @@ export default defineConfig({
       { extends: true, test: { name: "config-cli", include: ["packages/config-cli/test/**/*.test.ts"] } },
       { extends: true, test: { name: "review", include: ["packages/review/test/**/*.test.ts"] } },
       { extends: true, test: { name: "controller", include: ["packages/controller/test/unit/**/*.test.ts"] } },
+      // The web app's own Vite config (SvelteKit's plugin), not the root's SWC.
+      { extends: "./packages/web/vite.config.ts", test: { name: "web", root: "packages/web", include: ["test/**/*.test.ts"] } },
       {
         extends: true,
         test: { name: "controller-live", include: ["packages/controller/test/live/**/*.test.ts"] },

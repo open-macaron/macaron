@@ -7,18 +7,23 @@ flowchart LR
   subgraph GH["GitHub (open-macaron/macaron)"]
     CI["ci.yml<br/>typecheck, lint, tests, drift"] --> MAIN["main"]
     MAIN --> VP["Version Packages PR<br/>(changesets, merges itself once CI is green)"]
-    VP --> REL["release.yml<br/>tags, releases, controller image :version and :latest<br/>build provenance attestation"]
+    VP --> REL["release.yml<br/>tags, releases, controller and web images :version and :latest<br/>build provenance attestation"]
   end
   REL -->|"ghcr.io/open-macaron/controller:latest"| IS
+  REL -->|"ghcr.io/open-macaron/web:latest"| ISW
   DEP["operator machine<br/>deploy.sh: manifests, Bifrost, nginx, Postgres"] -.->|oc| NS
   CFG["open-macaron/config<br/>owner-approved merge → Pages v1/config.json"] -->|"deployment_status webhook, then fetch"| Ctl
   GHW[GitHub webhooks] -->|443| Route
   R[Actions runners] -->|443| Route
+  U[Users' browsers] -->|443| Route
   subgraph NS["OpenShift namespace (restricted-v2, default-deny NetworkPolicies)"]
     IS["ImageStream macaron-controller:latest<br/>scheduled import"] -->|image trigger| Ctl
+    ISW["ImageStream macaron-web:latest<br/>scheduled import"] -->|image trigger| Web
     Route["Route macaron<br/>edge TLS, HTTP → HTTPS"] --> Edge["macaron-edge (nginx)<br/>exact routes, body limits, 404 otherwise"]
     Edge --> Ctl["macaron-controller"]
     Edge --> Bf["macaron-bifrost<br/>three LLM routes only"]
+    Edge -->|"every other path"| Web["macaron-web<br/>SvelteKit, no credential"]
+    Web -->|Service| Ctl
     Ctl -->|admin API| Bf
     Ctl -->|TLS verify-full| PG[("macaron-postgres<br/>StatefulSet")]
     Bf -->|TLS| PG
@@ -28,7 +33,7 @@ flowchart LR
 
 Until 2026-10-21 production ran on a Fedora VPS with rootful Podman quadlets. It was migrated (#24): the databases were streamed over, the webhook was repointed, and the VPS was wiped and decommissioned. Its files are in git history before that date.
 
-## 1. Image build (`release.yml`, `packages/controller/Containerfile`)
+## 1. Image build (`release.yml`, `packages/controller/Containerfile`, `packages/web/Containerfile`)
 
 - **Two-stage Containerfile.** It builds on `registry.access.redhat.com/ubi10/nodejs-24` and runs on `ubi10/nodejs-24-minimal`, both pinned by digest.
 - **What the build does:** `pnpm install --frozen-lockfile`, `pnpm build`, then `pnpm deploy --prod` into `/opt/app`. The runtime image only gets that folder and runs as a non-root user, which also works with OpenShift's random UIDs (group 0).
@@ -54,11 +59,12 @@ Until 2026-10-21 production ran on a Fedora VPS with rootful Podman quadlets. It
 | `backup.yaml` | Nightly `pg_dump` of both databases, each by its owner, to the `macaron-backups` volume, kept 30 days |
 | `bifrost.yaml` | An initContainer renders `config.json` with `deploy/bifrost/render-config.sh` (upstream URL from the Secret, `PG_SSL_MODE=require`). `Recreate`: never two instances charging the same keys |
 | `controller-imagestream.yaml` | `macaron-controller:latest`, following `ghcr.io/open-macaron/controller:latest` with a scheduled import (the cluster's interval, about 15 minutes), pulled from ghcr.io by digest. The controller Deployment's `image.openshift.io/triggers` annotation rolls it out on each new digest |
+| `web-imagestream.yaml`, `web.yaml` | The web app (`packages/web`) follows `ghcr.io/open-macaron/web:latest` the same way. It holds no credential and reaches only the controller's Service (`CONTROLLER_URL`). It trusts the router and the edge for the protocol and the client address (`PROTOCOL_HEADER`, `ADDRESS_HEADER`, `XFF_DEPTH=2`) |
 | `controller.yaml` | Configuration from open-macaron/config's published snapshot (`CONFIG_URL`, §6). `DATABASE_URL` is assembled from the Secret's password and verifies the service CA. `RollingUpdate`: migrations run under an advisory lock and pg-boss coordinates through Postgres |
 | `edge.yaml`, `edge/nginx.conf` | The Route (edge TLS, 600 s timeout for LLM streams, no sticky cookie) and nginx, which holds the routing contract of DESIGN.md §7. The official Caddy image can't be used under `restricted-v2`: its binary carries a file capability |
 | `networkpolicies.yaml` | Default deny, DNS for every pod, then one allow-list per workload |
 
-The edge exposes `/v1/bootstrap` and `/v1/webhook`, plus `POST …/messages`, `POST …/messages/count_tokens` and `GET …/models` under `/llm/anthropic/v1`. It forwards each to its canonical upstream path: `location =` matches exactly, case-sensitively, on the normalised path. Everything else gets a 404, Bifrost's admin API and UI included. Body limits are 26 MB (controller) and 32 MB (LLM routes).
+The edge exposes `/v1/bootstrap` and `/v1/webhook`, plus `POST …/messages`, `POST …/messages/count_tokens` and `GET …/models` under `/llm/anthropic/v1`. It forwards each to its canonical upstream path: `location =` matches exactly, case-sensitively, on the normalised path. Every other path goes to the web app, which answers its own 404s; `/healthz` stays inside the cluster, and nothing reaches Bifrost's admin API or UI. Body limits are 26 MB (controller) and 32 MB (LLM routes).
 
 ### Security
 
@@ -69,7 +75,8 @@ The edge exposes `/v1/bootstrap` and `/v1/webhook`, plus `POST …/messages`, `P
   - no service account token, and one ServiceAccount per workload.
 - **Network:**
   - Postgres is reached only by the controller, Bifrost and the backup job.
-  - Bifrost is reached only by the edge and the controller, and the controller only by the edge.
+  - Bifrost is reached only by the edge and the controller, and the controller only by the edge and the web app.
+  - The web app is reached only by the edge, and reaches only the controller.
   - Only the controller and Bifrost reach the internet: TCP 443 to non-private addresses. No cluster service, node or cloud metadata endpoint is reachable.
 - **Database:**
   - network logins need TLS and scram, and are never the superuser;
@@ -123,7 +130,7 @@ deploy/openshift/scripts/deploy.sh
 
 The script:
 1. Refuses an unclean checkout, or a commit other than `origin/main` unless `MACARON_DEPLOY_UNMERGED=1`.
-2. Checks that `macaron-settings` has `CONFIG_URL`, and sets the controller image to the digest the ImageStream holds (importing it on a first deploy), so a deploy never moves the controller.
+2. Checks that `macaron-settings` has `CONFIG_URL`, and sets the controller and web images to the digests their ImageStreams hold (importing them on a first deploy), so a deploy never moves either.
 3. Runs a `pg_dump` Job before applying.
 4. Refuses to restart a changed Bifrost while runs are unsettled, because Bifrost writes spend to Postgres only every 10 s.
 5. Applies server-side and waits for every rollout. A Deployment that doesn't become ready is rolled back.
@@ -132,7 +139,7 @@ Neither a configuration change nor a controller release is a deploy: the control
 
 ## 6. Operations
 
-- **Logs:** `oc logs deployment/macaron-controller` (JSON lines from pino, secrets redacted), `deployment/macaron-bifrost`, `deployment/macaron-edge`, `statefulset/macaron-postgres`.
+- **Logs:** `oc logs deployment/macaron-controller` (JSON lines from pino, secrets redacted), `deployment/macaron-bifrost`, `deployment/macaron-edge`, `deployment/macaron-web`, `statefulset/macaron-postgres`.
 - **Kill switch:** `MACARON_ENABLED=false deploy/openshift/scripts/provision-secrets.sh`, then restart the controller. The controller stops ingesting, refuses to launch runs and revokes open keys. `oc scale deployment/macaron-controller --replicas=0` is the hard stop: open keys still expire on their own, and the sweeper deletes them on the next start.
 - **User allowlist:** `MACARON_ALLOWED_USER_IDS=<id>,<id>` limits who can trigger the bot to those numeric GitHub user ids, whatever open-macaron/config trusts. Ids rather than logins, because a login can be renamed and re-registered. Set it through `provision-secrets.sh`, then restart the controller.
 - **LLM backend:** production uses Bifrost over the upstream LLM key (`LLM_BACKEND=bifrost`). Models must be priced in `deploy/bifrost/pricing.json`. The controller refuses to start when the active backend can't price a configured model, and refuses to mint keys for one after a config reload. A configured backend that isn't active and fails its start-up check is logged and left out.

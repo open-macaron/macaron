@@ -1,0 +1,33 @@
+# macaron web app image. Build from the repository root:
+#   podman build -f packages/web/Containerfile -t macaron-web .
+# Base images are pinned by digest (the controller's); Renovate bumps them.
+
+FROM registry.access.redhat.com/ubi10/nodejs-24@sha256:8f8b90769f48b962ae25b45a77abee4c6a6b025e2dceecceee0eaaa02650dcea AS build
+USER 0
+RUN npm install --global --no-fund --no-audit pnpm@12.13.0
+WORKDIR /src
+# Dependencies first, for layer caching: only manifests and the lockfile.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/web/package.json packages/web/
+RUN pnpm install --frozen-lockfile --filter @open-macaron/web...
+COPY packages/web packages/web
+# adapter-node bundles every dependency into build/: the runtime image needs no node_modules.
+RUN pnpm --filter @open-macaron/web build
+
+FROM registry.access.redhat.com/ubi10/nodejs-24-minimal@sha256:f12bc5fbf6feea17695de7a30ba8f7ba03b0ea7ffed3d8862764d2935ef7fc65
+ARG VERSION=dev
+ARG REVISION=unknown
+LABEL org.opencontainers.image.title="macaron-web" \
+      org.opencontainers.image.source="https://github.com/open-macaron/macaron" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}"
+COPY --from=build --chown=1001:0 /src/packages/web/build /opt/app/build
+COPY --from=build --chown=1001:0 /src/packages/web/package.json /opt/app/package.json
+WORKDIR /opt/app
+ENV NODE_ENV=production \
+    PORT=8080 \
+    HOST=0.0.0.0
+USER 1001
+EXPOSE 8080
+CMD ["node", "build/index.js"]
