@@ -1,6 +1,6 @@
 {
   "name": "@open-macaron/owners",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Owner-approved merges for repositories whose folders carry an OWNERS.yaml (open-macaron/knowledge, open-macaron/config)",
   "license": "Apache-2.0",

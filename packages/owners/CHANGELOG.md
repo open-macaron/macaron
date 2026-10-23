@@ -1,5 +1,12 @@
 # @open-macaron/owners
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [7dfb14e]
+  - @open-macaron/contracts@0.4.0
+
 ## 0.1.3
 
 ### Patch Changes
