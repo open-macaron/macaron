@@ -18,36 +18,40 @@ Against `deploy/bifrost/dev.sh up` (Bifrost v2.3.0, the pinned image, configured
 | Keys at rest | Encrypted (`BIFROST_ENCRYPTION_KEY`): a 128-character ciphertext in `config_keys`; the key appears in no table, in no `pg_dump`, and not in Bifrost's logs. |
 | A private base URL | Refused by Bifrost itself (400, "private IP addresses are not allowed"), on top of our own check and the egress NetworkPolicy. |
 
-## 2. Design
+## 2. How it works
 
 ```mermaid
 flowchart LR
   Admin -->|approves| EP[(llm_endpoints)]
-  EP -->|ensure, before each mint| BP["Bifrost provider ep-&lt;id&gt;<br/>base_url, allowed requests,<br/>pricing overrides"]
-  User -->|saves| K[(llm_keys<br/>sealed under the KEK)]
-  Launch["RunLauncher.launch"] -->|payer, capability, cap| Mint["BudgetService.mint"]
-  K -->|unseal, this run only| Mint
-  Mint -->|POST key macaron-run-&lt;run&gt;| BP
+  EP -->|ensure, before each mint| BP["Bifrost provider macaron-ep-&lt;id&gt;<br/>base_url, allowed requests,<br/>price overrides from pricing.json"]
+  User -->|saves, checked with the endpoint| K[(llm_keys<br/>sealed under the KEK)]
+  Launch["RunLauncher.launch"] -->|payer, capability, budgets, cap| Check["LlmKeysService.upstreamFor<br/>unseal, check with the endpoint"]
+  K --> Check
+  Check -->|the payer's key| Mint["BudgetService.mint"]
+  Mint -->|add key macaron-run-&lt;run&gt;| BP
   Mint -->|virtual key, key_ids: that key only| VK[virtual key]
   VK -->|runner| BP -->|user's key| Upstream[user's endpoint]
-  Settle[settlement] -->|delete the run's key, then its virtual key| BP
+  Stop[completion, abort] -->|remove the run's key| BP
+  Settle[settlement] -->|read spend, delete the virtual key| VK
 ```
 
-- **One Bifrost provider per approved endpoint** (`ep-<endpoint id>`), with the four allowed request types and one pricing override per configured model, copied from the pinned list prices (`deploy/bifrost/pricing.json`, every field `PricingPatch` accepts). The controller ensures it (create when missing, idempotent) before every mint: a Bifrost restart drops it.
-- **The user's key lives in Bifrost for one run only**: added to the endpoint's provider as `macaron-run-<run id>` when the run's virtual key is minted, bound by `key_ids` to that key alone, deleted at settlement, on abort, and by Housekeeping's sweep.
-- **A Bifrost restart breaks in-flight runs** (their keys and bindings are gone). `deploy.sh` already refuses to restart Bifrost while a run is unsettled; an eviction mid-run fails that run, and its user retries.
-- **Prices are list prices.** An endpoint may bill differently (the company gateway does): the web app says "estimated cost", and each endpoint carries a pricing note.
-- **No shared key**: the `anthropic` provider and `LLM_UPSTREAM_KEY` leave Bifrost's configuration once every run is billed to a user (#60).
+- **One Bifrost provider per approved endpoint** (`macaron-ep-<endpoint id>`, base type anthropic, the four request types Claude Code sends, 16 requests in flight). The controller ensures it before every mint (`BifrostKeys`), since a Bifrost restart drops providers created at runtime.
+- **Prices are provider-scoped overrides,** one per configured model, created or brought back to the pinned price. With no provider configured Bifrost lists no catalog price at all, so the controller reads `deploy/bifrost/pricing.json` itself (`LLM_PRICING_FILE`, mounted from Bifrost's ConfigMap), every field Bifrost's price patch accepts.
+- **The user's key is in Bifrost for one run only:** added to the endpoint's provider under the run key's name (`macaron-run-<run id>`) when the run is minted, and the run's virtual key may use that key alone (`key_ids`). It is removed as soon as the run stops spending (completion or abort); settlement still reads the spend from the virtual key, then deletes it. Housekeeping sweeps any user key no unsettled run names.
+- **A Bifrost restart breaks in-flight runs** (their keys and bindings are gone). `deploy.sh` refuses to restart Bifrost while a run is unsettled; an eviction mid-run fails that run, and its user retries.
+- **Prices are list prices.** An endpoint may bill differently (the company gateway does): the web app says "estimated", and each endpoint carries a pricing note.
+- **No shared key:** Bifrost's configuration has no provider and no LLM key. `LLM_BACKEND=openrouter` refuses runs: OpenRouter can't bill a user's key.
 
 ## 3. Storing users' keys (#59)
 
-- AES-256-GCM (`node:crypto`), sealed under a key-encryption key (KEK) in its own Secret, `macaron-llm-kek`, mounted as a **file** in the controller only. Never an environment variable, never in Postgres, `pg_dump` or the repository. The cluster has no Vault, External Secrets or KMS: its namespace admins can read Secrets. The key form says so.
-- AAD = user id + endpoint id: a ciphertext can't be moved to another user or endpoint. Each row has its `kek_version`; `macaron-controller keys rotate` re-seals every row under the newest version.
-- Decrypted in one place (`LlmKeysService.unsealFor`), handed straight to Bifrost for one run.
-- Write-only: the API returns the endpoint, the last 4 characters and the validation date. Saving needs a session younger than 10 minutes, is rate limited, and probes the endpoint (`GET /v1/models`, no redirects) for the configured models. The form field is `_key`: remote forms never send it back.
-- Append-only `llm_key_events`: created, replaced, deleted, used by a run, rejected by the endpoint.
+- AES-256-GCM (`node:crypto`, 12-byte IV, 16-byte tag, both enforced), sealed under a key-encryption key (KEK) in its own Secret, `macaron-llm-kek`, mounted read-only as files (`v1`, `v2`…, mode 0440) in the controller only. Never an environment variable, never in Postgres, `pg_dump` or the repository. The cluster has no Vault, External Secrets or KMS: its namespace admins can read Secrets. The key page says so.
+- AAD = user id + endpoint id: a ciphertext can't be moved to another user or endpoint. Each row has its `kek_version`. Rotation: `LLM_KEK_ROTATE=1 provision-secrets.sh`, a controller restart, `node dist/rotate-llm-keys.js` in the pod, then `LLM_KEK_RETIRE=<n>` (docs/DEPLOYMENT.md §4).
+- Unsealed in two places only: `LlmKeysService.upstreamFor`, which hands the key to Bifrost for one run, and the rotation.
+- Write-only: the API returns the endpoint, the last 4 characters and the validation date. Saving needs a sign-in younger than 10 minutes (the session's creation, which renewals don't move), allows 5 attempts per user and hour and one at a time, and checks the key with its endpoint (`GET /v1/models`, `x-api-key`, no redirect, through a lookup that refuses non-public addresses at connect time). No database connection is held during that check. The form field is `_key`: remote forms never send it back.
+- Before each run the key is checked again: one the endpoint now refuses is marked `rejected` and the run is refused.
+- Append-only `llm_key_events` (triggers refuse update, delete and truncate, except with the user): created, replaced, deleted, used by a run (with its thread), rejected by the endpoint, unreachable.
 
 ## 4. Who pays (#60) and how much (#61)
 
-- The run is billed to the account it runs for (#71): whoever asked, or for escalations, retries and review bots' comments, whoever asked first. Without a usable key (none saved, rejected, endpoint disabled), the run is refused with a reply that says why and links to the web app.
-- A monthly cap per user: refused when this month's spend plus the run's limit would pass it; otherwise the run's limit is the smaller of the mode's budget and what is left.
+- The run is billed to the account it runs for (#71), recorded on `runs.payer_id`: whoever asked, or for escalations, retries and review bots' comments, whoever asked first. Without a usable key (none saved, rejected, endpoint disabled, unreadable, endpoint unreachable) the run is refused with a reply that says why and links to the key page.
+- A monthly cap per user (calendar month, UTC), optional: a run is refused when what the month was billed to the user, plus the limits of their runs in progress, plus its own limit would pass the cap. The refusal says what's left. Project and repository budgets apply as well.

@@ -24,7 +24,7 @@ Only people with an account of its web app (invited by an administrator, who gra
 
 **Reviews check one thing per rule.** A violation is only reported with a quote of a line the pull request adds; the reviewer reads code and history but can't change or run anything. The same review runs locally, before you push, with your own agent: `npx @open-macaron/review --project <project>` ([packages/review](packages/review/README.md)).
 
-**Cost.** Every run is billed to the LLM key of whoever asked for it, saved in the web app, through its own Bifrost key capped at the mode's budget and limited to the run's models. The cost of each loop is reported: in a table at the end of the bot's pull requests, and in each review. Per-thread, per-repository and per-project monthly caps stop the bot before it spends more.
+**Cost.** Every run is billed to the LLM key of whoever asked for it, saved in the web app under an optional monthly cap, through its own Bifrost key capped at the mode's budget and limited to the run's models. Without a saved key, the bot answers a mention with a refusal that links to the key page. The cost of each loop is reported: in a table at the end of the bot's pull requests, and in each review. Per-thread, per-repository and per-project monthly caps stop the bot before it spends more.
 
 ## How it works
 

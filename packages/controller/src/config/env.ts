@@ -18,7 +18,7 @@ const RawEnv = z.object({
   CONFIG_URL: z.url({ protocol: /^https$/ }).optional(),
   /** open-macaron/config's immutable id: only its Pages deployments trigger a reload. */
   CONFIG_REPO_ID: z.coerce.number().int().positive().optional(),
-  /** Kill switch: when false, nothing is ingested and every open key is revoked. */
+  /** Kill switch: when false, notifications aren't polled and no run is launched; runs already going finish. */
   MACARON_ENABLED: z.stringbool().default(true),
 
   GITHUB_BOT_LOGIN: z.string().min(1).default("macaron-bot"),

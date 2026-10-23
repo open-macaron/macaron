@@ -223,8 +223,11 @@ abstract class RunKeys {
   readonly backend: "openrouter" | "bifrost";
   readonly baseUrl: string;      // what runners use as ANTHROPIC_BASE_URL
   readonly usageLagMs: number;   // wait after freezing before usage is worth reading
-  create(name: string, limitUsd: number, expiresAt: Date, models: readonly string[]): Promise<ProvisionedKey>;
-  disable(hash: string): Promise<void>;
+  /** Over `upstream`, the payer's endpoint and key (OpenRouter refuses: it can't bill a user's key). */
+  create(name: string, limitUsd: number, expiresAt: Date, models: readonly string[], upstream: Upstream): Promise<ProvisionedKey>;
+  disable(hash: string): Promise<void>;   // Bifrost: the user's key leaves at once
+  /** Users' keys left by an interrupted mint, except those `keep` names. */
+  sweepUpstreamKeys(prefix: string, keep: ReadonlySet<string>): Promise<string[]>;
   delete(hash: string): Promise<void>;
   listByPrefix(prefix: string): Promise<KeyStatus[]>;
   spentSince(hash: string, since: Date): Promise<number>;
@@ -232,7 +235,7 @@ abstract class RunKeys {
 
 class BudgetService {
   /** On the active backend: capped at limitUsd, limited to `models` where the backend can, expiring after ttlMinutes. */
-  mint(runId: string, limitUsd: number, ttlMinutes: number, models: readonly string[]): Promise<MintedKey>;
+  mint(runId: string, limitUsd: number, ttlMinutes: number, models: readonly string[], upstream: Upstream): Promise<MintedKey>;
   /** Every other call goes to the backend recorded on the run (`runs.key_backend`), whichever is active now. */
   freeze(key: RunKeyRef): Promise<void>;
   usage(key: RunKeyRef, since: Date): Promise<UsdMicros>;
@@ -243,13 +246,13 @@ class BudgetService {
 ```
 
 - **Two backends.** OpenRouter mints real keys with a limit and an expiry. Bifrost (a self-hosted gateway, `deploy/openshift/bifrost.yaml`) mints virtual keys with a budget, an expiry, an allowlist of the run's model and fast model, and a per-minute request limit, over the payer's own key: each approved endpoint is a Bifrost provider priced from the pinned list, and the payer's key is added to it for the run only. OpenRouter can't bill a user's key: with it active, runs are refused. Each run records where its key was minted, so switching `LLM_BACKEND` never strands a run's key.
-- **Start-up checks.** Each configured backend checks itself when the controller starts (OpenRouter resolves its workspace, `OPENROUTER_WORKSPACE`; Bifrost loads its prices). The active backend must pass, and must price every model the configuration uses; another backend that fails is logged and left out, since it only matters for runs minted on it.
+- **Start-up checks.** Each configured backend checks itself when the controller starts (OpenRouter resolves its workspace, `OPENROUTER_WORKSPACE`; Bifrost checks its admin credentials, and its prices come from `LLM_PRICING_FILE`). The active backend must pass, and must price every model the configuration uses; another backend that fails is logged and left out, since it only matters for runs minted on it.
 - **OpenRouter keys live in one workspace,** so its dashboard is the bot's total spend there, and a workspace budget can act as a hard global ceiling on top of our caps.
 - **Costs are settled in two phases.** Backends report a key's usage asynchronously (OpenRouter ~25 s after the call; Bifrost writes spend every 10 s). At completion the key is frozen and the result is published immediately. A `settle-cost` job runs after the backend's `usageLagMs` (90 s for OpenRouter, 15 s for Bifrost), writes the final cost to the ledger once, deletes the key and refreshes the PR's cost table, where the loop shows "settling…" until then. A run's whole limit counts against the caps until it is settled, so nothing can overshoot in between.
 
-- Caps exist at four levels: per-run key limit, per thread, per repo per month, and global concurrency. There is also a kill switch (`MACARON_ENABLED`).
+- Caps exist at six levels: per-run key limit, per thread, per repo per month, per project per month, each user's own monthly cap on their key, and global concurrency. There is also a kill switch (`MACARON_ENABLED`): no polling, no new run; runs already going finish.
 - Every run key expires on its own (`expires_at` = timeout + 15 min). A `sweep-keys` pg-boss cron job deletes leftovers, as a safety net: keys of unsettled runs are kept until they are older than the longest allowed run plus grace and settlement (`KEY_MAX_AGE_MS`, derived from `MAX_TIMEOUT_MINUTES`). Each run's fast model is stored at launch with its model, since its key allows only those two.
-- The last request can overshoot a key's limit a little, so harness `max_tokens` stays bounded. OpenRouter refuses a request whose worst case exceeds what's left. Bifrost checks the budget before a request and charges it after, with no reservation, so parallel requests can each overshoot; its per-key request limit is counted the same way and doesn't stop a burst. The bound is Bifrost's provider-wide cap: 16 requests in flight plus 16 queued, the rest dropped (measured: a burst of 40 ran 32).
+- The last request can overshoot a key's limit a little, so harness `max_tokens` stays bounded. OpenRouter refuses a request whose worst case exceeds what's left. Bifrost checks the budget before a request and charges it after, with no reservation, so parallel requests can each overshoot; its per-key request limit is counted the same way and doesn't stop a burst. The bound is Bifrost's per-provider cap, one provider per endpoint: 16 requests in flight plus 16 queued, the rest dropped (measured: a burst of 40 ran 32).
 - **Bifrost only charges priced models.** A model without a price costs $0, so its budget would never trigger. Prices are pinned in `deploy/bifrost/pricing.json` for exactly the allowed models, the controller refuses to start when the active backend can't price a configured model (e.g. names written for the other backend), or to apply a reloaded configuration, and `BifrostKeys` still refuses to mint a key for a model without one.
 
 ### Gate and Publisher (`PublishModule`)
