@@ -1,0 +1,16 @@
+<!-- The macaron: the app's mark, the same drawing as static/favicon.svg. Its colours are its own,
+     legible on light and dark backgrounds alike. -->
+<script lang="ts">
+  import type { SVGAttributes } from "svelte/elements";
+
+  let props: SVGAttributes<SVGSVGElement> = $props();
+</script>
+
+<svg viewBox="0 0 64 64" aria-hidden="true" {...props}>
+  <path d="M8 31C8 17 19 9 32 9s24 8 24 22z" fill="#f59ec0" />
+  <ellipse cx="22" cy="17" rx="7" ry="3.2" fill="#fff" opacity=".45" />
+  <rect x="6" y="27" width="52" height="7" rx="3.5" fill="#e0729c" />
+  <rect x="9" y="33" width="46" height="6" rx="3" fill="#fff3e3" />
+  <rect x="6" y="38" width="52" height="7" rx="3.5" fill="#e0729c" />
+  <path d="M8 42h48c0 9-10 14-24 14S8 51 8 42z" fill="#f59ec0" />
+</svg>
