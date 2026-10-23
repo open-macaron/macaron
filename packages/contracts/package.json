@@ -10,6 +10,16 @@
       "@open-macaron/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./capability": {
+      "@open-macaron/source": "./src/capability.ts",
+      "types": "./dist/capability.d.ts",
+      "default": "./dist/capability.js"
+    },
+    "./auth": {
+      "@open-macaron/source": "./src/auth-fields.ts",
+      "types": "./dist/auth-fields.d.ts",
+      "default": "./dist/auth-fields.js"
     }
   },
   "files": [
