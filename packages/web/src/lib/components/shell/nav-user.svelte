@@ -7,6 +7,9 @@
   import SunIcon from "@lucide/svelte/icons/sun";
   import type { LucideIcon } from "@lucide/svelte";
   import { setMode, userPrefersMode } from "mode-watcher";
+  import { goto } from "$app/navigation";
+  import { resolve } from "$app/paths";
+  import { authClient } from "#lib/auth-client.js";
   import * as Avatar from "#lib/components/ui/avatar/index.js";
   import * as DropdownMenu from "#lib/components/ui/dropdown-menu/index.js";
   import * as Sidebar from "#lib/components/ui/sidebar/index.js";
@@ -15,6 +18,11 @@
 
   let { user }: { user: ShellUser } = $props();
   const sidebar = useSidebar();
+
+  async function signOut(): Promise<void> {
+    await authClient.signOut();
+    await goto(resolve("/sign-in"), { refreshAll: true });
+  }
 
   const initials = $derived(user.githubLogin.slice(0, 2).toUpperCase());
   const themes: readonly { value: "light" | "dark" | "system"; label: string; icon: LucideIcon }[] = [
@@ -68,7 +76,7 @@
           {/snippet}
         </DropdownMenu.Item>
         <DropdownMenu.Separator />
-        <DropdownMenu.Item variant="destructive">
+        <DropdownMenu.Item variant="destructive" onSelect={signOut}>
           <LogOutIcon />
           Sign out
         </DropdownMenu.Item>
