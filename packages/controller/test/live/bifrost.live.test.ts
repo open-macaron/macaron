@@ -28,7 +28,7 @@ async function settle(): Promise<void> {
 
 /** Against `deploy/bifrost/dev.sh up`, with the developer's key standing in for a user's; spends well under a cent. */
 describe.skipIf(env === undefined || user === undefined)("Bifrost run keys over a user's key (live)", () => {
-  it("bills a run to its payer's key alone, charges every allowed model, and takes the key out of Bifrost at freeze", { timeout: 180_000 }, async () => {
+  it("bills a run to its payer's key alone, refuses requests without its virtual key, charges every allowed model, and takes the key out of Bifrost at freeze", { timeout: 180_000 }, async () => {
     if (env === undefined || user === undefined) return;
     const keys = new BifrostKeys(env, PriceList.fromFile(env.pricingFile));
     const registry = new RunKeysRegistry("bifrost", [keys]);
@@ -55,6 +55,10 @@ describe.skipIf(env === undefined || user === undefined)("Bifrost run keys over 
       expect(spent).toBeLessThan(10_000);
       // Each virtual key uses its own payer's key only: the other run never reaches the real one.
       for (let attempt = 0; attempt < 5; attempt++) expect((await message(other.key, "claude-haiku-4-5")).status).toBe(401);
+      // While a user's key is live: Bifrost resolves the provider before it authenticates (since
+      // v2.3.1), so only a routable model shows that a request without a virtual key is refused.
+      expect((await message("", "claude-haiku-4-5")).status).toBe(401);
+      expect((await message("sk-bf-00000000-0000-0000-0000-000000000000", "claude-haiku-4-5")).status).toBe(401);
 
       // Outside the key's allowlist: Bifrost can't route it for this key (400) or refuses it (403).
       expect([400, 403]).toContain((await message(key.key, "claude-sonnet-4-6")).status);
@@ -71,11 +75,5 @@ describe.skipIf(env === undefined || user === undefined)("Bifrost run keys over 
     }
     expect(await keys.listByPrefix(`${RUN_KEY_PREFIX}${runId}`)).toEqual([]);
     expect(await keys.sweepUpstreamKeys(`${RUN_KEY_PREFIX}${runId}`, new Set())).toEqual([]);
-  });
-
-  it("refuses requests without a valid virtual key", async () => {
-    if (env === undefined) return;
-    expect((await message("", "claude-haiku-4-5")).status).toBe(401);
-    expect((await message("sk-bf-00000000-0000-0000-0000-000000000000", "claude-haiku-4-5")).status).toBe(401);
   });
 });

@@ -49,24 +49,78 @@ export const zErrorField = z.object({
     event_id: z.string().optional()
 });
 
-export const zBifrostErrorExtraFields = z.object({
-    provider: zModelProvider.optional(),
-    model_requested: z.string().optional(),
-    request_type: z.string().optional(),
-    error_type: z.string().optional(),
-    retry_after_ms: z.coerce.bigint().gte(BigInt(1000)).lte(BigInt(300000)).optional()
+/**
+ * Set only when the requested model matched a model alias on the key
+ */
+export const zResolvedKeyAlias = z.object({
+    model_id: z.string(),
+    model_name: z.string().optional(),
+    model_family: z.string().optional()
 });
 
 /**
- * Error response from Bifrost
+ * Which provider, model and key handled the attempt that produced this response or error, and what the caller asked for. Also sent as x-bifrost-routing-info-* response headers.
  */
-export const zBifrostError = z.object({
-    event_id: z.string().optional(),
-    type: z.string().optional(),
-    is_bifrost_error: z.boolean().optional(),
-    status_code: z.int().optional(),
-    error: zErrorField.optional(),
-    extra_fields: zBifrostErrorExtraFields.optional()
+export const zRoutingInfo = z.object({
+    provider: zModelProvider.optional(),
+    model: z.string().optional(),
+    key: z.string().optional(),
+    resolved_key_alias: zResolvedKeyAlias.optional(),
+    is_fallback: z.boolean().optional(),
+    primary_provider: zModelProvider.optional(),
+    primary_model: z.string().optional(),
+    requested_provider: zModelProvider.optional(),
+    requested_model: z.string().optional(),
+    server_side_fallback_model: z.string().optional()
+});
+
+export const zChatPromptTokensDetails = z.object({
+    text_tokens: z.int().optional(),
+    audio_tokens: z.int().optional(),
+    image_tokens: z.int().optional(),
+    cached_read_tokens: z.int().optional(),
+    cached_write_tokens: z.int().optional()
+});
+
+export const zChatCompletionTokensDetails = z.object({
+    text_tokens: z.int().optional(),
+    accepted_prediction_tokens: z.int().optional(),
+    audio_tokens: z.int().optional(),
+    citation_tokens: z.int().optional(),
+    num_search_queries: z.int().optional(),
+    reasoning_tokens: z.int().optional(),
+    image_tokens: z.int().optional(),
+    rejected_prediction_tokens: z.int().optional()
+});
+
+/**
+ * Cost breakdown for the request
+ */
+export const zBifrostCost = z.object({
+    input_tokens_cost: z.number().optional(),
+    output_tokens_cost: z.number().optional(),
+    reasoning_tokens_cost: z.number().optional(),
+    citation_tokens_cost: z.number().optional(),
+    search_queries_cost: z.number().optional(),
+    request_cost: z.number().optional(),
+    total_cost: z.number().optional()
+});
+
+/**
+ * Token usage information
+ */
+export const zBifrostLlmUsage = z.object({
+    prompt_tokens: z.int().optional(),
+    prompt_tokens_details: zChatPromptTokensDetails.optional(),
+    completion_tokens: z.int().optional(),
+    completion_tokens_details: zChatCompletionTokensDetails.optional(),
+    total_tokens: z.int().optional(),
+    tool_usage: z.object({
+        web_search: z.object({
+            num_requests: z.int().optional()
+        }).optional()
+    }).optional(),
+    cost: zBifrostCost.optional()
 });
 
 /**
@@ -96,7 +150,7 @@ export const zKey = z.object({
     ]).optional(),
     models: z.array(z.string()).optional(),
     blacklisted_models: z.array(z.string()).optional(),
-    weight: z.number().optional(),
+    weight: z.number().gte(0).optional(),
     aliases: z.record(z.string(), z.string().min(1)).optional(),
     azure_key_config: z.object({
         endpoint: z.union([
@@ -211,6 +265,7 @@ export const zKey = z.object({
             })
         ]).optional(),
         force_single_region: z.boolean().optional().default(false),
+        use_session_routing: z.boolean().optional().default(false),
         aws_workload_identity: z.object({
             audience: z.union([
                 z.string(),
@@ -483,6 +538,18 @@ export const zListProviderKeysResponse = z.object({
 export const zNetworkConfig = z.object({
     base_url: z.string().optional(),
     extra_headers: z.record(z.string(), z.string()).optional(),
+    extra_headers_secret_vars: z.record(z.string(), z.union([
+        z.string(),
+        z.object({
+            value: z.string().optional(),
+            ref: z.string().optional(),
+            type: z.enum([
+                'plain_text',
+                'env',
+                'vault'
+            ]).optional()
+        })
+    ])).readonly().optional(),
     default_request_timeout_in_seconds: z.int().optional(),
     max_retries: z.int().optional(),
     retry_backoff_initial: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }).optional(),
@@ -671,6 +738,37 @@ export const zAddProviderRequest = z.object({
 });
 
 /**
+ * Configuration of an `openapi` connection-type client. At least one of
+ * `spec` (inline document text, JSON or YAML) or `spec_url` supplies the
+ * document on create. A `spec_url` alone is fetched once and stored inline,
+ * with `spec_url` kept as provenance. When both are sent, `spec` is the
+ * document and `spec_url` is the URL its relative servers resolve against
+ * (send the preview's `spec` and `spec_url` together for this). Supported documents: Swagger 2.0, OpenAPI
+ * 3.0, 3.1 and 3.2. `spec_size`, `spec_hash`, `spec_title`,
+ * `openapi_version` and `operation_count` are computed by Bifrost and
+ * informational on read; `spec` itself is omitted from client reads (use
+ * GET /api/mcp/client/{id}/openapi-spec).
+ *
+ */
+export const zMcpOpenApiConfig = z.object({
+    spec: z.string().optional(),
+    spec_url: z.url().optional(),
+    base_url: z.url().optional(),
+    security_credentials: z.record(z.string(), z.object({
+        value: z.string().optional(),
+        username: z.string().optional(),
+        password: z.string().optional()
+    })).optional(),
+    include_deprecated: z.boolean().optional().default(false),
+    max_response_bytes: z.int().gte(0).optional(),
+    spec_size: z.int().readonly().optional(),
+    spec_hash: z.string().readonly().optional(),
+    spec_title: z.string().readonly().optional(),
+    openapi_version: z.string().readonly().optional(),
+    operation_count: z.int().readonly().optional()
+});
+
+/**
  * Full MCP client configuration (used in responses)
  */
 export const zMcpClientConfig = z.object({
@@ -681,7 +779,8 @@ export const zMcpClientConfig = z.object({
         'http',
         'stdio',
         'sse',
-        'inprocess'
+        'inprocess',
+        'openapi'
     ]).optional(),
     connection_string: z.string().optional(),
     stdio_config: z.object({
@@ -689,6 +788,7 @@ export const zMcpClientConfig = z.object({
         args: z.array(z.string()).optional(),
         envs: z.array(z.string()).optional()
     }).optional(),
+    openapi_config: zMcpOpenApiConfig.optional(),
     tls_config: z.object({
         insecure_skip_verify: z.boolean().optional(),
         ca_cert_pem: z.string().optional()
@@ -802,9 +902,10 @@ export const zCreateRateLimitRequest = z.object({
 export const zCreateVirtualKeyRequest = z.object({
     name: z.string(),
     description: z.string().optional(),
+    metadata: z.record(z.string(), z.string().max(512)).optional(),
     provider_configs: z.array(z.object({
         provider: z.string().optional(),
-        weight: z.number().nullish(),
+        weight: z.number().gte(0).nullish(),
         allowed_models: z.array(z.string()).optional(),
         blacklisted_models: z.array(z.string()).optional(),
         budgets: z.array(zCreateBudgetRequest).optional(),
@@ -843,10 +944,11 @@ export const zUpdateRateLimitRequest = z.object({
 export const zUpdateVirtualKeyRequest = z.object({
     name: z.string().optional(),
     description: z.string().optional(),
+    metadata: z.record(z.string(), z.string().max(512)).nullish(),
     provider_configs: z.array(z.object({
         id: z.int().optional(),
         provider: z.string().optional(),
-        weight: z.number().nullish(),
+        weight: z.number().gte(0).nullish(),
         allowed_models: z.array(z.string()).optional(),
         blacklisted_models: z.array(z.string()).optional(),
         budgets: z.array(zCreateBudgetRequest).optional(),
@@ -893,7 +995,7 @@ export const zTableKey = z.object({
         })
     ]).optional(),
     models: z.array(z.string()).optional(),
-    weight: z.number().nullish(),
+    weight: z.number().gte(0).nullish(),
     enabled: z.boolean().nullish().default(true),
     use_for_batch_api: z.boolean().nullish().default(false),
     created_at: z.iso.datetime().optional(),
@@ -1064,7 +1166,7 @@ export const zVirtualKeyProviderConfig = z.object({
     id: z.int(),
     virtual_key_id: z.string(),
     provider: z.string(),
-    weight: z.number().nullable(),
+    weight: z.number().gte(0).nullable(),
     allowed_models: z.array(z.string()),
     blacklisted_models: z.array(z.string()),
     allow_all_keys: z.boolean(),
@@ -1315,6 +1417,217 @@ export const zListPricingOverridesResponse = z.object({
 });
 
 /**
+ * Network configuration for provider connections
+ */
+export const zNetworkConfigWritable = z.object({
+    base_url: z.string().optional(),
+    extra_headers: z.record(z.string(), z.string()).optional(),
+    default_request_timeout_in_seconds: z.int().optional(),
+    max_retries: z.int().optional(),
+    retry_backoff_initial: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }).optional(),
+    retry_backoff_max: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }).optional(),
+    insecure_skip_verify: z.boolean().optional(),
+    ca_cert_pem: z.string().optional(),
+    allow_private_network: z.boolean().optional().default(false)
+});
+
+/**
+ * Provider configuration response
+ */
+export const zProviderResponseWritable = z.object({
+    name: zModelProvider.optional(),
+    network_config: zNetworkConfigWritable.optional(),
+    concurrency_and_buffer_size: zConcurrencyAndBufferSize.optional(),
+    proxy_config: z.object({
+        type: z.enum([
+            'none',
+            'http',
+            'socks5',
+            'environment'
+        ]).optional(),
+        url: z.string().optional(),
+        username: z.string().optional(),
+        password: z.string().optional(),
+        ca_cert_pem: z.string().optional()
+    }).optional(),
+    send_back_raw_request: z.boolean().optional(),
+    send_back_raw_response: z.boolean().optional(),
+    store_raw_request_response: z.boolean().optional(),
+    custom_provider_config: z.object({
+        is_key_less: z.boolean().optional(),
+        does_not_send_done_marker: z.boolean().optional(),
+        base_provider_type: zModelProvider.optional(),
+        allowed_requests: z.object({
+            list_models: z.boolean().optional(),
+            text_completion: z.boolean().optional(),
+            text_completion_stream: z.boolean().optional(),
+            chat_completion: z.boolean().optional(),
+            chat_completion_stream: z.boolean().optional(),
+            responses: z.boolean().optional(),
+            responses_stream: z.boolean().optional(),
+            count_tokens: z.boolean().optional(),
+            embedding: z.boolean().optional(),
+            decisions: z.boolean().optional(),
+            speech: z.boolean().optional(),
+            speech_stream: z.boolean().optional(),
+            transcription: z.boolean().optional(),
+            transcription_stream: z.boolean().optional(),
+            image_generation: z.boolean().optional(),
+            image_generation_stream: z.boolean().optional(),
+            batch_create: z.boolean().optional(),
+            batch_list: z.boolean().optional(),
+            batch_retrieve: z.boolean().optional(),
+            batch_cancel: z.boolean().optional(),
+            batch_results: z.boolean().optional(),
+            file_upload: z.boolean().optional(),
+            file_list: z.boolean().optional(),
+            file_retrieve: z.boolean().optional(),
+            file_delete: z.boolean().optional(),
+            file_content: z.boolean().optional()
+        }).optional(),
+        request_path_overrides: z.record(z.string(), z.string()).optional()
+    }).optional(),
+    prompt_cache: z.object({
+        auto_inject: z.boolean().optional(),
+        ttl: z.enum(['1h']).optional(),
+        cache_control_injection_points: z.array(z.object({
+            location: z.enum(['message']).optional(),
+            role: z.enum([
+                'system',
+                'developer',
+                'user',
+                'assistant'
+            ]).optional(),
+            index: z.int().optional()
+        })).optional()
+    }).optional(),
+    injected_tools: z.array(z.object({
+        name: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+        mcp_client_name: z.string().min(1),
+        tool_name: z.string().min(1)
+    })).optional(),
+    provider_status: z.enum([
+        'active',
+        'error',
+        'deleted'
+    ]).optional(),
+    status: z.string().optional(),
+    description: z.string().optional(),
+    config_hash: z.string().optional()
+});
+
+/**
+ * List providers response
+ */
+export const zListProvidersResponseWritable = z.object({
+    providers: z.array(zProviderResponseWritable).optional(),
+    total: z.int().optional()
+});
+
+/**
+ * Add provider request. Keys are managed separately via /api/providers/{provider}/keys.
+ */
+export const zAddProviderRequestWritable = z.object({
+    provider: zModelProvider,
+    network_config: zNetworkConfigWritable.optional(),
+    concurrency_and_buffer_size: zConcurrencyAndBufferSize.optional(),
+    proxy_config: z.object({
+        type: z.enum([
+            'none',
+            'http',
+            'socks5',
+            'environment'
+        ]).optional(),
+        url: z.string().optional(),
+        username: z.string().optional(),
+        password: z.string().optional(),
+        ca_cert_pem: z.string().optional()
+    }).optional(),
+    send_back_raw_request: z.boolean().optional(),
+    send_back_raw_response: z.boolean().optional(),
+    store_raw_request_response: z.boolean().optional(),
+    custom_provider_config: z.object({
+        is_key_less: z.boolean().optional(),
+        does_not_send_done_marker: z.boolean().optional(),
+        base_provider_type: zModelProvider.optional(),
+        allowed_requests: z.object({
+            list_models: z.boolean().optional(),
+            text_completion: z.boolean().optional(),
+            text_completion_stream: z.boolean().optional(),
+            chat_completion: z.boolean().optional(),
+            chat_completion_stream: z.boolean().optional(),
+            responses: z.boolean().optional(),
+            responses_stream: z.boolean().optional(),
+            count_tokens: z.boolean().optional(),
+            embedding: z.boolean().optional(),
+            decisions: z.boolean().optional(),
+            speech: z.boolean().optional(),
+            speech_stream: z.boolean().optional(),
+            transcription: z.boolean().optional(),
+            transcription_stream: z.boolean().optional(),
+            image_generation: z.boolean().optional(),
+            image_generation_stream: z.boolean().optional(),
+            batch_create: z.boolean().optional(),
+            batch_list: z.boolean().optional(),
+            batch_retrieve: z.boolean().optional(),
+            batch_cancel: z.boolean().optional(),
+            batch_results: z.boolean().optional(),
+            file_upload: z.boolean().optional(),
+            file_list: z.boolean().optional(),
+            file_retrieve: z.boolean().optional(),
+            file_delete: z.boolean().optional(),
+            file_content: z.boolean().optional()
+        }).optional(),
+        request_path_overrides: z.record(z.string(), z.string()).optional()
+    }).optional(),
+    prompt_cache: z.object({
+        auto_inject: z.boolean().optional(),
+        ttl: z.enum(['1h']).optional(),
+        cache_control_injection_points: z.array(z.object({
+            location: z.enum(['message']).optional(),
+            role: z.enum([
+                'system',
+                'developer',
+                'user',
+                'assistant'
+            ]).optional(),
+            index: z.int().optional()
+        })).optional()
+    }).optional(),
+    injected_tools: z.array(z.object({
+        name: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+        mcp_client_name: z.string().min(1),
+        tool_name: z.string().min(1)
+    })).optional()
+});
+
+/**
+ * Configuration of an `openapi` connection-type client. At least one of
+ * `spec` (inline document text, JSON or YAML) or `spec_url` supplies the
+ * document on create. A `spec_url` alone is fetched once and stored inline,
+ * with `spec_url` kept as provenance. When both are sent, `spec` is the
+ * document and `spec_url` is the URL its relative servers resolve against
+ * (send the preview's `spec` and `spec_url` together for this). Supported documents: Swagger 2.0, OpenAPI
+ * 3.0, 3.1 and 3.2. `spec_size`, `spec_hash`, `spec_title`,
+ * `openapi_version` and `operation_count` are computed by Bifrost and
+ * informational on read; `spec` itself is omitted from client reads (use
+ * GET /api/mcp/client/{id}/openapi-spec).
+ *
+ */
+export const zMcpOpenApiConfigWritable = z.object({
+    spec: z.string().optional(),
+    spec_url: z.url().optional(),
+    base_url: z.url().optional(),
+    security_credentials: z.record(z.string(), z.object({
+        value: z.string().optional(),
+        username: z.string().optional(),
+        password: z.string().optional()
+    })).optional(),
+    include_deprecated: z.boolean().optional().default(false),
+    max_response_bytes: z.int().gte(0).optional()
+});
+
+/**
  * Full MCP client configuration (used in responses)
  */
 export const zMcpClientConfigWritable = z.object({
@@ -1325,7 +1638,8 @@ export const zMcpClientConfigWritable = z.object({
         'http',
         'stdio',
         'sse',
-        'inprocess'
+        'inprocess',
+        'openapi'
     ]).optional(),
     connection_string: z.string().optional(),
     stdio_config: z.object({
@@ -1333,6 +1647,7 @@ export const zMcpClientConfigWritable = z.object({
         args: z.array(z.string()).optional(),
         envs: z.array(z.string()).optional()
     }).optional(),
+    openapi_config: zMcpOpenApiConfigWritable.optional(),
     tls_config: z.object({
         insecure_skip_verify: z.boolean().optional(),
         ca_cert_pem: z.string().optional()
@@ -1375,6 +1690,51 @@ export const zVirtualKeyMcpConfigWritable = z.object({
 });
 
 /**
+ * Error response from Bifrost
+ */
+export const zBifrostError = z.object({
+    event_id: z.string().optional(),
+    type: z.string().optional(),
+    is_bifrost_error: z.boolean().optional(),
+    status_code: z.int().optional(),
+    error: zErrorField.optional(),
+    extra_fields: z.lazy((): any => zBifrostErrorExtraFields).optional()
+});
+
+export const zBifrostErrorExtraFields = z.object({
+    routing_info: zRoutingInfo.optional(),
+    provider: zModelProvider.optional(),
+    original_model_requested: z.string().optional(),
+    resolved_model_used: z.string().optional(),
+    request_type: z.string().optional(),
+    mcp_request_type: z.string().optional(),
+    a2a_request_type: z.string().optional(),
+    a2a_agent_name: z.string().optional(),
+    error_type: z.string().optional(),
+    retry_after_ms: z.coerce.bigint().gte(BigInt(1000)).lte(BigInt(300000)).optional(),
+    raw_request: z.unknown().optional(),
+    raw_response: z.unknown().optional(),
+    converted_request_type: z.string().optional(),
+    dropped_compat_plugin_params: z.array(z.string()).optional(),
+    latency: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }).optional(),
+    key_statuses: z.array(z.object({
+        key_id: z.string().optional(),
+        status: z.enum(['success', 'list_models_failed']).optional(),
+        provider: zModelProvider.optional(),
+        error: zBifrostError.optional()
+    })).optional(),
+    mcp_auth_required: z.object({
+        kind: z.string().optional(),
+        mcp_client_id: z.string().optional(),
+        mcp_client_name: z.string().optional(),
+        message: z.string().optional(),
+        authorize_url: z.string().optional(),
+        session_id: z.string().optional()
+    }).optional(),
+    billed_usage: zBifrostLlmUsage.optional()
+});
+
+/**
  * Virtual key configuration
  */
 export const zVirtualKey = z.object({
@@ -1382,6 +1742,7 @@ export const zVirtualKey = z.object({
     name: z.string(),
     value: z.string(),
     description: z.string().optional(),
+    metadata: z.record(z.string(), z.string().max(512)).optional(),
     is_active: z.boolean(),
     expires_at: z.iso.datetime().nullish(),
     delete_after_expire: z.boolean().nullish(),
@@ -1471,6 +1832,7 @@ export const zVirtualKeyWritable = z.object({
     name: z.string(),
     value: z.string(),
     description: z.string().optional(),
+    metadata: z.record(z.string(), z.string().max(512)).optional(),
     is_active: z.boolean(),
     expires_at: z.iso.datetime().nullish(),
     delete_after_expire: z.boolean().nullish(),
@@ -1552,7 +1914,7 @@ export const zCustomerWritable = z.object({
  */
 export const zListProvidersResponse2 = zListProvidersResponse;
 
-export const zAddProviderBody = zAddProviderRequest;
+export const zAddProviderBody = zAddProviderRequestWritable;
 
 /**
  * Provider added successfully
@@ -1633,6 +1995,37 @@ export const zListModelDetailsManagementResponse = z.object({
     total: z.int().optional()
 });
 
+export const zListVirtualKeysQuery = z.object({
+    from_memory: z.boolean().optional().default(false),
+    limit: z.int().gte(0).optional(),
+    offset: z.int().gte(0).optional(),
+    search: z.string().optional(),
+    customer_id: z.string().optional(),
+    team_id: z.string().optional(),
+    user_id: z.string().optional(),
+    sort_by: z.enum([
+        'name',
+        'budget_spent',
+        'created_at',
+        'status'
+    ]).optional(),
+    order: z.enum(['asc', 'desc']).optional(),
+    export: z.boolean().optional().default(false),
+    exclude_access_profile_managed_virtual: z.boolean().optional().default(false)
+});
+
+/**
+ * Successful response
+ */
+export const zListVirtualKeysResponse2 = zListVirtualKeysResponse;
+
+export const zCreateVirtualKeyBody = zCreateVirtualKeyRequest;
+
+/**
+ * Virtual key created successfully
+ */
+export const zCreateVirtualKeyResponse = zVirtualKeyResponse;
+
 export const zDeleteVirtualKeyPath = z.object({
     vk_id: z.string()
 });
@@ -1641,6 +2034,32 @@ export const zDeleteVirtualKeyPath = z.object({
  * Virtual key deleted successfully
  */
 export const zDeleteVirtualKeyResponse = zMessageResponse;
+
+export const zGetVirtualKeyPath = z.object({
+    vk_id: z.string()
+});
+
+export const zGetVirtualKeyQuery = z.object({
+    from_memory: z.boolean().optional().default(false)
+});
+
+/**
+ * Successful response
+ */
+export const zGetVirtualKeyResponse = z.object({
+    virtual_key: zVirtualKey
+});
+
+export const zUpdateVirtualKeyBody = zUpdateVirtualKeyRequest;
+
+export const zUpdateVirtualKeyPath = z.object({
+    vk_id: z.string()
+});
+
+/**
+ * Virtual key updated successfully
+ */
+export const zUpdateVirtualKeyResponse = zVirtualKeyResponse;
 
 export const zListPricingOverridesQuery = z.object({
     scope_kind: zPricingOverrideScopeKind.optional(),
@@ -1675,60 +2094,3 @@ export const zUpdatePricingOverridePath = z.object({
  * Pricing override updated successfully
  */
 export const zUpdatePricingOverrideResponse = zPricingOverrideResponse;
-
-export const zListVirtualKeysQuery = z.object({
-    from_memory: z.boolean().optional().default(false),
-    limit: z.int().gte(0).optional(),
-    offset: z.int().gte(0).optional(),
-    search: z.string().optional(),
-    customer_id: z.string().optional(),
-    team_id: z.string().optional(),
-    user_id: z.string().optional(),
-    sort_by: z.enum([
-        'name',
-        'budget_spent',
-        'created_at',
-        'status'
-    ]).optional(),
-    order: z.enum(['asc', 'desc']).optional(),
-    export: z.boolean().optional().default(false),
-    exclude_access_profile_managed_virtual: z.boolean().optional().default(false)
-});
-
-/**
- * Successful response
- */
-export const zListVirtualKeysResponse2 = zListVirtualKeysResponse;
-
-export const zCreateVirtualKeyBody = zCreateVirtualKeyRequest;
-
-/**
- * Virtual key created successfully
- */
-export const zCreateVirtualKeyResponse = zVirtualKeyResponse;
-
-export const zGetVirtualKeyPath = z.object({
-    vk_id: z.string()
-});
-
-export const zGetVirtualKeyQuery = z.object({
-    from_memory: z.boolean().optional().default(false)
-});
-
-/**
- * Successful response
- */
-export const zGetVirtualKeyResponse = z.object({
-    virtual_key: zVirtualKey
-});
-
-export const zUpdateVirtualKeyBody = zUpdateVirtualKeyRequest;
-
-export const zUpdateVirtualKeyPath = z.object({
-    vk_id: z.string()
-});
-
-/**
- * Virtual key updated successfully
- */
-export const zUpdateVirtualKeyResponse = zVirtualKeyResponse;
