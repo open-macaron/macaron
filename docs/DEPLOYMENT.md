@@ -124,7 +124,8 @@ The settings ConfigMap `macaron-settings` holds:
 **Sign-in** (the web app's users) is configured when `dev.env` has `GITHUB_LOGIN_CLIENT_ID` and `GITHUB_LOGIN_CLIENT_SECRET`; without them the controller runs as before, and the web app shows its sign-in page only. They come from an org GitHub App (`open-macaron` → Settings → Developer settings → GitHub Apps):
 - callback URL `<PUBLIC_URL>/api/auth/callback/github`, "Request user authorization (OAuth) during installation" off, no webhook;
 - permissions: Account → Email addresses: read-only, nothing else (no repository access);
-- installed nowhere: users authorize it when they sign in.
+- installed nowhere: users authorize it when they sign in;
+- public ("Where can this GitHub App be installed?": Any account, or Advanced → Make public): GitHub answers 404 on `/login/oauth/authorize` to anyone outside the org for a private app, so invited users couldn't sign in.
 
 Pods read Secrets and settings when they start: `oc rollout restart deployment/macaron-controller deployment/macaron-bifrost` after a change.
 
