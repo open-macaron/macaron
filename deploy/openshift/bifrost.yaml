@@ -46,7 +46,7 @@ spec:
       initContainers:
         # config.json from the repository's template.
         - name: render-config
-          image: docker.io/maximhq/bifrost@sha256:8f37e33a8caa85faf59a875605c61d1d934738e517d8fe96e2d9fcf6f0ef9098
+          image: docker.io/maximhq/bifrost@sha256:f5b18826349fe9e1c402c10d19f1cbb5567a3c800ad928580d07f72e69106ec7
           command:
             - /bin/sh
             - -ceu
@@ -73,9 +73,9 @@ spec:
               mountPath: /app/data
       containers:
         - name: bifrost
-          # transports/v2.3.0, digest of the multi-arch index. Bump together with the controller's generated
+          # transports/v2.3.2, digest of the multi-arch index. Bump together with the controller's generated
           # admin client (packages/controller/openapi-ts.bifrost.config.ts) and the initContainer above.
-          image: docker.io/maximhq/bifrost@sha256:8f37e33a8caa85faf59a875605c61d1d934738e517d8fe96e2d9fcf6f0ef9098
+          image: docker.io/maximhq/bifrost@sha256:f5b18826349fe9e1c402c10d19f1cbb5567a3c800ad928580d07f72e69106ec7
           ports:
             - name: http
               containerPort: 8080

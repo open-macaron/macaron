@@ -2,11 +2,11 @@ import { defineConfig } from "@hey-api/openapi-ts";
 
 /**
  * Types and Zod validators for the part of Bifrost's admin API that BifrostKeys uses (virtual keys, endpoint providers and their keys, pricing overrides), generated
- * from Bifrost's OpenAPI document at the commit of the pinned image (transports/v2.3.0). Bump
+ * from Bifrost's OpenAPI document at the commit of the pinned image (transports/v2.3.2). Bump
  * both together, then run `pnpm --filter @open-macaron/controller gen:bifrost`.
  */
 export default defineConfig({
-  input: "https://raw.githubusercontent.com/maximhq/bifrost/9237ec06672406e437b3cb33fc793ffd0403b3ae/docs/openapi/openapi.json",
+  input: "https://raw.githubusercontent.com/maximhq/bifrost/a05ea20e68bf116a35e9f05b1a3d749624b3935e/docs/openapi/openapi.json",
   output: { path: "./src/generated/bifrost", importFileExtension: ".ts" },
   parser: {
     filters: {

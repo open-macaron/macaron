@@ -29,10 +29,94 @@ export type ErrorField = {
     event_id?: string;
 };
 
-export type BifrostErrorExtraFields = {
+/**
+ * Which provider, model and key handled the attempt that produced this response or error, and what the caller asked for. Also sent as x-bifrost-routing-info-* response headers.
+ */
+export type RoutingInfo = {
+    /**
+     * Provider that ran the attempt
+     */
     provider?: ModelProvider;
-    model_requested?: string;
+    /**
+     * Model sent to that provider
+     */
+    model?: string;
+    /**
+     * Name of the stored key used, never its ID or secret
+     */
+    key?: string;
+    resolved_key_alias?: ResolvedKeyAlias;
+    /**
+     * True when a fallback served the request or returned the error. Omitted when false.
+     */
+    is_fallback?: boolean;
+    /**
+     * The primary attempt's provider. Set only when a fallback ran.
+     */
+    primary_provider?: ModelProvider;
+    /**
+     * The primary attempt's model. Set only when a fallback ran.
+     */
+    primary_model?: string;
+    /**
+     * Provider the caller asked for, before routing rules, load balancing or session affinity changed it. Omitted when the caller sent a bare model.
+     */
+    requested_provider?: ModelProvider;
+    /**
+     * Model the caller asked for, before anything changed it
+     */
+    requested_model?: string;
+    /**
+     * Model that answered when Anthropic switched models inside one call
+     */
+    server_side_fallback_model?: string;
+};
+
+/**
+ * Set only when the requested model matched a model alias on the key
+ */
+export type ResolvedKeyAlias = {
+    /**
+     * Model ID sent to the provider
+     */
+    model_id: string;
+    /**
+     * Canonical model name, used for pricing and logs
+     */
+    model_name?: string;
+    /**
+     * Resolved model family
+     */
+    model_family?: string;
+};
+
+export type BifrostErrorExtraFields = {
+    routing_info?: RoutingInfo;
+    /**
+     * Deprecated: use routing_info.provider.
+     *
+     * @deprecated
+     */
+    provider?: ModelProvider;
+    /**
+     * Deprecated: use routing_info.primary_model when routing_info.is_fallback is true, otherwise routing_info.model. For the model the caller asked for, read routing_info.requested_model.
+     *
+     * @deprecated
+     */
+    original_model_requested?: string;
+    /**
+     * Deprecated: use routing_info.resolved_key_alias.model_id when an alias matched, otherwise routing_info.model.
+     *
+     * @deprecated
+     */
+    resolved_model_used?: string;
     request_type?: string;
+    mcp_request_type?: string;
+    /**
+     * Agent Gateway operation, for A2A errors
+     */
+    a2a_request_type?: string;
+    a2a_agent_name?: string;
     /**
      * Normalized, low-cardinality classification of why the request failed, declared by whichever component refused it. Prefixed by fault domain (caller_, policy_, provider_, bifrost_). Absent on failures that were not classified at source.
      */
@@ -41,6 +125,129 @@ export type BifrostErrorExtraFields = {
      * The provider's hint for how long to wait before retrying, in milliseconds, read from its retry-after-ms or Retry-After header or its google.rpc.RetryInfo error detail, and clamped to between 1000 and 300000. Absent when the provider gave no explicit hint.
      */
     retry_after_ms?: number;
+    /**
+     * Raw provider request, when raw request capture is enabled
+     */
+    raw_request?: unknown;
+    /**
+     * Raw provider response, when raw response capture is enabled
+     */
+    raw_response?: unknown;
+    converted_request_type?: string;
+    dropped_compat_plugin_params?: Array<string>;
+    /**
+     * Latency in milliseconds
+     */
+    latency?: number;
+    /**
+     * Per-key results, for requests that ran on every key such as listing models
+     */
+    key_statuses?: Array<{
+        key_id?: string;
+        status?: 'success' | 'list_models_failed';
+        provider?: ModelProvider;
+        error?: BifrostError;
+    }>;
+    /**
+     * Set when a per-user MCP tool needs the caller to complete an inline auth flow
+     */
+    mcp_auth_required?: {
+        kind?: string;
+        mcp_client_id?: string;
+        mcp_client_name?: string;
+        message?: string;
+        authorize_url?: string;
+        session_id?: string;
+    };
+    /**
+     * Usage the provider reported and billed even though the request failed
+     */
+    billed_usage?: BifrostLlmUsage;
+};
+
+/**
+ * Token usage information
+ */
+export type BifrostLlmUsage = {
+    /**
+     * Total input tokens including any prompt-cache tokens (read + write). Subtract prompt_tokens_details.cached_read_tokens and prompt_tokens_details.cached_write_tokens to get the non-cached portion.
+     *
+     */
+    prompt_tokens?: number;
+    prompt_tokens_details?: ChatPromptTokensDetails;
+    /**
+     * Number of output/completion tokens generated.
+     */
+    completion_tokens?: number;
+    completion_tokens_details?: ChatCompletionTokensDetails;
+    total_tokens?: number;
+    /**
+     * Counts of provider-hosted (server-side) tool calls billed per call.
+     *
+     */
+    tool_usage?: {
+        web_search?: {
+            /**
+             * Number of billable web search calls.
+             */
+            num_requests?: number;
+        };
+    };
+    cost?: BifrostCost;
+};
+
+export type ChatPromptTokensDetails = {
+    text_tokens?: number;
+    audio_tokens?: number;
+    image_tokens?: number;
+    /**
+     * Tokens served from the prompt cache (cache hit). These tokens are already included in prompt_tokens and are billed at the reduced cache-read rate. Populated for all providers that support prompt caching (Anthropic, Bedrock, OpenAI, Gemini, xAI, etc.).
+     *
+     */
+    cached_read_tokens?: number;
+    /**
+     * Tokens written to the prompt cache on this request (cache creation / write). These tokens are already included in prompt_tokens and are billed at the cache-creation rate. Populated for providers that separately report cache write tokens (Anthropic, Bedrock).
+     *
+     */
+    cached_write_tokens?: number;
+};
+
+export type ChatCompletionTokensDetails = {
+    text_tokens?: number;
+    accepted_prediction_tokens?: number;
+    audio_tokens?: number;
+    citation_tokens?: number;
+    /**
+     * Deprecated, use tool_usage.web_search.num_requests. Will be removed in 3.0.0.
+     *
+     * @deprecated
+     */
+    num_search_queries?: number;
+    reasoning_tokens?: number;
+    image_tokens?: number;
+    rejected_prediction_tokens?: number;
+};
+
+/**
+ * Cost breakdown for the request
+ */
+export type BifrostCost = {
+    input_tokens_cost?: number;
+    output_tokens_cost?: number;
+    /**
+     * Cost for reasoning/thinking tokens (reasoning models)
+     */
+    reasoning_tokens_cost?: number;
+    /**
+     * Cost for citation tokens
+     */
+    citation_tokens_cost?: number;
+    /**
+     * Cost for web search queries
+     */
+    search_queries_cost?: number;
+    request_cost?: number;
+    total_cost?: number;
 };
 
 /**
@@ -334,7 +541,7 @@ export type Key = {
      */
     blacklisted_models?: Array<string>;
     /**
-     * Weight for load balancing
+     * Weight for load balancing. A negative weight is rejected with 400. A key with weight 0 is picked only when no other eligible key has a positive weight; when every weight is 0, keys are picked uniformly.
      */
     weight?: number;
     /**
@@ -549,6 +756,10 @@ export type Key = {
          * When true, always call the configured region and skip automatic promotion of multi-region-only models to a multi-region endpoint.
          */
         force_single_region?: boolean;
+        /**
+         * Send each request's prompt_cache_key to Gemini models as session_id. Vertex routes requests with the same session ID to one replica, so they reuse its implicit cache. Enable only if Google has turned on session routing for this key's project.
+         */
+        use_session_routing?: boolean;
         /**
          * GCP Workload Identity Federation from the workload's AWS identity (EKS IRSA / Pod Identity, ECS task role, EC2 instance profile, AWS_* env vars). Takes precedence over auth_credentials; the two must not be combined. aws_role_arn is redacted in GET responses; the other fields are identifiers and are returned in clear.
          */
@@ -1028,10 +1239,29 @@ export type NetworkConfig = {
      */
     base_url?: string;
     /**
-     * Additional headers to include in requests
+     * Additional headers to include in requests. A value may be a literal, an `env.VAR_NAME` reference, or a `vault.path` reference; references are resolved at load time and only the reference is stored. Literal values are masked in API responses while env/vault references stay visible as references; on update, a masked value sent back under the same header name keeps the stored value, while a masked value under a new or renamed header, or on provider create, is rejected with 400.
      */
     extra_headers?: {
         [key: string]: string;
+    };
+    /**
+     * Response only. The same headers as `extra_headers`, as SecretVar objects (`value`, `ref`, `type`) so clients can tell literals from `env`/`vault` references without parsing prefixes. Literal values are `<REDACTED>`. Ignored on input; send `extra_headers` to change headers.
+     */
+    readonly extra_headers_secret_vars?: {
+        [key: string]: string | {
+            /**
+             * Resolved value (redacted in GET responses for secret fields)
+             */
+            value?: string;
+            /**
+             * Source reference (`env.VAR_NAME` or `vault.path`); empty for plain-text values
+             */
+            ref?: string;
+            /**
+             * Source type of the value
+             */
+            type?: 'plain_text' | 'env' | 'vault';
+        };
     };
     /**
      * Default timeout for requests
@@ -1094,9 +1324,13 @@ export type McpClientConfig = {
      */
     is_code_mode_client?: boolean;
     /**
-     * Connection type for MCP client
+     * Connection type for MCP client. `openapi` synthesizes an in-process MCP
+     * server from an OpenAPI/Swagger document (see `openapi_config`): every
+     * supported operation becomes a tool whose call is proxied as an HTTP
+     * request to the described API.
+     *
      */
-    connection_type?: 'http' | 'stdio' | 'sse' | 'inprocess';
+    connection_type?: 'http' | 'stdio' | 'sse' | 'inprocess' | 'openapi';
     /**
      * HTTP or SSE URL (required for HTTP or SSE connections)
      */
@@ -1118,6 +1352,10 @@ export type McpClientConfig = {
          */
         envs?: Array<string>;
     };
+    /**
+     * Present for openapi clients. The document itself is omitted and credentials are redacted; the spec_* metadata describes the stored document.
+     */
+    openapi_config?: McpOpenApiConfig;
     /**
      * TLS configuration for HTTP and SSE connections.
      */
@@ -1266,6 +1504,66 @@ export type McpClientConfig = {
 };
 
 /**
+ * Configuration of an `openapi` connection-type client. At least one of
+ * `spec` (inline document text, JSON or YAML) or `spec_url` supplies the
+ * document on create. A `spec_url` alone is fetched once and stored inline,
+ * with `spec_url` kept as provenance. When both are sent, `spec` is the
+ * document and `spec_url` is the URL its relative servers resolve against
+ * (send the preview's `spec` and `spec_url` together for this). Supported documents: Swagger 2.0, OpenAPI
+ * 3.0, 3.1 and 3.2. `spec_size`, `spec_hash`, `spec_title`,
+ * `openapi_version` and `operation_count` are computed by Bifrost and
+ * informational on read; `spec` itself is omitted from client reads (use
+ * GET /api/mcp/client/{id}/openapi-spec).
+ *
+ */
+export type McpOpenApiConfig = {
+    /**
+     * Inline OpenAPI/Swagger document (JSON or YAML text). Write-only.
+     */
+    spec?: string;
+    /**
+     * http(s) URL of the document. Fetched on create when spec is empty; sent with spec, it is the URL relative servers resolve against.
+     */
+    spec_url?: string;
+    /**
+     * Upstream API base URL. Defaults to the document's first server; required when the document declares none or only relative ones.
+     */
+    base_url?: string;
+    /**
+     * Credentials keyed by the document's securitySchemes name.
+     */
+    security_credentials?: {
+        [key: string]: {
+            value?: string;
+            username?: string;
+            password?: string;
+        };
+    };
+    /**
+     * Expose operations the document marks deprecated.
+     */
+    include_deprecated?: boolean;
+    /**
+     * Cap on the upstream response body returned to the model (0 = default 64 KiB).
+     */
+    max_response_bytes?: number;
+    readonly spec_size?: number;
+    /**
+     * SHA-256 of the stored document.
+     */
+    readonly spec_hash?: string;
+    readonly spec_title?: string;
+    /**
+     * Detected document version, e.g. "2.0", "3.0.3", "3.1.0", "3.2.0".
+     */
+    readonly openapi_version?: string;
+    /**
+     * Number of tools synthesized from the document.
+     */
+    readonly operation_count?: number;
+};
+
+/**
  * Virtual key configuration
  */
 export type VirtualKey = {
@@ -1273,6 +1571,12 @@ export type VirtualKey = {
     name: string;
     value: string;
     description?: string;
+    /**
+     * Custom key/value metadata attached to the key (for example cost_center, project, owner, environment). Omitted when the key has none.
+     */
+    metadata?: {
+        [key: string]: string;
+    };
     is_active: boolean;
     /**
      * Expiry timestamp. Requests using this virtual key are rejected once it passes. Null or absent means the key never expires.
@@ -1347,7 +1651,7 @@ export type VirtualKeyProviderConfig = {
     virtual_key_id: string;
     provider: string;
     /**
-     * Weight for provider load balancing. Null means excluded from weighted routing.
+     * Weight for provider load balancing. Null means excluded from weighted routing. A negative weight is rejected with 400; when every weight is 0, the first configured provider is picked.
      */
     weight: number | null;
     /**
@@ -1410,12 +1714,18 @@ export type CreateVirtualKeyRequest = {
     name: string;
     description?: string;
     /**
+     * Custom key/value metadata for cost attribution (for example cost_center, project, owner, environment). Keys are 1-256 characters of letters, digits, '.', '_' and '-' and may not be system-reserved (isAsyncRequest, bifrost_alb_*); values are strings of at most 512 characters; at most 50 entries.
+     */
+    metadata?: {
+        [key: string]: string;
+    };
+    /**
      * Provider configurations. When allow_all_providers is omitted or false, an empty list allows no providers (deny-by-default); when true, providers without a config are allowed with all models and keys.
      */
     provider_configs?: Array<{
         provider?: string;
         /**
-         * Weight for load balancing. Null means excluded from weighted routing.
+         * Weight for load balancing. Null means excluded from weighted routing. A negative weight is rejected with 400; when every weight is 0, the first configured provider is picked.
          */
         weight?: number | null;
         /**
@@ -1478,11 +1788,17 @@ export type CreateVirtualKeyRequest = {
 export type UpdateVirtualKeyRequest = {
     name?: string;
     description?: string;
+    /**
+     * Replaces the key's metadata as a whole. Omit (or send null) to leave it unchanged; send {} to clear it. Keys are 1-256 characters of letters, digits, '.', '_' and '-' and may not be system-reserved (isAsyncRequest, bifrost_alb_*); values are strings of at most 512 characters; at most 50 entries.
+     */
+    metadata?: {
+        [key: string]: string;
+    } | null;
     provider_configs?: Array<{
         id?: number;
         provider?: string;
         /**
-         * Weight for load balancing. Null means excluded from weighted routing.
+         * Weight for load balancing. Null means excluded from weighted routing. A negative weight is rejected with 400; when every weight is 0, the first configured provider is picked.
          */
         weight?: number | null;
         /**
@@ -2332,6 +2648,296 @@ export type ListPricingOverridesResponse = {
 };
 
 /**
+ * Provider configuration response
+ */
+export type ProviderResponseWritable = {
+    name?: ModelProvider;
+    network_config?: NetworkConfigWritable;
+    concurrency_and_buffer_size?: ConcurrencyAndBufferSize;
+    /**
+     * Proxy configuration
+     */
+    proxy_config?: {
+        type?: 'none' | 'http' | 'socks5' | 'environment';
+        url?: string;
+        username?: string;
+        password?: string;
+        ca_cert_pem?: string;
+    };
+    send_back_raw_request?: boolean;
+    send_back_raw_response?: boolean;
+    store_raw_request_response?: boolean;
+    /**
+     * Custom provider configuration
+     */
+    custom_provider_config?: {
+        is_key_less?: boolean;
+        /**
+         * Provider ends streams on finish_reason without sending a data: [DONE] marker. Without this, a provider that also keeps the connection open leaves the stream waiting for a marker it never sends.
+         */
+        does_not_send_done_marker?: boolean;
+        base_provider_type?: ModelProvider;
+        /**
+         * Allowed request types for custom providers
+         */
+        allowed_requests?: {
+            list_models?: boolean;
+            text_completion?: boolean;
+            text_completion_stream?: boolean;
+            chat_completion?: boolean;
+            chat_completion_stream?: boolean;
+            responses?: boolean;
+            responses_stream?: boolean;
+            count_tokens?: boolean;
+            embedding?: boolean;
+            /**
+             * Decision requests via /v1/decisions. A typesafe base serves them natively; other bases emulate them through the Responses API
+             */
+            decisions?: boolean;
+            speech?: boolean;
+            speech_stream?: boolean;
+            transcription?: boolean;
+            transcription_stream?: boolean;
+            image_generation?: boolean;
+            image_generation_stream?: boolean;
+            batch_create?: boolean;
+            batch_list?: boolean;
+            batch_retrieve?: boolean;
+            batch_cancel?: boolean;
+            batch_results?: boolean;
+            file_upload?: boolean;
+            file_list?: boolean;
+            file_retrieve?: boolean;
+            file_delete?: boolean;
+            file_content?: boolean;
+        };
+        request_path_overrides?: {
+            [key: string]: string;
+        };
+    };
+    /**
+     * Synthesize prompt-cache breakpoints for requests that carry none. Off by default. Requests that already carry their own cache markers are never modified.
+     */
+    prompt_cache?: {
+        /**
+         * Mark the first cacheable content block, keeping the cached prefix stable across agent turns.
+         */
+        auto_inject?: boolean;
+        /**
+         * Lifetime for injected markers. Omit for the provider default.
+         */
+        ttl?: '1h';
+        /**
+         * Target specific messages instead. When set, replaces auto_inject rather than adding to it.
+         */
+        cache_control_injection_points?: Array<{
+            location?: 'message';
+            role?: 'system' | 'developer' | 'user' | 'assistant';
+            /**
+             * Negative values count from the end, so -1 is the last message.
+             */
+            index?: number;
+        }>;
+    };
+    /**
+     * MCP tools injected into every chat and responses request served by this provider and executed server side when the model calls them. The client never sees the injected tool call, only the final answer. Names must be unique within a provider.
+     */
+    injected_tools?: Array<{
+        /**
+         * Tool name the model sees.
+         */
+        name: string;
+        /**
+         * Name of the configured MCP client that provides the tool.
+         */
+        mcp_client_name: string;
+        /**
+         * Tool name as the MCP server exposes it, without the client prefix.
+         */
+        tool_name: string;
+    }>;
+    /**
+     * Status of the provider
+     */
+    provider_status?: 'active' | 'error' | 'deleted';
+    /**
+     * Operational status (e.g., list_models_failed)
+     */
+    status?: string;
+    /**
+     * Error/status description
+     */
+    description?: string;
+    /**
+     * Hash of config.json version, used for change detection
+     */
+    config_hash?: string;
+};
+
+/**
+ * List providers response
+ */
+export type ListProvidersResponseWritable = {
+    providers?: Array<ProviderResponseWritable>;
+    total?: number;
+};
+
+/**
+ * Add provider request. Keys are managed separately via /api/providers/{provider}/keys.
+ */
+export type AddProviderRequestWritable = {
+    provider: ModelProvider;
+    network_config?: NetworkConfigWritable;
+    concurrency_and_buffer_size?: ConcurrencyAndBufferSize;
+    /**
+     * Proxy configuration
+     */
+    proxy_config?: {
+        type?: 'none' | 'http' | 'socks5' | 'environment';
+        url?: string;
+        username?: string;
+        password?: string;
+        ca_cert_pem?: string;
+    };
+    send_back_raw_request?: boolean;
+    send_back_raw_response?: boolean;
+    store_raw_request_response?: boolean;
+    /**
+     * Custom provider configuration
+     */
+    custom_provider_config?: {
+        is_key_less?: boolean;
+        /**
+         * Provider ends streams on finish_reason without sending a data: [DONE] marker. Without this, a provider that also keeps the connection open leaves the stream waiting for a marker it never sends.
+         */
+        does_not_send_done_marker?: boolean;
+        base_provider_type?: ModelProvider;
+        /**
+         * Allowed request types for custom providers
+         */
+        allowed_requests?: {
+            list_models?: boolean;
+            text_completion?: boolean;
+            text_completion_stream?: boolean;
+            chat_completion?: boolean;
+            chat_completion_stream?: boolean;
+            responses?: boolean;
+            responses_stream?: boolean;
+            count_tokens?: boolean;
+            embedding?: boolean;
+            /**
+             * Decision requests via /v1/decisions. A typesafe base serves them natively; other bases emulate them through the Responses API
+             */
+            decisions?: boolean;
+            speech?: boolean;
+            speech_stream?: boolean;
+            transcription?: boolean;
+            transcription_stream?: boolean;
+            image_generation?: boolean;
+            image_generation_stream?: boolean;
+            batch_create?: boolean;
+            batch_list?: boolean;
+            batch_retrieve?: boolean;
+            batch_cancel?: boolean;
+            batch_results?: boolean;
+            file_upload?: boolean;
+            file_list?: boolean;
+            file_retrieve?: boolean;
+            file_delete?: boolean;
+            file_content?: boolean;
+        };
+        request_path_overrides?: {
+            [key: string]: string;
+        };
+    };
+    /**
+     * Synthesize prompt-cache breakpoints for requests that carry none. Off by default. Requests that already carry their own cache markers are never modified.
+     */
+    prompt_cache?: {
+        /**
+         * Mark the first cacheable content block, keeping the cached prefix stable across agent turns.
+         */
+        auto_inject?: boolean;
+        /**
+         * Lifetime for injected markers. Omit for the provider default.
+         */
+        ttl?: '1h';
+        /**
+         * Target specific messages instead. When set, replaces auto_inject rather than adding to it.
+         */
+        cache_control_injection_points?: Array<{
+            location?: 'message';
+            role?: 'system' | 'developer' | 'user' | 'assistant';
+            /**
+             * Negative values count from the end, so -1 is the last message.
+             */
+            index?: number;
+        }>;
+    };
+    /**
+     * MCP tools injected into every chat and responses request served by this provider and executed server side when the model calls them. The client never sees the injected tool call, only the final answer. Names must be unique within a provider.
+     */
+    injected_tools?: Array<{
+        /**
+         * Tool name the model sees.
+         */
+        name: string;
+        /**
+         * Name of the configured MCP client that provides the tool.
+         */
+        mcp_client_name: string;
+        /**
+         * Tool name as the MCP server exposes it, without the client prefix.
+         */
+        tool_name: string;
+    }>;
+};
+
+/**
+ * Network configuration for provider connections
+ */
+export type NetworkConfigWritable = {
+    /**
+     * Base URL for the provider (optional)
+     */
+    base_url?: string;
+    /**
+     * Additional headers to include in requests. A value may be a literal, an `env.VAR_NAME` reference, or a `vault.path` reference; references are resolved at load time and only the reference is stored. Literal values are masked in API responses while env/vault references stay visible as references; on update, a masked value sent back under the same header name keeps the stored value, while a masked value under a new or renamed header, or on provider create, is rejected with 400.
+     */
+    extra_headers?: {
+        [key: string]: string;
+    };
+    /**
+     * Default timeout for requests
+     */
+    default_request_timeout_in_seconds?: number;
+    /**
+     * Maximum number of retries
+     */
+    max_retries?: number;
+    /**
+     * Initial backoff duration in milliseconds
+     */
+    retry_backoff_initial?: number;
+    /**
+     * Maximum backoff duration in milliseconds
+     */
+    retry_backoff_max?: number;
+    /**
+     * Disable TLS certificate verification for provider connections. This bypasses server certificate validation and should be used only as a last resort when a trusted CA chain cannot be configured. Prefer ca_cert_pem for self-signed or private CA deployments.
+     */
+    insecure_skip_verify?: boolean;
+    /**
+     * PEM-encoded CA certificate to trust for provider endpoint connections (e.g. self-signed or internal CA)
+     */
+    ca_cert_pem?: string;
+    /**
+     * Allow connections to RFC 1918 private IPs (10.x, 172.16.x, 192.168.x). Enable for providers on a k8s pod network, LAN, or private VPC. Loopback addresses (localhost, 127.0.0.1, ::1) remain allowed regardless of this setting. Link-local addresses (169.254.x.x) are always blocked.
+     */
+    allow_private_network?: boolean;
+};
+
+/**
  * Full MCP client configuration (used in responses)
  */
 export type McpClientConfigWritable = {
@@ -2348,9 +2954,13 @@ export type McpClientConfigWritable = {
      */
     is_code_mode_client?: boolean;
     /**
-     * Connection type for MCP client
+     * Connection type for MCP client. `openapi` synthesizes an in-process MCP
+     * server from an OpenAPI/Swagger document (see `openapi_config`): every
+     * supported operation becomes a tool whose call is proxied as an HTTP
+     * request to the described API.
+     *
      */
-    connection_type?: 'http' | 'stdio' | 'sse' | 'inprocess';
+    connection_type?: 'http' | 'stdio' | 'sse' | 'inprocess' | 'openapi';
     /**
      * HTTP or SSE URL (required for HTTP or SSE connections)
      */
@@ -2372,6 +2982,10 @@ export type McpClientConfigWritable = {
          */
         envs?: Array<string>;
     };
+    /**
+     * Present for openapi clients. The document itself is omitted and credentials are redacted; the spec_* metadata describes the stored document.
+     */
+    openapi_config?: McpOpenApiConfigWritable;
     /**
      * TLS configuration for HTTP and SSE connections.
      */
@@ -2511,6 +3125,52 @@ export type McpClientConfigWritable = {
 };
 
 /**
+ * Configuration of an `openapi` connection-type client. At least one of
+ * `spec` (inline document text, JSON or YAML) or `spec_url` supplies the
+ * document on create. A `spec_url` alone is fetched once and stored inline,
+ * with `spec_url` kept as provenance. When both are sent, `spec` is the
+ * document and `spec_url` is the URL its relative servers resolve against
+ * (send the preview's `spec` and `spec_url` together for this). Supported documents: Swagger 2.0, OpenAPI
+ * 3.0, 3.1 and 3.2. `spec_size`, `spec_hash`, `spec_title`,
+ * `openapi_version` and `operation_count` are computed by Bifrost and
+ * informational on read; `spec` itself is omitted from client reads (use
+ * GET /api/mcp/client/{id}/openapi-spec).
+ *
+ */
+export type McpOpenApiConfigWritable = {
+    /**
+     * Inline OpenAPI/Swagger document (JSON or YAML text). Write-only.
+     */
+    spec?: string;
+    /**
+     * http(s) URL of the document. Fetched on create when spec is empty; sent with spec, it is the URL relative servers resolve against.
+     */
+    spec_url?: string;
+    /**
+     * Upstream API base URL. Defaults to the document's first server; required when the document declares none or only relative ones.
+     */
+    base_url?: string;
+    /**
+     * Credentials keyed by the document's securitySchemes name.
+     */
+    security_credentials?: {
+        [key: string]: {
+            value?: string;
+            username?: string;
+            password?: string;
+        };
+    };
+    /**
+     * Expose operations the document marks deprecated.
+     */
+    include_deprecated?: boolean;
+    /**
+     * Cap on the upstream response body returned to the model (0 = default 64 KiB).
+     */
+    max_response_bytes?: number;
+};
+
+/**
  * Virtual key configuration
  */
 export type VirtualKeyWritable = {
@@ -2518,6 +3178,12 @@ export type VirtualKeyWritable = {
     name: string;
     value: string;
     description?: string;
+    /**
+     * Custom key/value metadata attached to the key (for example cost_center, project, owner, environment). Omitted when the key has none.
+     */
+    metadata?: {
+        [key: string]: string;
+    };
     is_active: boolean;
     /**
      * Expiry timestamp. Requests using this virtual key are rejected once it passes. Null or absent means the key never expires.
@@ -2686,7 +3352,7 @@ export type ListProvidersResponses = {
 export type ListProvidersResponse2 = ListProvidersResponses[keyof ListProvidersResponses];
 
 export type AddProviderData = {
-    body: AddProviderRequest;
+    body: AddProviderRequestWritable;
     path?: never;
     query?: never;
     url: '/api/providers';
@@ -2973,7 +3639,7 @@ export type ListVirtualKeysData = {
          */
         offset?: number;
         /**
-         * Case-insensitive search across the virtual key name, its team name, and its customer name. Enterprise additionally matches the name and email of the user the key is assigned to.
+         * Case-insensitive search across the virtual key name, its team name, its customer name, and its metadata keys and values. Enterprise additionally matches the name and email of the user the key is assigned to.
          */
         search?: string;
         /**
