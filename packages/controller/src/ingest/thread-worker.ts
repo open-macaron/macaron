@@ -10,9 +10,10 @@ import { ReactionTargets, reactionTargetOf } from "../publish/reaction-targets.t
 import { isRefusal, platformOf, platformOfRun, type Route, route, type Subject, subjectOf, subjectOfRun, type ThreadState } from "../routing/routes.ts";
 import { ThreadStates } from "../routing/thread-states.ts";
 import { type Escalation, type LaunchOutcome, RunLauncher } from "../runs/run-launcher.ts";
-import { ACTIVE_STATUSES, RunsRepository, type ThreadRecord } from "../runs/runs.repository.ts";
+import { ACTIVE_STATUSES, type RunRecord, RunsRepository, type ThreadRecord } from "../runs/runs.repository.ts";
 import { ContextBuilder, type Trigger } from "./context-builder.ts";
 import { type EventRecord, EventsRepository, QUIET_PERIOD_MS } from "./events.repository.ts";
+import { retryTarget } from "./retry.ts";
 import { decideMode, parseMention } from "./triggers.ts";
 
 /** How long a thread waits when every runner slot is taken. */
@@ -91,7 +92,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
   }
 
   /** One subject's pending requests: routed, then launched or refused. */
-  private async processBatch(config: RepoConfig, thread: ThreadRecord, batch: readonly EventRecord[], loops: Awaited<ReturnType<RunsRepository["loops"]>>): Promise<void> {
+  private async processBatch(config: RepoConfig, thread: ThreadRecord, batch: readonly EventRecord[], loops: readonly RunRecord[]): Promise<void> {
     const ids = batch.map((event) => event.id);
     const last = batch.at(-1);
     if (last === undefined) return;
@@ -108,45 +109,65 @@ export class ThreadWorker implements OnApplicationBootstrap {
     }
 
     const login = this.bot.identity.login;
-    const mentions = batch.map((event) => parseMention(event.body, login));
-    const command = decideMode(batch.map((event, index) => ({ kind: eventKind(event), command: mentions[index]?.command })));
-    // The platform comes with the command that won: the latest explicit one.
-    const platform = mentions.filter((mention) => mention?.command !== undefined).at(-1)?.platform;
+    const command = decideMode(batch.map((event) => ({ kind: eventKind(event), command: parseMention(event.body, login)?.command })));
     if (command === undefined || command === "stop") return this.events.settle(ids, "done");
 
     const state = await this.states.read(config.repo, thread);
     const subject = subjectOf({ kind: last.subjectKind, number: last.subjectNumber }, state);
+    // The platform comes with the command that won: the latest explicit one.
+    const platform = explicitPlatform(batch, login);
+    // Requests answered by this pass besides the batch: a refused one that `retry` replays.
+    let replayed: readonly string[] = [];
     let request: Request;
     if (command === "retry") {
-      const previous = loops.at(-1);
-      if (previous === undefined || previous.status === "completed") {
+      const target = retryTarget(loops.at(-1), await this.events.lastRefused(thread.id));
+      const replay = target.kind === "refused" ? this.requestFrom(subjectOf({ kind: target.event.subjectKind, number: target.event.subjectNumber }, state), [target.event], loops, isBot) : undefined;
+      if (target.kind === "loop") {
+        const previous = target.run;
+        await this.reactions.adopt(thread.id, previous.loop, thread.loops + 1, upstream);
+        request = { subject: subjectOfRun(previous, thread), mode: previous.mode, trigger: previous.context.trigger, platform: platform ?? platformOfRun(previous), triggerGithubId: previous.triggerGithubId };
+      } else if (target.kind === "refused" && replay !== undefined) {
+        replayed = [target.event.id];
+        request = { ...replay, platform: platform ?? replay.platform };
+      } else {
         await this.events.settle(ids, "dropped");
-        return this.publisher.reportRefusal(thread, subject, "there is no failed loop to retry");
+        return this.publisher.reportRefusal(thread, subject, "there is no failed loop or refused request to retry");
       }
-      await this.reactions.adopt(thread.id, previous.loop, thread.loops + 1, upstream);
-      request = { subject: subjectOfRun(previous, thread), mode: previous.mode, trigger: previous.context.trigger, platform: platform ?? platformOfRun(previous), triggerGithubId: previous.triggerGithubId };
     } else {
-      const trigger: Trigger = {
-        kind: eventKind(last),
-        author: last.author,
-        url: last.url,
-        instruction: (parseMention(last.body, login)?.instruction ?? last.body).slice(0, 4_096),
-      };
-      // Whose request it is: the latest person in the batch, or for review bots alone, whoever asked for the thread's last run.
-      const asker = askedBy(batch, isBot, loops.at(-1)?.triggerGithubId);
-      request = { subject, mode: command === "remember" ? "retro" : command, trigger, platform: platform ?? "linux", triggerGithubId: asker ?? null };
+      const fresh = this.requestFrom(subject, batch, loops, isBot);
+      if (fresh === undefined) return this.events.settle(ids, "done");
+      request = fresh;
     }
 
     const outcome = await this.routeAndStart(config, thread, state, request);
     switch (outcome.kind) {
       case "launched":
+        await this.events.settle(replayed, "done");
         return this.events.settle(ids, "done");
       case "queued":
         return this.jobs.threadReady(thread.id, BUSY_RETRY_MS);
       case "refused":
-        await this.events.settle(ids, "dropped");
+        // Only a new request is kept for `retry`: a refused retry leaves what it reran as it was.
+        await this.events.settle(ids, command === "retry" ? "dropped" : "refused");
         return this.publisher.reportRefusal(thread, request.subject, outcome.reason);
     }
+  }
+
+  /** The request a batch of new events makes (not a retry), or undefined when it asks for nothing. */
+  private requestFrom(subject: Subject, batch: readonly EventRecord[], loops: readonly RunRecord[], isBot: (login: string) => boolean): Request | undefined {
+    const login = this.bot.identity.login;
+    const last = batch.at(-1);
+    const command = decideMode(batch.map((event) => ({ kind: eventKind(event), command: parseMention(event.body, login)?.command })));
+    if (last === undefined || command === undefined || command === "stop" || command === "retry") return undefined;
+    const trigger: Trigger = {
+      kind: eventKind(last),
+      author: last.author,
+      url: last.url,
+      instruction: (parseMention(last.body, login)?.instruction ?? last.body).slice(0, 4_096),
+    };
+    // Whose request it is: the latest person in the batch, or for review bots alone, whoever asked for the thread's last run.
+    const asker = askedBy(batch, isBot, loops.at(-1)?.triggerGithubId);
+    return { subject, mode: command === "remember" ? "retro" : command, trigger, platform: explicitPlatform(batch, login) ?? "linux", triggerGithubId: asker ?? null };
   }
 
   /** Routes a request (ROUTES), then launches the run unless the route or the repository refuses it. */
@@ -166,6 +187,11 @@ export class ThreadWorker implements OnApplicationBootstrap {
     }
     return this.launcher.launch({ config, thread, route: routed, context, triggerGithubId });
   }
+}
+
+/** The platform of the latest explicit command in a batch, if it named one. */
+function explicitPlatform(batch: readonly EventRecord[], login: string): Platform | undefined {
+  return batch.map((event) => parseMention(event.body, login)).filter((mention) => mention?.command !== undefined).at(-1)?.platform;
 }
 
 function eventKind(event: EventRecord): "mention" | "review" | "comment" {

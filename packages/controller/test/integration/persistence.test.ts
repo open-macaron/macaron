@@ -7,7 +7,7 @@ import { DrizzleConfigSnapshotStore } from "../../src/config/config-snapshots.st
 import { connectAndMigrate, type Db } from "../../src/db/db.module.ts";
 import { createGitHub } from "../../src/github/github.ts";
 import type { RepoRef } from "../../src/github/repo-ref.ts";
-import { EventsRepository } from "../../src/ingest/events.repository.ts";
+import { EventsRepository, type NewEvent } from "../../src/ingest/events.repository.ts";
 import { Jobs, Queue } from "../../src/jobs/jobs.ts";
 import { ReactionTargets } from "../../src/publish/reaction-targets.ts";
 import { type ReactionContent, type ReactionTarget, UpstreamWriter } from "../../src/publish/upstream-writer.ts";
@@ -162,6 +162,22 @@ describe("EventsRepository", () => {
     expect(await events.add(event)).toBe(true);
     expect(await events.add(event)).toBe(false);
     expect(await events.pending(thread.id)).toMatchObject([{ subjectKind: "issue", subjectNumber: 1006 }]);
+  });
+
+  it("finds the thread's latest refused request, for retry", async () => {
+    const events = new EventsRepository(db);
+    const { thread } = await newRun(10);
+    const request = { threadId: thread.id, subjectKind: "pull", subjectNumber: 1010, author: "alice", authorId: 7, kind: "mention", url: "https://x" } satisfies Partial<NewEvent>;
+    await events.add({ ...request, externalId: "issue-comment:1", body: "@macaron-bot verify on linux" });
+    await events.add({ ...request, externalId: "issue-comment:2", body: "@macaron-bot verify on windows" });
+    await events.add({ ...request, externalId: "issue-comment:3", body: "@macaron-bot retry" });
+    expect(await events.lastRefused(thread.id)).toBeUndefined();
+
+    const [first, second, retry] = await events.pending(thread.id);
+    await events.settle([first?.id ?? "", second?.id ?? ""], "refused");
+    await events.settle([retry?.id ?? ""], "dropped");
+
+    expect(await events.lastRefused(thread.id)).toMatchObject({ externalId: "issue-comment:2" });
   });
 });
 
