@@ -1,5 +1,11 @@
 # @open-macaron/controller
 
+## 0.4.4
+
+### Patch Changes
+
+- b604d5d: `@macaron-bot retry` replays the last refused request (a platform not enabled yet, an account or a capability missing) once its cause is fixed, instead of answering that there is no failed loop to retry.
+
 ## 0.4.3
 
 ### Patch Changes
