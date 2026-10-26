@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDrizzle } from "@nestjs/drizzle";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/db.module.ts";
 import { events } from "../db/schema.ts";
 
@@ -42,7 +42,18 @@ export class EventsRepository {
       .orderBy(events.createdAt);
   }
 
-  async settle(ids: readonly string[], status: "done" | "dropped"): Promise<void> {
+  /** The thread's latest refused request: what `retry` replays when no failed loop is newer. */
+  async lastRefused(threadId: string): Promise<EventRecord | undefined> {
+    const [event] = await this.db
+      .select()
+      .from(events)
+      .where(and(eq(events.threadId, threadId), eq(events.status, "refused")))
+      .orderBy(desc(events.createdAt))
+      .limit(1);
+    return event;
+  }
+
+  async settle(ids: readonly string[], status: "done" | "dropped" | "refused"): Promise<void> {
     if (ids.length > 0) await this.db.update(events).set({ status }).where(inArray(events.id, [...ids]));
   }
 }

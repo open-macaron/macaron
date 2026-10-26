@@ -16,7 +16,7 @@ Only people with an account of its web app (invited by an administrator, who gra
 | `@macaron-bot reproduce` | Tries to reproduce a reported problem with the repository's own tooling, with the commands it ran and their output, and screenshots or videos where its environment can show the application |
 | `@macaron-bot verify` | On a pull request: checks that the change does what it should (what you ask, or what the pull request describes), the same way |
 | `@macaron-bot triage` | Decides what a request needs: an answer, or one of the above |
-| `@macaron-bot retry` | Runs the last failed or stopped loop again |
+| `@macaron-bot retry` | Runs the last failed or stopped loop again, or the last refused request once its cause is fixed (a platform enabled, an account granted) |
 | `@macaron-bot stop` | Stops the running loop now |
 | A bare mention | Same as `triage` |
 
