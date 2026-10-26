@@ -6,7 +6,7 @@ How the controller and the agent-side CLI are built. The system design is in [DE
 
 | Concern | Choice | Notes |
 |---|---|---|
-| Runtime | Node.js 24 LTS | Same major in the container (`ubi10/nodejs-24-minimal`) and in CI |
+| Runtime | Node.js 24 LTS | The same version in the container (`quay.io/hummingbird/nodejs:24`) and in CI (`.node-version`) |
 | Framework | NestJS 12, **ESM** | All Nest packages ship as ESM |
 | Language | TypeScript 6.0 | The version `nest upgrade` targets. TS 7 (`tsgo`) can be added as a faster `--noEmit` check once Nest's CLI supports it |
 | Queues | pg-boss 12 | Same Postgres, no extra service; LISTEN/NOTIFY for immediate pick-up |
