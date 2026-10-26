@@ -35,7 +35,7 @@ Until 2026-10-21 production ran on a Fedora VPS with rootful Podman quadlets. It
 
 ## 1. Image build (`release.yml`, `packages/controller/Containerfile`, `packages/web/Containerfile`)
 
-- **Two-stage Containerfile.** It builds on `registry.access.redhat.com/ubi10/nodejs-24` and runs on `ubi10/nodejs-24-minimal`, both pinned by digest.
+- **Containerfile.** It builds on `quay.io/hummingbird/nodejs:24-builder` and runs on `quay.io/hummingbird/nodejs:24`, both pinned by digest: Red Hat's hardened images, non-root (UID 65532), which got the fix for CVE-2026-111497 (Node2Shell) before UBI's `nodejs-24` did.
 - **What the build does:** `pnpm install --frozen-lockfile`, `pnpm build`, then `pnpm deploy --prod` into `/opt/app`. The runtime image only gets that folder and runs as a non-root user, which also works with OpenShift's random UIDs (group 0).
 - **Release:** versions and changelogs are managed with [Changesets](https://changesets.dev) (.changeset/README.md). Merging the "Version Packages" PR that `release.yml` keeps up to date releases every package it bumps. changesets tags it (`@open-macaron/<package>@<version>`) and writes its GitHub release, then `release.yml` builds what was released:
   - **Controller:** buildah pushes `ghcr.io/open-macaron/controller:<version>`, `:sha-<commit>` and `:latest`.
