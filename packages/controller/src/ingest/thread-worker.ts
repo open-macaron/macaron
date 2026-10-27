@@ -141,7 +141,9 @@ export class ThreadWorker implements OnApplicationBootstrap {
 
     const outcome = await this.routeAndStart(config, thread, state, request);
     switch (outcome.kind) {
+      // A failed launch was answered already (😕 and `retry`): the requests are done either way.
       case "launched":
+      case "failed":
         await this.events.settle(replayed, "done");
         return this.events.settle(ids, "done");
       case "queued":

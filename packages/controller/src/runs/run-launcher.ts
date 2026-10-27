@@ -48,6 +48,8 @@ export interface LaunchRequest {
 
 export type LaunchOutcome =
   | { readonly kind: "launched"; readonly run: RunRecord }
+  /** Minting its key or dispatching it failed: the run is closed and the failure posted, `retry` runs it again. */
+  | { readonly kind: "failed"; readonly run: RunRecord }
   | { readonly kind: "queued"; readonly reason: string }
   | { readonly kind: "refused"; readonly reason: string };
 
@@ -137,11 +139,19 @@ export class RunLauncher {
       // The key never reached a runner: nothing was spent.
       await this.runs.finish(run.id, { status: "failed", failure: `launch failed: ${describeError(error)}` }, this.clock.now());
       await this.runs.settle(run.id, 0, this.attribution(config), this.clock.now());
-      throw error;
+      this.logger.error(`launching run ${run.id} failed: ${describeError(error)}`);
+      // Said, not retried: in compact mode 👀 would otherwise be all the asker ever sees. The error
+      // stays in the logs: it may name an endpoint or a key's backend.
+      try {
+        await this.publisher.reportFailure({ run, thread, reason: "the run could not be started; maintainers have been notified", runUrl: null });
+      } catch (reportError: unknown) {
+        this.logger.warn(`reporting the failed launch of run ${run.id} failed: ${describeError(reportError)}`);
+      }
+      return { kind: "failed", run };
     }
     // The run is under way whatever happens to this progress note.
     try {
-      await this.publisher.reportStarted(thread, dispatched, runUrl(this.env, dispatched.ghRunId));
+      await this.publisher.reportStarted(thread, dispatched, runUrl(this.env, dispatched.ghRunId), config);
     } catch (error: unknown) {
       this.logger.warn(`reporting the start of run ${run.id} failed: ${describeError(error)}`);
     }

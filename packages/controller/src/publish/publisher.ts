@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { type RepoConfig, RunContext } from "@open-macaron/contracts";
+import { type RepoConfig, RunContext, runnerFor } from "@open-macaron/contracts";
 import { z } from "zod";
 import { describeError } from "../common/errors.ts";
 import type { UsdMicros } from "../common/money.ts";
@@ -16,7 +16,7 @@ import { EvidenceHost } from "./evidence-host.ts";
 import { KnowledgeProposer } from "../knowledge/knowledge-proposer.ts";
 import { ForkCommitter } from "./fork-committer.ts";
 import type { Publishable } from "./gate.ts";
-import { type CostRow, type LoopState, renderCostTable, resolveAttachments, sanitize, spentLine, statusHeader, upsertCostSection, withSpentLine } from "./markdown.ts";
+import { type CostRow, type LoopState, renderCostTable, resolveAttachments, runFooter, sanitize, spentLine, statusHeader, upsertCostSection, withSpentLine } from "./markdown.ts";
 import { ReactionTargets } from "./reaction-targets.ts";
 import { CannotPost, UpstreamWriter } from "./upstream-writer.ts";
 
@@ -33,6 +33,8 @@ const ReviewId = z.coerce.number().int().positive();
 const CommentId = z.coerce.number().int().positive();
 /** Effect kind holding a loop's status comment id. */
 const STATUS_EFFECT = "status";
+/** Effect kind holding a loop's answer comment id: in compact mode, the comment whose spent line settlement updates. */
+const MESSAGE_EFFECT = "message";
 
 /** What the status header reads from a stored context; contexts stored before these fields get their defaults. */
 const HeaderContext = z.object({ platform: RunContext.shape.platform, knowledge: RunContext.shape.knowledge });
@@ -135,13 +137,16 @@ export class Publisher {
       }
     }
 
+    // Before the answer: in compact mode, the answer is what says where the lessons went.
+    const proposed = run.mode === "retro" && result.learnings.length > 0 ? await this.proposeLessons(input) : "";
     const message = [result.message, ...quoted].filter((part): part is string => part !== undefined && part.length > 0).join("\n\n---\n\n");
     if (message.length > 0) {
-      await this.post(() => this.runs.once(thread.id, run.loop, "message", () => this.writer.comment(upstream, subject.number, clean(message))));
+      const body = config.compact ? `${clean(message)}${proposed}\n\n${await this.footer(thread, subject, run, config, input.runUrl)}` : clean(message);
+      await this.post(() => this.runs.once(thread.id, run.loop, MESSAGE_EFFECT, () => this.writer.comment(upstream, subject.number, body)));
     }
 
-    const proposed = run.mode === "retro" && result.learnings.length > 0 ? await this.proposeLessons(input) : "";
-    await this.updateStatus(thread, subject, run, `✅ ${clean(result.summary)}${proposed}`, input.runUrl);
+    // Compact mode: the answer is the only comment; a run with nothing to say gets its summary as one.
+    if (!config.compact || message.length === 0) await this.updateStatus(thread, subject, run, `✅ ${clean(result.summary)}${proposed}`, input.runUrl, config);
     await this.updateCostTable(thread);
     await this.reactions.finish(thread.id, run.loop, upstream, "+1");
   }
@@ -175,16 +180,16 @@ export class Publisher {
     await this.reactions.finish(input.thread.id, input.run.loop, upstream, "confused");
   }
 
-  /** A run was dispatched: the status comment and the PR's table show it, with its link, right away. */
-  async reportStarted(thread: ThreadRecord, run: RunRecord, runUrl: string | null): Promise<void> {
-    await this.updateStatus(thread, subjectOfRun(run, thread), run, "⏳ Working on it.", runUrl);
+  /** A run was dispatched: the status comment (unless compact: 👀 says it) and the PR's table show it, with its link, right away. */
+  async reportStarted(thread: ThreadRecord, run: RunRecord, runUrl: string | null, config: RepoConfig): Promise<void> {
+    if (!config.compact) await this.updateStatus(thread, subjectOfRun(run, thread), run, "⏳ Working on it.", runUrl, config);
     await this.updateCostTable(thread);
   }
 
-  /** Called when a loop's cost is settled: the PR's cost table and the run's status comment pick up the final number. */
+  /** Called when a loop's cost is settled: the PR's cost table and the run's status comment, or its compact answer, pick up the final number. */
   async refreshCost(thread: ThreadRecord, run: RunRecord): Promise<void> {
     await this.updateCostTable(thread);
-    const commentId = await this.statusCommentId(thread, run);
+    const commentId = (await this.commentId(thread, run, STATUS_EFFECT)) ?? (await this.commentId(thread, run, MESSAGE_EFFECT));
     if (commentId === undefined) return;
     const upstream = repoRef(thread.repo);
     const line = spentLine(...(await this.spent(thread)));
@@ -218,7 +223,7 @@ export class Publisher {
    * without them: the table carries the same evidence.
    */
   private async publishReview(input: PublishInput, results: readonly RuleResult[]): Promise<void> {
-    const { run, thread } = input;
+    const { run, thread, config } = input;
     const review = run.context.review;
     if (review === undefined) throw new Error(`run ${run.id} has review results but no review context`);
     const upstream = repoRef(thread.repo);
@@ -226,6 +231,9 @@ export class Publisher {
       repo: thread.repo,
       headSha: review.headSha,
       knowledgeCommit: review.knowledgeCommit,
+      loop: run.loop,
+      runner: runnerFor(config, HeaderContext.parse(run.context).platform),
+      ghRunId: run.ghRunId,
       runUrl: input.runUrl,
       costMicros: null,
     });
@@ -241,7 +249,10 @@ export class Publisher {
       }),
     );
     const count = (outcome: RuleResult["outcome"]) => String(results.filter((result) => result.outcome === outcome).length);
-    await this.updateStatus(thread, subjectOfRun(run, thread), run, `✅ Review posted: ❌ ${count("violation")} · ⚠️ ${count("warning")} · ✅ ${count("valid")} · ➖ ${count("ignored")}.`, input.runUrl);
+    // Compact mode: the review is the answer, its footer says the rest.
+    if (!config.compact) {
+      await this.updateStatus(thread, subjectOfRun(run, thread), run, `✅ Review posted: ❌ ${count("violation")} · ⚠️ ${count("warning")} · ✅ ${count("valid")} · ➖ ${count("ignored")}.`, input.runUrl, config);
+    }
     await this.updateCostTable(thread);
     await this.reactions.finish(thread.id, run.loop, upstream, "+1");
   }
@@ -264,29 +275,40 @@ export class Publisher {
   /**
    * Each loop has its own status comment, posted where the request was made, right after it:
    * created when the run starts, edited as it ends. Earlier loops' comments are never touched.
+   * Compact (`config.compact`): no header, the outcome and the run's footer. Without a config (a
+   * failure once the repository left the configuration), the full status.
    */
-  private async updateStatus(thread: ThreadRecord, subject: Subject, run: RunRecord, outcome: string, runUrl: string | null): Promise<void> {
-    const where = subject.kind === "issue" && thread.prNumber !== null && thread.kind === "issue" ? `\n\nWork continues in #${String(thread.prNumber)}.` : "";
-    const body = [
-      statusHeader({ loop: run.loop, mode: run.mode, runUrl, ...HeaderContext.parse(run.context) }),
-      "",
-      outcome,
-      where,
-      "",
-      spentLine(...(await this.spent(thread))),
-    ].join("\n");
+  private async updateStatus(thread: ThreadRecord, subject: Subject, run: RunRecord, outcome: string, runUrl: string | null, config?: RepoConfig): Promise<void> {
+    const body =
+      config?.compact === true
+        ? `${outcome}\n\n${await this.footer(thread, subject, run, config, runUrl)}`
+        : [
+            statusHeader({ loop: run.loop, mode: run.mode, runUrl, ...HeaderContext.parse(run.context) }),
+            "",
+            outcome,
+            ...workContinues(thread, subject).flatMap((line) => ["", line]),
+            "",
+            spentLine(...(await this.spent(thread))),
+          ].join("\n");
     const upstream = repoRef(thread.repo);
     await this.post(async () => {
       const created = await this.runs.once(thread.id, run.loop, STATUS_EFFECT, () => this.writer.comment(upstream, subject.number, body));
       if (created !== undefined) return;
-      const commentId = await this.statusCommentId(thread, run);
+      const commentId = await this.commentId(thread, run, STATUS_EFFECT);
       if (commentId !== undefined) await this.writer.updateComment(upstream, commentId, body);
     });
   }
 
-  /** The loop's status comment, once created. */
-  private async statusCommentId(thread: ThreadRecord, run: RunRecord): Promise<number | undefined> {
-    const id = CommentId.safeParse(await this.runs.effect(thread.id, run.loop, STATUS_EFFECT));
+  /** A compact answer's footer: the run, its runner, where work continues, the thread's spending. */
+  private async footer(thread: ThreadRecord, subject: Subject, run: RunRecord, config: RepoConfig, runUrl: string | null): Promise<string> {
+    const header = { loop: run.loop, mode: run.mode, runUrl, ...HeaderContext.parse(run.context) };
+    const [where] = workContinues(thread, subject);
+    return runFooter({ ...header, runner: runnerFor(config, header.platform), ghRunId: run.ghRunId }, where ?? "", spentLine(...(await this.spent(thread))));
+  }
+
+  /** A loop's comment stored under `effect`, once created. */
+  private async commentId(thread: ThreadRecord, run: RunRecord, effect: typeof STATUS_EFFECT | typeof MESSAGE_EFFECT): Promise<number | undefined> {
+    const id = CommentId.safeParse(await this.runs.effect(thread.id, run.loop, effect));
     return id.success ? id.data : undefined;
   }
 
@@ -319,6 +341,11 @@ export class Publisher {
       this.logger.warn(`cannot post: ${describeError(error)}`);
     }
   }
+}
+
+/** Answering on an issue whose work moved to a pull request: the line that says so. */
+function workContinues(thread: ThreadRecord, subject: Subject): string[] {
+  return subject.kind === "issue" && thread.prNumber !== null && thread.kind === "issue" ? [`Work continues in #${String(thread.prNumber)}.`] : [];
 }
 
 /** Logins that may be @mentioned in what we post: the people already in the conversation. */

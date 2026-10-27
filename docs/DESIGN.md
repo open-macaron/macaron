@@ -13,7 +13,7 @@ Companion docs:
 - Agents (Claude Code today; codex and opencode planned) run on GitHub-hosted runners, so we don't manage agent environments.
 - A **controller in our OpenShift namespace** holds every credential and does everything deterministic: polling, webhooks, reactions, budget keys, policy checks, pushes, comments.
 - Security comes first. The agent never holds a GitHub credential. Every agent run gets its own budget-capped LLM key: a Bifrost virtual key over the LLM key of whoever asked for the run (§4 "Budgets"). There is no shared LLM key. Pushes are done afterwards by deterministic code that only writes to one branch.
-- The bot only works for allow-listed repos, and for people with an account of its web app (invited, with capabilities). It reacts fast (👀), comments little, reports the cost of every action, and learns over time through a curated knowledge base.
+- The bot only works for allow-listed repos, and for people with an account of its web app (invited, with capabilities). It reacts fast (👀), comments little (one answer per request by default, §5 "Comment discipline"), reports the cost of every action, and learns over time through a curated knowledge base.
 
 ## 2. Target architecture
 
@@ -164,7 +164,7 @@ Behaviour notes:
   - A run may return `escalate`, in which case `complete()` launches the next run in the requested mode.
   - Explicit commands (`@macaron-bot implement`, `/plan`, `/stop`) skip the Router.
   - `@macaron-bot retry` runs the thread's last failed or stopped loop again, with the same mode, trigger and platform. When a request was refused after that loop (a platform the repo didn't enable yet, an account or a capability missing), it replays that request instead, for the same person, once the cause is fixed: refused requests are kept as `refused` events for this. It is refused when the last loop succeeded and nothing was refused since. Each failure's status comment says so.
-  - **Platforms.** Runs are on Linux unless the command names another platform the repo enables: `@macaron-bot reproduce on windows` (the first `on <platform>` of the mention's line). An escalation keeps the escalating run's platform unless the result sets `escalateOn`; triage is told which platforms the repo has, for issues that only happen on one. `triage` and `review` don't set the project up, so they always run on Linux. The status comment names the platform.
+  - **Platforms.** Runs are on Linux unless the command names another platform the repo enables: `@macaron-bot reproduce on windows` (the first `on <platform>` of the mention's line). An escalation keeps the escalating run's platform unless the result sets `escalateOn`; triage is told which platforms the repo has, for issues that only happen on one. `triage` and `review` don't set the project up, so they always run on Linux. The answer's footer names the runner; the status comment of a repo that turned `compact` off names the platform.
 - The Ingest drops events from untrusted repos, from people without an account, and from the bot itself. Who a run is for, and whether their capabilities allow its mode, is checked when it launches (`accounts/access.ts`): explicit commands, retries and escalations alike; a review bot's comments count for whoever asked for the thread's last run. It also caps loops: at most N review loops per PR, and a lower cap when the reviewer is a bot, so two bots can't ping-pong forever.
 - Review *summaries* don't support reactions, so 👀 goes on the PR.
 
@@ -393,7 +393,11 @@ sequenceDiagram
 
 Comment discipline:
 1. Threaded replies to review comments first.
-2. Then one status comment per loop, posted where the request was made, right after it: created when the run starts (⏳ and its run link), edited when it ends (outcome, cost). Earlier loops' comments are never rewritten, so every request keeps its answer and its run link.
+2. Then one answer per loop, posted where the request was made, right after it. It depends on the `compact` setting (open-macaron/config, global → project → repo, `true` unless set):
+   - `compact: true` (default): nothing is posted while the run works; 👀 says it started. The answer is the run's message, or its summary (✅) when it has none, or the review for a review run. It ends with a footer in `<sub>`: loop, mode, runner, run link with its id, lessons, and the thread's spending, whose line settlement edits. One notification per request.
+   - `compact: false`: a status comment, created when the run starts (⏳ and its run link) and edited when it ends (outcome, cost), and the message as a second comment.
+   
+   Failures are posted in both modes: a run that fails, is stopped, times out, is refused by the Gate or can't be published or even started (minting its key or dispatching it) gets a 😕 status comment with the reason and the `retry` hint. A failed launch is reported and closed, not retried automatically. Earlier loops' comments are never rewritten, so every request keeps its answer and its run link.
 3. A new top-level comment only when asking the human something, and at most one per run.
 
 The PR body ends with a section that the Publisher regenerates from the ledger on every loop:
