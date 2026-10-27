@@ -1,6 +1,6 @@
 {
   "name": "@open-macaron/review",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "private": true,
   "description": "macaron-bot's review engine: open-macaron/knowledge rules selected by changed files, checked by an agent in a read-only session, evidence verified. Used by the bot and, as the macaron-review CLI, locally.",
   "license": "Apache-2.0",
