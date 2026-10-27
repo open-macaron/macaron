@@ -6,7 +6,7 @@
 
 ## What the bot can do
 
-Only people with an account of its web app (invited by an administrator, who grants each one capabilities: triage, plan, implement, reproduce, verify, review, remember) can trigger it, on trusted repositories ([open-macaron/config](https://github.com/open-macaron/config)). Anyone else who mentions it on a trusted repository gets 👎 and nothing more: no reply, no cost; asking for something one's account can't is refused with a reply. It answers with 👀 within a minute, then 👍 or 😕, and answers each request where it was asked: a status comment with a link to its run, edited until the run's cost settles. `implement`, `plan` and `reproduce` work from an issue; `verify` and `review` on a pull request.
+Only people with an account of its web app (invited by an administrator, who grants each one capabilities: triage, plan, implement, reproduce, verify, review, remember) can trigger it, on trusted repositories ([open-macaron/config](https://github.com/open-macaron/config)). Anyone else who mentions it on a trusted repository gets 👎 and nothing more: no reply, no cost; asking for something one's account can't is refused with a reply. It answers with 👀 within a minute, then 👍 or 😕, and answers each request where it was asked, with one comment: its run, runner and cost in a small footer, edited until the cost settles. A failure always gets a comment saying why. A project or repository can turn `compact` off to get a status comment as soon as a run starts. `implement`, `plan` and `reproduce` work from an issue; `verify` and `review` on a pull request.
 
 | Comment | What happens |
 |---|---|

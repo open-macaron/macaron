@@ -80,7 +80,7 @@ defaults:
   budgets: { implement: 5.00, review: 0.50 }
 ```
 
-The controller works with the merged `RepoConfig` (`packages/contracts/src/config.ts`): the repository's `RepoSettings` (harness, model and per-mode models, fast model, `runsOn`, platforms, timeout, environment, commands, contribution rules, budgets, review cost, caps) plus `repo`, `fork`, `project` and `bots`. Who may trigger the bot isn't in the configuration: it's an account of the web app, with the capabilities an administrator granted (DESIGN.md §7). A project file with a `users` list (the former way) is refused.
+The controller works with the merged `RepoConfig` (`packages/contracts/src/config.ts`): the repository's `RepoSettings` (harness, model and per-mode models, fast model, `runsOn`, platforms, draft PRs, `compact` comments, timeout, environment, commands, contribution rules, budgets, review cost, caps) plus `repo`, `fork`, `project` and `bots`. Who may trigger the bot isn't in the configuration: it's an account of the web app, with the capabilities an administrator granted (DESIGN.md §7). A project file with a `users` list (the former way) is refused.
 
 **The project is the unit we "don't work for free" for.** It has a budget and a concurrency share. Costs roll up repo → project → global in the ledger and the reports.
 
