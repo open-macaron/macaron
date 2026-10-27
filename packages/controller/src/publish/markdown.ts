@@ -101,7 +101,6 @@ export function escapeCell(text: string): string {
   return text.replaceAll("|", "\\|").replaceAll("\n", " ");
 }
 
-/** The status comment's last line: what the thread has cost so far, ⏳ while a loop is still settling. */
 /** What a status comment's first line says about a run: mode, platform, run link, the lessons it was given. */
 export interface StatusHeader {
   readonly loop: number;
@@ -111,22 +110,43 @@ export interface StatusHeader {
   readonly knowledge: RunKnowledge;
 }
 
+/** What a compact answer's footer says about its run: the status header's facts, the runner and the run's id. */
+export interface RunFooter extends StatusHeader {
+  /** The runner label the run asked for; undefined once the repository no longer enables its platform. */
+  readonly runner: string | undefined;
+  readonly ghRunId: number | null;
+}
+
 const PLATFORM_NAMES: Readonly<Record<Platform, string>> = { linux: "Linux", windows: "Windows", macos: "macOS" };
 
 /** `**macaron-bot** · loop 2 · `reproduce` · Windows · [run](…) · 3 lessons from open-macaron/knowledge@abc1234` */
 export function statusHeader(header: StatusHeader): string {
-  const { commit, lessons } = header.knowledge;
   const parts = [`**macaron-bot**`, `loop ${String(header.loop)}`, `\`${header.mode}\``];
   // Linux is every run's default: only another platform is worth a word.
   if (header.platform !== "linux") parts.push(PLATFORM_NAMES[header.platform]);
   if (header.runUrl !== null) parts.push(`[run](${header.runUrl})`);
-  if (commit !== null && lessons.length > 0) {
-    const count = `${String(lessons.length)} lesson${lessons.length === 1 ? "" : "s"}`;
-    parts.push(`${count} from [open-macaron/knowledge@${commit.slice(0, 7)}](https://github.com/open-macaron/knowledge/tree/${commit})`);
-  }
-  return parts.join(" · ");
+  return [...parts, ...lessonsPart(header.knowledge)].join(" · ");
 }
 
+/**
+ * A compact answer's footer, under a rule and in `<sub>` so it stays out of the way. The spent line
+ * stays a line of its own, for withSpentLine once the cost settles.
+ */
+export function runFooter(footer: RunFooter, where: string, spent: string): string {
+  const parts = ["macaron-bot", `loop ${String(footer.loop)}`, `\`${footer.mode}\``];
+  // The runner label names the platform already.
+  if (footer.runner !== undefined) parts.push(`runner \`${footer.runner}\``);
+  if (footer.runUrl !== null) parts.push(`[run${footer.ghRunId === null ? "" : ` ${String(footer.ghRunId)}`}](${footer.runUrl})`);
+  return ["---", `<sub>${[...parts, ...lessonsPart(footer.knowledge)].join(" · ")}</sub>`, ...(where === "" ? [] : [where]), spent].join("\n");
+}
+
+function lessonsPart({ commit, lessons }: RunKnowledge): string[] {
+  if (commit === null || lessons.length === 0) return [];
+  const count = `${String(lessons.length)} lesson${lessons.length === 1 ? "" : "s"}`;
+  return [`${count} from [open-macaron/knowledge@${commit.slice(0, 7)}](https://github.com/open-macaron/knowledge/tree/${commit})`];
+}
+
+/** The status comment's last line: what the thread has cost so far, ⏳ while a loop is still settling. */
 export function spentLine(spentMicros: UsdMicros, settling: boolean): string {
   return `<sub>Spent on this thread: ${formatUsd(spentMicros)}${settling ? " ⏳" : ""}.</sub>`;
 }

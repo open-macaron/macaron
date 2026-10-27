@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CommitSha, PublishedLesson } from "@open-macaron/contracts";
-import { renderCostTable, resolveAttachments, sanitize, spentLine, statusHeader, upsertCostSection, withSpentLine } from "../../src/publish/markdown.ts";
+import { renderCostTable, resolveAttachments, runFooter, sanitize, spentLine, statusHeader, upsertCostSection, withSpentLine } from "../../src/publish/markdown.ts";
 
 describe("sanitize", () => {
   it("keeps mentions of thread participants and defangs everyone else", () => {
@@ -67,19 +67,19 @@ describe("cost table", () => {
   });
 });
 
-describe("status header", () => {
-  const none = { commit: null, lessons: [] };
-  const lesson = PublishedLesson.parse({
-    id: "podman-desktop/lessons/windows-machines",
-    scope: "podman-desktop",
-    topic: "Windows machines",
-    appliesTo: null,
-    sources: ["https://github.com/axel7083/podman-desktop/issues/40"],
-    lastVerified: "2026-10-21",
-    confidence: "medium",
-    body: "Hyper-V works.",
-  });
+const none = { commit: null, lessons: [] };
+const lesson = PublishedLesson.parse({
+  id: "podman-desktop/lessons/windows-machines",
+  scope: "podman-desktop",
+  topic: "Windows machines",
+  appliesTo: null,
+  sources: ["https://github.com/axel7083/podman-desktop/issues/40"],
+  lastVerified: "2026-10-21",
+  confidence: "medium",
+  body: "Hyper-V works.",
+});
 
+describe("status header", () => {
   it("names the mode, and nothing else a Linux run without lessons has", () => {
     expect(statusHeader({ loop: 1, mode: "plan", platform: "linux", runUrl: null, knowledge: none })).toBe("**macaron-bot** · loop 1 · `plan`");
   });
@@ -88,6 +88,32 @@ describe("status header", () => {
     const commit = CommitSha.parse("abcdef1".padEnd(40, "0"));
     expect(statusHeader({ loop: 2, mode: "reproduce", platform: "windows", runUrl: "https://example.org/run", knowledge: { commit, lessons: [lesson] } })).toBe(
       `**macaron-bot** · loop 2 · \`reproduce\` · Windows · [run](https://example.org/run) · 1 lesson from [open-macaron/knowledge@abcdef1](https://github.com/open-macaron/knowledge/tree/${commit})`,
+    );
+  });
+});
+
+describe("runFooter", () => {
+  it("names the runner and the run by its id, says where work continues, and keeps the spent line replaceable", () => {
+    const commit = CommitSha.parse("abcdef1".padEnd(40, "0"));
+    const footer = runFooter(
+      { loop: 2, mode: "reproduce", platform: "windows", runUrl: "https://example.org/run/9", knowledge: { commit, lessons: [lesson] }, runner: "windows-2025", ghRunId: 9 },
+      "Work continues in #42.",
+      spentLine(0, true),
+    );
+    expect(footer).toBe(
+      [
+        "---",
+        `<sub>macaron-bot · loop 2 · \`reproduce\` · runner \`windows-2025\` · [run 9](https://example.org/run/9) · 1 lesson from [open-macaron/knowledge@abcdef1](https://github.com/open-macaron/knowledge/tree/${commit})</sub>`,
+        "Work continues in #42.",
+        "<sub>Spent on this thread: $0.00 ⏳.</sub>",
+      ].join("\n"),
+    );
+    expect(withSpentLine(footer, spentLine(10_000, false))).toContain("<sub>Spent on this thread: $0.01.</sub>");
+  });
+
+  it("leaves out what a run doesn't have", () => {
+    expect(runFooter({ loop: 1, mode: "plan", platform: "linux", runUrl: null, knowledge: none, runner: undefined, ghRunId: null }, "", spentLine(0, false))).toBe(
+      "---\n<sub>macaron-bot · loop 1 · `plan`</sub>\n<sub>Spent on this thread: $0.00.</sub>",
     );
   });
 });

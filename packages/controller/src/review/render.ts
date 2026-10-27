@@ -7,16 +7,22 @@ const COST_END = "<!-- /macaron:review-cost -->";
 
 /**
  * The bot's GitHub review: the shared rendering (@open-macaron/review), with the reviewer's text
- * defused (mentions) and the bot's footer: the cost (⏳ until settled) and the run.
+ * defused (mentions) and the bot's footer: the cost (⏳ until settled), the loop, the runner and the run.
  */
 export function renderReview(
   results: readonly RuleResult[],
-  meta: ReviewMeta & { readonly runUrl: string | null; readonly costMicros: UsdMicros | null },
+  meta: ReviewMeta & {
+    readonly loop: number;
+    readonly runner: string | undefined;
+    readonly ghRunId: number | null;
+    readonly runUrl: string | null;
+    readonly costMicros: UsdMicros | null;
+  },
 ): { body: string; comments: InlineComment[] } {
-  return renderMarkdown(results, meta, {
-    clean: (text) => sanitize(text, new Set()),
-    footer: `${renderReviewCost(meta.costMicros)}${meta.runUrl === null ? "" : ` · [run](${meta.runUrl})`}`,
-  });
+  const parts = [renderReviewCost(meta.costMicros), `loop ${String(meta.loop)}`];
+  if (meta.runner !== undefined) parts.push(`runner \`${meta.runner}\``);
+  if (meta.runUrl !== null) parts.push(`[run${meta.ghRunId === null ? "" : ` ${String(meta.ghRunId)}`}](${meta.runUrl})`);
+  return renderMarkdown(results, meta, { clean: (text) => sanitize(text, new Set()), footer: parts.join(" · ") });
 }
 
 /** The cost segment, between markers so settlement can replace it in the published review. */
