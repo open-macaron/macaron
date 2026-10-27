@@ -105,6 +105,9 @@
         "draftPr": {
           "type": "boolean"
         },
+        "compact": {
+          "type": "boolean"
+        },
         "timeoutMinutes": {
           "type": "integer",
           "minimum": 5,

@@ -93,6 +93,11 @@ export const RepoSettings = z.strictObject({
   /** The other platforms runs may ask for (`@macaron-bot reproduce on windows`). */
   platforms: z.partialRecord(OtherPlatform, PlatformSettings).default({}),
   draftPr: z.boolean(),
+  /**
+   * No status comment while a run works: 👀 says it started, and the answer carries the run, the
+   * runner and the cost in a footer. Fewer notifications; failures are posted either way.
+   */
+  compact: z.boolean().default(true),
   timeoutMinutes: z.int().min(5).max(MAX_TIMEOUT_MINUTES),
   /** USD per run, enforced by the run's LLM key. `review` is the ceiling of `reviewCost`. */
   budgets: Budgets,
@@ -113,6 +118,7 @@ export const RepoSettingsPatch = z.strictObject({
   runsOn: z.string().min(1).optional(),
   platforms: z.partialRecord(OtherPlatform, PlatformSettings.partial()).optional(),
   draftPr: z.boolean().optional(),
+  compact: z.boolean().optional(),
   timeoutMinutes: z.int().min(5).max(MAX_TIMEOUT_MINUTES).optional(),
   budgets: Budgets.partial().optional(),
   reviewCost: ReviewCost.partial().optional(),

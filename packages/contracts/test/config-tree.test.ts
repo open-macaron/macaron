@@ -34,6 +34,8 @@ describe("a realistic configuration tree", () => {
       platforms: { windows: { runsOn: "windows-2025" } },
     });
     expect(snapshot.repos.get("podman-desktop/podman-desktop")?.platforms).toEqual({});
+    expect(snapshot.repos.get("podman-desktop/podman-desktop")?.compact).toBe(true);
+    expect(snapshot.repos.get("axel7083/podman-desktop")?.compact).toBe(false);
   });
 });
 

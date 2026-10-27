@@ -50,6 +50,16 @@ describe("resolveRepoConfig", () => {
     expect(config.contribution).toEqual({ dco: true, fixCi: false });
   });
 
+  it("is compact unless a project or a repository says otherwise", () => {
+    const repo = RepoFile.parse({ repo: "podman-desktop/extension-c", fork: "abc123-extension-c" });
+    const verbose = ProjectFile.parse({ ...project, defaults: { ...project.defaults, compact: false } });
+
+    expect(resolveRepoConfig(global, project, repo).compact).toBe(true);
+    expect(resolveRepoConfig(global, verbose, repo).compact).toBe(false);
+    expect(resolveRepoConfig(global, verbose, RepoFile.parse({ ...repo, compact: true })).compact).toBe(true);
+    expect(() => RepoFile.parse({ ...repo, compact: "yes" })).toThrow(/compact/);
+  });
+
   it("refuses a users list: who may trigger the bot is an account of the web app", () => {
     expect(() => ProjectFile.parse({ ...project, users: ["axel7083"] })).toThrow(/users/);
   });
