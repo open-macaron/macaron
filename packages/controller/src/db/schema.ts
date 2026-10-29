@@ -104,11 +104,15 @@ export const events = pgTable(
     url: text("url").notNull(),
     body: text("body").notNull(),
     status: eventStatus("status").notNull().default("pending"),
+    /** Why the request was refused, as its refusal comment said. Null before this column existed. */
+    refusal: text("refusal"),
     createdAt: createdAt(),
   },
   (table) => [
     uniqueIndex("events_thread_external").on(table.threadId, table.externalId),
     index("events_thread_status").on(table.threadId, table.status),
+    // The admins' list of refusals, newest first: a refused request keeps its reason once `retry` replayed it.
+    index("events_created").on(table.createdAt),
   ],
 );
 

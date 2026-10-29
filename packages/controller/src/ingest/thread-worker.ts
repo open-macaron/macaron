@@ -130,8 +130,9 @@ export class ThreadWorker implements OnApplicationBootstrap {
         replayed = [target.event.id];
         request = { ...replay, platform: platform ?? replay.platform };
       } else {
-        await this.events.settle(ids, "dropped");
-        return this.publisher.reportRefusal(thread, subject, "there is no failed loop or refused request to retry");
+        const reason = "there is no failed loop or refused request to retry";
+        await this.events.settle(ids, "dropped", reason);
+        return this.publisher.reportRefusal(thread, subject, reason);
       }
     } else {
       const fresh = this.requestFrom(subject, batch, loops, isBot);
@@ -150,7 +151,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
         return this.jobs.threadReady(thread.id, BUSY_RETRY_MS);
       case "refused":
         // Only a new request is kept for `retry`: a refused retry leaves what it reran as it was.
-        await this.events.settle(ids, command === "retry" ? "dropped" : "refused");
+        await this.events.settle(ids, command === "retry" ? "dropped" : "refused", outcome.reason);
         return this.publisher.reportRefusal(thread, request.subject, outcome.reason);
     }
   }

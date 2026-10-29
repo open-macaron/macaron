@@ -53,7 +53,8 @@ export class EventsRepository {
     return event;
   }
 
-  async settle(ids: readonly string[], status: "done" | "dropped" | "refused"): Promise<void> {
-    if (ids.length > 0) await this.db.update(events).set({ status }).where(inArray(events.id, [...ids]));
+  /** `refusal`: the reason the requests were answered with, kept for the admins' activity page. */
+  async settle(ids: readonly string[], status: "done" | "dropped" | "refused", refusal?: string): Promise<void> {
+    if (ids.length > 0) await this.db.update(events).set({ status, refusal }).where(inArray(events.id, [...ids]));
   }
 }
