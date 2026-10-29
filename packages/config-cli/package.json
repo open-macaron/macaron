@@ -1,6 +1,6 @@
 {
   "name": "@open-macaron/config-cli",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "config-cli: validates open-macaron/config, decides owner-approved merges, builds the snapshot published on GitHub Pages",
   "license": "Apache-2.0",
