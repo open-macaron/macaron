@@ -9,7 +9,7 @@ The org [`open-macaron`](https://github.com/open-macaron) owns all of our reposi
 ┌───────────────────────────────────────────────────────────────────────────────────────────┐
 │ macaron      controller + contracts + agent-cli + review + CLIs + deploy + docs           │──release──▶ ghcr.io/open-macaron/controller
 │              CI, release.yml (changesets: image, CLIs, attestations)                      │             CLI bundles (GitHub releases)
-│ config       trust config; project owners approve, merge.yml merges; Pages snapshot       │──Pages──▶ controller (CONFIG_URL)
+│ config       trust config; project owners approve, merge.yml merges; Pages snapshot       │──Pages──▶ controller (CONFIG_URL); ◀─ onboarding comments (GH_ORG)
 │ runner       run.yml + environments/ — where agents execute                               │◀─ start / cancel runs (GH_ORG), artifacts (GH_INTERACT)
 │ knowledge    rules + lessons; folder owners approve, merge.yml merges; Pages read API     │◀─ PR from macaron-bot/knowledge (GH_ORG)
 │ .github      LICENSE and README (org profile and community health files to add)           │
@@ -53,9 +53,9 @@ How `run.yml` gets the agent-cli:
 |---|---|---|---|
 | `GH_INTERACT` | classic PAT of macaron-bot | `public_repo`, `notifications` | Comments, reactions, PRs and notifications on **upstream** repos. The org blocks classic PATs, so this token can't touch `open-macaron/*` |
 | `GH_PUSH` | fine-grained, owner `macaron-bot`, all repositories | Contents: write. Workflows: write | `git push` to forks (macaron-bot owns nothing else but its profile repository), including `macaron-bot/knowledge`, and media uploads (user-attachments) against the fork (`EvidenceHost`). Workflows only carries upstream's own workflow commits when a fork is synced or branched; the controller never writes `.github/` itself. No Administration permission. **Never enable Actions on a fork**: onboarding disables them explicitly (§5) |
-| `GH_ORG` | fine-grained, owner `open-macaron`, repositories `runner` and `knowledge`, approved by an org owner | `runner`: Actions read and write. `knowledge`: Pull requests read and write | Start and cancel runs; open and update the `remember:` proposals from `macaron-bot/knowledge` (the org blocks the classic `GH_INTERACT`). Artifacts use `GH_INTERACT` (public reads). A GitHub App could replace this token later, to avoid manual renewal |
+| `GH_ORG` | fine-grained, owner `open-macaron`, repositories `runner`, `knowledge` and `config`, approved by an org owner | `runner`: Actions read and write. `knowledge` and `config`: Pull requests read and write | Start and cancel runs; open and update the `remember:` proposals from `macaron-bot/knowledge`; comment on the `config` pull request that onboarded a repository (§5). The org blocks the classic `GH_INTERACT`. Artifacts use `GH_INTERACT` (public reads). A GitHub App could replace this token later, to avoid manual renewal |
 
-Forking and disabling Actions on a fork happen at onboarding (§5). `GH_INTERACT` can do both, because the bot owns its forks; onboarding switches Actions off explicitly rather than rely on GitHub's default for forks.
+The controller forks and secures with `GH_INTERACT` at onboarding (§5): the bot owns its forks, so it can configure them. It switches Actions off explicitly rather than rely on GitHub's default for forks.
 
 ## 4. Org settings
 
@@ -76,26 +76,35 @@ Intended, not in place yet (or not verifiable without `admin:org`), tracked in #
 
 The `macaron-bot` account itself: 2FA on; the profile says it's a bot and links here; **auto-watch off**, so forks and org repos don't flood the notifications the poller reads; e-mail notifications off; SSH signing key registered for verified commits.
 
-## 5. Onboarding an upstream repo (by hand, by a maintainer)
+## 5. Onboarding an upstream repo
 
-```
- maintainer, as macaron-bot (GH_INTERACT: the bot owns its forks, so it can configure them)
-   ├ check upstream is public                    ← DESIGN.md "Everything is public"
-   ├ check contribution rules: DCO? CLA (sign once for macaron-bot)? interaction limits?
-   ├ pick the fork name: <6 random lowercase chars>-repo-a
-   ├ gh api -X POST repos/org-x/repo-a/forks -f name=<fork> -F default_branch_only=true
-   ├ PUT  /repos/macaron-bot/<fork>/actions/permissions {enabled:false}
-   └ disable wiki/issues/projects on the fork
-        │
-        ▼
- PR to open-macaron/config: projects/<p>/repos/repo-a.yaml with `fork: <fork>`
-   (project owners approve; the platform team merges by hand reserved settings and new project folders)
-        │ merge → Pages publishes → controller reloads (deployment_status)
-        ▼
- PR to knowledge: repos/org-x/repo-a/overview.md (optional)
+A maintainer checks the upstream first:
+- it is public (DESIGN.md "Everything is public");
+- its contribution rules: DCO, a CLA to sign once for macaron-bot, interaction limits.
+
+Then onboarding is one pull request to open-macaron/config, `projects/<p>/repos/<name>.yaml` with the upstream's `repo:` and no fork. The controller owns the forks: a configuration can't name one, so it can't point a repository at another of the bot's repositories.
+
+```mermaid
+flowchart TD
+  PR["PR to open-macaron/config<br/>projects/&lt;p&gt;/repos/repo-a.yaml"] -->|project owners approve, merge.yml merges| PAGES[Pages publishes, controller reloads]
+  PAGES --> JOB["ensure-fork job, per configured repository<br/>(also at every boot)"]
+  JOB --> KNOWN{fork recorded?}
+  KNOWN -- no --> FORK["fork as macaron-bot (GH_INTERACT)<br/>name: &lt;6 random chars&gt;-repo-a<br/>GitHub returns the bot's fork of the network if it has one"]
+  KNOWN -- yes --> CHECK[read it back by repository id]
+  FORK --> CHECK
+  CHECK --> OWN{"owned by the bot,<br/>in the upstream's fork network?"}
+  OWN -- no --> FAIL["not ready: runs refused,<br/>comment on the config PR says why"]
+  OWN -- yes --> SECURE[Actions, wiki, issues, projects off]
+  SECURE --> READY["recorded ready (forks table)<br/>comment on the config PR: the fork's link"]
 ```
 
-There is no onboarding script yet, and the controller doesn't check that a configured fork exists: a missing fork shows up as a failed push (#46).
+- **Until the fork is ready**, the bot refuses requests on the repository ("still being onboarded"). GitHub creates a fork asynchronously; the job retries for about an hour.
+- **The comment** goes on the merged pull request of the last commit touching the repository's file, if it merged in the last day, once. It is written with `GH_ORG` (§3).
+- **A repository that leaves the configuration keeps its fork.** Nothing deletes one.
+- **Fork networks:** GitHub allows one fork per network, so upstreams of one network (an upstream and a test fork of it) share the bot's fork.
+- **Optional:** a PR to knowledge, `repos/org-x/repo-a/overview.md`.
+
+A `fork:` key left in a repository file is accepted and ignored; open-macaron/config drops them.
 
 ## 6. Bootstrap checklist
 
