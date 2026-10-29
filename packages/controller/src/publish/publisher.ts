@@ -5,7 +5,7 @@ import { describeError } from "../common/errors.ts";
 import type { UsdMicros } from "../common/money.ts";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { BotIdentity } from "../github/bot-identity.ts";
-import { repoRef, type RepoRef } from "../github/repo-ref.ts";
+import { repoRef } from "../github/repo-ref.ts";
 import type { RunRecord, ThreadRecord } from "../runs/runs.repository.ts";
 import { RunsRepository } from "../runs/runs.repository.ts";
 import { runUrl } from "../runs/run-url.ts";
@@ -15,6 +15,7 @@ import { Route, type Subject, subjectOfRun } from "../routing/routes.ts";
 import { EvidenceHost } from "./evidence-host.ts";
 import { KnowledgeProposer } from "../knowledge/knowledge-proposer.ts";
 import { ForkCommitter } from "./fork-committer.ts";
+import { ForkRegistry } from "./fork-registry.ts";
 import type { Publishable } from "./gate.ts";
 import { type CostRow, type LoopState, renderCostTable, resolveAttachments, runFooter, sanitize, spentLine, statusHeader, upsertCostSection, withSpentLine } from "./markdown.ts";
 import { ReactionTargets } from "./reaction-targets.ts";
@@ -77,6 +78,7 @@ export class Publisher {
     private readonly reactions: ReactionTargets,
     private readonly evidence: EvidenceHost,
     private readonly proposer: KnowledgeProposer,
+    private readonly forks: ForkRegistry,
   ) {}
 
   async publish(input: PublishInput): Promise<void> {
@@ -90,12 +92,12 @@ export class Publisher {
     const upstream = repoRef(thread.repo);
     const mentions = participants(context);
     // Media first: the texts below reference them by URL (posting those texts makes them public).
-    const attachmentUrls = await this.evidence.publish({ owner: this.bot.identity.login, repo: config.fork }, thread, run, publishable.attachments);
+    const fork = await this.forks.require(thread.repo);
+    const attachmentUrls = await this.evidence.publish(fork, thread, run, publishable.attachments);
     const clean = (body: string) => sanitize(resolveAttachments(body, attachmentUrls), mentions);
     const result = publishable.result;
 
     if (result.action === "commit" && publishable.changes !== undefined) {
-      const fork: RepoRef = { owner: this.bot.identity.login, repo: config.fork };
       const changes = publishable.changes;
       await this.runs.once(thread.id, run.loop, "commit", async () => {
         const base = await this.writer.defaultBranch(upstream);

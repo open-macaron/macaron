@@ -11,9 +11,9 @@ import {
   type ThreadComment,
 } from "@open-macaron/contracts";
 import { GH_INTERACT, type GitHub } from "../github/github.ts";
-import { BotIdentity } from "../github/bot-identity.ts";
 import { repoRef } from "../github/repo-ref.ts";
 import { ForkCommitter } from "../publish/fork-committer.ts";
+import { ForkRegistry } from "../publish/fork-registry.ts";
 import { UpstreamWriter } from "../publish/upstream-writer.ts";
 import { KnowledgeClient } from "../review/knowledge-client.ts";
 import { PullDiffReader } from "../review/pull-diff.ts";
@@ -47,9 +47,9 @@ export class ContextBuilder {
     private readonly runs: RunsRepository,
     private readonly committer: ForkCommitter,
     private readonly writer: UpstreamWriter,
-    private readonly bot: BotIdentity,
     private readonly diffs: PullDiffReader,
     private readonly knowledge: KnowledgeClient,
+    private readonly forks: ForkRegistry,
   ) {}
 
   async build(config: RepoConfig, thread: ThreadRecord, route: Route, trigger: Trigger): Promise<RunContext> {
@@ -117,7 +117,7 @@ export class ContextBuilder {
         return (await this.writer.defaultBranch(upstream)).sha;
       case "botBranch": {
         // A branch deleted since (by hand) falls back to the default branch: nothing to continue from.
-        const head = await this.committer.head({ owner: this.bot.identity.login, repo: config.fork }, route.branch);
+        const head = await this.committer.head(await this.forks.require(config.repo), route.branch);
         return head ?? (await this.writer.defaultBranch(upstream)).sha;
       }
       case "pullRequestHead":

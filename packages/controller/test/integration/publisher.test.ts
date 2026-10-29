@@ -15,6 +15,7 @@ import { RunsRepository } from "../../src/runs/runs.repository.ts";
 import { testEnv } from "../support/env.ts";
 import { FakeClock } from "../support/fakes.ts";
 import { runContext, runResult } from "../support/fixtures.ts";
+import { forkRegistry, MemoryForkStore } from "../support/forks.ts";
 import { insertPayer, PAYER_ID } from "../support/payer.ts";
 import { startPostgres } from "../support/postgres.ts";
 
@@ -71,7 +72,6 @@ class FixedIdentity extends BotIdentity {
 function repoConfig(compact: boolean): RepoConfig {
   return RepoConfig.parse({
     repo: "org-x/repo-a",
-    fork: "abc123-repo-a",
     project: "sandbox",
     bots: [],
     harness: "claude",
@@ -132,7 +132,8 @@ async function dispatched() {
   const bot = new FixedIdentity(gh, gh, gh, env);
   const reactions = new ReactionTargets(runs, writer, clock);
   const committer = new ForkCommitter(gh);
-  const publisher = new Publisher(env, runs, committer, writer, bot, reactions, new EvidenceHost(gh, runs), new KnowledgeProposer(env, gh, committer, bot, clock));
+  const forks = forkRegistry({ gh, bot, env, clock, store: new MemoryForkStore().ready("org-x/repo-a", "abc123-repo-a") });
+  const publisher = new Publisher(env, runs, committer, writer, bot, reactions, new EvidenceHost(gh, runs), new KnowledgeProposer(env, gh, committer, bot, clock), forks);
   await reactions.start(thread.id, run.loop, { owner: "org-x", repo: "repo-a" }, { kind: "issue", number });
   return { thread: await runs.threadById(thread.id), run, writer, publisher };
 }

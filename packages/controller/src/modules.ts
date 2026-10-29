@@ -38,6 +38,8 @@ import { ThreadWorker } from "./ingest/thread-worker.ts";
 import { Jobs } from "./jobs/jobs.ts";
 import { EvidenceHost } from "./publish/evidence-host.ts";
 import { ForkCommitter } from "./publish/fork-committer.ts";
+import { DrizzleForkStore, ForkRegistry, ForkStore } from "./publish/fork-registry.ts";
+import { OnboardingNotice } from "./config/onboarding-notice.ts";
 import { Publisher } from "./publish/publisher.ts";
 import { KnowledgeProposer } from "./knowledge/knowledge-proposer.ts";
 import { ReactionTargets } from "./publish/reaction-targets.ts";
@@ -96,10 +98,20 @@ export class CoreModule {}
 })
 export class BudgetModule {}
 
-/** Everything that writes to GitHub. */
+/** Everything that writes to GitHub, and the bot's forks it writes to. */
 @Module({
-  providers: [ForkCommitter, UpstreamWriter, ReactionTargets, EvidenceHost, KnowledgeProposer, Publisher],
-  exports: [ForkCommitter, UpstreamWriter, ReactionTargets, Publisher],
+  providers: [
+    ForkCommitter,
+    UpstreamWriter,
+    ReactionTargets,
+    EvidenceHost,
+    KnowledgeProposer,
+    Publisher,
+    { provide: ForkStore, useClass: DrizzleForkStore },
+    ForkRegistry,
+    OnboardingNotice,
+  ],
+  exports: [ForkCommitter, UpstreamWriter, ReactionTargets, Publisher, ForkRegistry],
 })
 export class PublishModule {}
 

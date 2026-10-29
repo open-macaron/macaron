@@ -26,8 +26,9 @@ import { APP_ENV, type AppEnv } from "../config/env.ts";
 import { RepoConfigService } from "../config/repo-config.service.ts";
 import { GH_ORG, type GitHub } from "../github/github.ts";
 import { Jobs } from "../jobs/jobs.ts";
-import { repoRef } from "../github/repo-ref.ts";
+import { fullName, repoRef } from "../github/repo-ref.ts";
 import { gate } from "../publish/gate.ts";
+import { ForkRegistry } from "../publish/fork-registry.ts";
 import { Publisher } from "../publish/publisher.ts";
 import { PullDiffReader } from "../review/pull-diff.ts";
 import { ArtifactDownloader, ArtifactInvalid, readArtifact } from "./artifact.ts";
@@ -95,6 +96,7 @@ export class RunLauncher {
     private readonly users: UsersService,
     private readonly keys: LlmKeysService,
     private readonly caps: MonthlyCapService,
+    private readonly forks: ForkRegistry,
   ) {}
 
   async launch(request: LaunchRequest): Promise<LaunchOutcome> {
@@ -325,7 +327,7 @@ export class RunLauncher {
       ticket: run.ticket,
       repo: context.repo,
       "base-sha": context.baseSha,
-      fork: `${this.env.GITHUB_BOT_LOGIN}/${config.fork}`,
+      fork: fullName(await this.forks.require(config.repo)),
       branch: context.branch,
       "env-json": JSON.stringify(config.environment),
       "runs-on": runsOn,

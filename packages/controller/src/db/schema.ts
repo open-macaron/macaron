@@ -62,6 +62,26 @@ export const configSnapshots = pgTable(
   (table) => [index("config_snapshots_applied_at").on(table.appliedAt)],
 );
 
+/**
+ * The bot's fork of each configured upstream, picked and created by the controller (ForkRegistry),
+ * never named by the configuration. Keyed by GitHub's repository id, which survives renames and
+ * transfers. GitHub allows one fork per fork network, so upstreams of one network share a fork.
+ */
+export const forks = pgTable(
+  "forks",
+  {
+    upstreamId: bigint("upstream_id", { mode: "number" }).primaryKey(),
+    /** Lower-cased `owner/name`, as the configuration keys repositories; follows renames. */
+    upstreamKey: text("upstream_key").notNull(),
+    forkId: bigint("fork_id", { mode: "number" }).notNull(),
+    forkName: text("fork_name").notNull(),
+    /** Set once Actions, wiki, issues and projects are off: before, nothing may use the fork. */
+    readyAt: timestamp("ready_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("forks_upstream_key").on(table.upstreamKey)],
+);
+
 /** An upstream issue (and the PR the bot opened for it, if any). */
 export const threads = pgTable(
   "threads",
