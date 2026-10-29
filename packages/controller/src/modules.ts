@@ -15,6 +15,7 @@ import { BotIdentity } from "./github/bot-identity.ts";
 import { InvitationsService } from "./accounts/invitations.service.ts";
 import { MonthlyCapService } from "./accounts/monthly-cap.service.ts";
 import { SessionsService } from "./accounts/sessions.service.ts";
+import { ActivityService } from "./accounts/activity.service.ts";
 import { UsageService } from "./accounts/usage.service.ts";
 import { UsersService } from "./accounts/users.service.ts";
 import { EndpointsService, RESOLVE } from "./endpoints/endpoints.service.ts";
@@ -106,13 +107,14 @@ export class PublishModule {}
 @Module({ providers: [KnowledgeClient, PullDiffReader], exports: [KnowledgeClient, PullDiffReader] })
 export class ReviewModule {}
 
-/** The web app's users: sign-in (better-auth), invitations, capabilities, usage, endpoints and their LLM keys. */
+/** The web app's users: sign-in (better-auth), invitations, capabilities, usage and activity, endpoints and their LLM keys. */
 @Module({
   providers: [
     InvitationsService,
     SessionsService,
     UsersService,
     UsageService,
+    ActivityService,
     EndpointsService,
     LlmKeysService,
     MonthlyCapService,
@@ -121,7 +123,7 @@ export class ReviewModule {}
     { provide: CONFIGURED_MODELS, inject: [RepoConfigService], useFactory: (config: RepoConfigService) => () => configuredModels(config.snapshot) },
     { provide: KEY_RING, inject: [APP_ENV], useFactory: (env: AppEnv) => (env.LLM_KEK_DIR === undefined ? undefined : KeyRing.fromDirectory(env.LLM_KEK_DIR)) },
   ],
-  exports: [InvitationsService, SessionsService, UsersService, UsageService, EndpointsService, LlmKeysService, MonthlyCapService],
+  exports: [InvitationsService, SessionsService, UsersService, UsageService, ActivityService, EndpointsService, LlmKeysService, MonthlyCapService],
 })
 export class AccountsModule {}
 
