@@ -7,7 +7,6 @@
 # `@macaron-bot verify` can show a pull request's change.
 
 repo: podman-desktop/podman-desktop
-fork: 2elnuw-podman-desktop
 timeoutMinutes: 75
 environment:
   source: shared

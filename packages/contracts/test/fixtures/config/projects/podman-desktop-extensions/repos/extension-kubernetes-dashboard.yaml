@@ -3,7 +3,6 @@
 # podman-desktop/extension-kubernetes-dashboard.
 
 repo: podman-desktop/extension-kubernetes-dashboard
-fork: gtntaw-extension-kubernetes-dashboard
 commands:
   build: pnpm build
   test: pnpm test

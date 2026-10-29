@@ -29,11 +29,11 @@ describe("a realistic configuration tree", () => {
     // The test fork shares the bot's fork with upstream, and runs Podman Desktop built from it.
     expect(snapshot.repos.get("axel7083/podman-desktop")).toMatchObject({
       project: "podman-desktop",
-      fork: "2elnuw-podman-desktop",
       environment: { source: "shared", name: "podman-desktop", params: { machine: "true" } },
       platforms: { windows: { runsOn: "windows-2025" } },
     });
     expect(snapshot.repos.get("podman-desktop/podman-desktop")?.platforms).toEqual({});
+    expect(snapshot.repoFiles.get("axel7083/podman-desktop")).toBe("projects/podman-desktop/repos/axel7083-podman-desktop.yaml");
     expect(snapshot.repos.get("podman-desktop/podman-desktop")?.compact).toBe(true);
     expect(snapshot.repos.get("axel7083/podman-desktop")?.compact).toBe(false);
   });
@@ -78,8 +78,8 @@ describe("loadConfigTree", () => {
   it("reports every problem with its file, not just the first", async () => {
     const found = await problems({
       "projects/a/project.yaml": project("a"),
-      "projects/a/repos/x.yaml": "repo: o/x\nfork: abc123-x\nbudgets: { implement: -1 }\n",
-      "projects/a/repos/y.yaml": "repo: o/y\nfork: abc123-y\nunknownKey: true\n",
+      "projects/a/repos/x.yaml": "repo: o/x\nbudgets: { implement: -1 }\n",
+      "projects/a/repos/y.yaml": "repo: o/y\nunknownKey: true\n",
     });
 
     expect(found).toHaveLength(2);
@@ -90,9 +90,9 @@ describe("loadConfigTree", () => {
   it("rejects a repository configured by two projects, case-insensitively", async () => {
     const found = await problems({
       "projects/a/project.yaml": project("a"),
-      "projects/a/repos/x.yaml": "repo: Org/Repo\nfork: abc123-repo\n",
+      "projects/a/repos/x.yaml": "repo: Org/Repo\n",
       "projects/b/project.yaml": project("b"),
-      "projects/b/repos/x.yaml": "repo: org/repo\nfork: abc123-repo\n",
+      "projects/b/repos/x.yaml": "repo: org/repo\n",
     });
 
     expect(found).toEqual([expect.stringContaining('already configured by project "a"')]);
@@ -140,7 +140,7 @@ describe("parseConfigTree", () => {
   });
 
   it("reports a repository whose project file is missing, and a missing global.yaml", () => {
-    expect(problems({ "projects/a/repos/x.yaml": "repo: o/x\nfork: abc123-x\n" })).toEqual([
+    expect(problems({ "projects/a/repos/x.yaml": "repo: o/x\n" })).toEqual([
       "global.yaml: missing",
       "projects/a/project.yaml: missing",
     ]);

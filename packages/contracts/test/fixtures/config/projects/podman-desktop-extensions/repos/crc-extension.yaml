@@ -3,7 +3,6 @@
 # crc-org/crc-extension.
 
 repo: crc-org/crc-extension
-fork: nggmml-crc-extension
 commands:
   build: pnpm build
   test: pnpm test

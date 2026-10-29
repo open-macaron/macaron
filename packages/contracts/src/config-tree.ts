@@ -10,6 +10,8 @@ export interface ConfigSnapshot {
   readonly projects: ReadonlyMap<string, ProjectFile>;
   /** Keyed by lower-cased `owner/name`: GitHub repository names are case-insensitive. */
   readonly repos: ReadonlyMap<string, RepoConfig>;
+  /** Each repository's file (`projects/<p>/repos/<r>.yaml`), keyed like `repos`. */
+  readonly repoFiles: ReadonlyMap<string, string>;
 }
 
 export class ConfigTreeError extends Error {
@@ -68,6 +70,7 @@ export function parseConfigTree(files: ReadonlyMap<string, string>): ConfigSnaps
   const global = parseAs("global.yaml", GlobalFile);
   const projects = new Map<string, ProjectFile>();
   const repos = new Map<string, RepoConfig>();
+  const repoFiles = new Map<string, string>();
 
   const folders = new Set(paths.flatMap((path) => PROJECT_FILE.exec(path)?.[1] ?? REPO_FILE.exec(path)?.[1] ?? []));
   for (const folder of [...folders].sort()) {
@@ -91,6 +94,7 @@ export function parseConfigTree(files: ReadonlyMap<string, string>): ConfigSnaps
       }
       try {
         repos.set(key, resolveRepoConfig(global, project, repo));
+        repoFiles.set(key, repoFile);
       } catch (error: unknown) {
         const detail =
           error instanceof z.ZodError ? error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ") : String(error);
@@ -100,7 +104,7 @@ export function parseConfigTree(files: ReadonlyMap<string, string>): ConfigSnaps
   }
 
   if (global === undefined || problems.length > 0) throw new ConfigTreeError(problems);
-  return { global, projects, repos };
+  return { global, projects, repos, repoFiles };
 }
 
 /** Reads a local `config/` tree (only the files the layout defines), then validates it with {@link parseConfigTree}. */

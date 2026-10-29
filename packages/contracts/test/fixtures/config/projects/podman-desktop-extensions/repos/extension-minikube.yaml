@@ -3,7 +3,6 @@
 # podman-desktop/extension-minikube.
 
 repo: podman-desktop/extension-minikube
-fork: f0tr3t-extension-minikube
 commands:
   build: pnpm build
   test: pnpm test

@@ -3,7 +3,6 @@
 # podman-desktop/extension-postgresql.
 
 repo: podman-desktop/extension-postgresql
-fork: 8zf5dh-extension-postgresql
 commands:
   build: pnpm build
   test: pnpm test:unit

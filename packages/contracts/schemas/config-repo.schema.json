@@ -238,13 +238,13 @@
       "pattern": "^[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100}$"
     },
     "fork": {
-      "type": "string",
-      "pattern": "^[a-z0-9]{6}-[A-Za-z0-9._-]{1,93}$"
+      "deprecated": true,
+      "description": "Ignored: the controller creates and records the bot's fork.",
+      "type": "string"
     }
   },
   "required": [
-    "repo",
-    "fork"
+    "repo"
   ],
   "additionalProperties": false
 }

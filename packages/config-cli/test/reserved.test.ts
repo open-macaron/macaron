@@ -7,17 +7,17 @@ const project = (extra = "") => `project: sandbox\nowners: "@o/t"\nbots: [alice]
 describe("changesReserved", () => {
   it("lets owners change what they own", () => {
     expect(changesReserved(project(), project("defaults:\n  models: { review: claude-sonnet-5-5 }\n"))).toBe(false);
-    expect(changesReserved(undefined, "repo: o/x\nfork: abc123-x\n")).toBe(false);
-    expect(changesReserved("repo: o/x\nfork: abc123-x\ncommands: { build: npm run build }\n", "repo: o/x\nfork: abc123-x\n")).toBe(false);
+    expect(changesReserved(undefined, "repo: o/x\n")).toBe(false);
+    expect(changesReserved("repo: o/x\ncommands: { build: npm run build }\n", "repo: o/x\nfork: abc123-x\n")).toBe(false);
   });
 
   it("reserves who can trigger the bot, and what it may spend or run on", () => {
     expect(changesReserved(project(), project().replace("bots: [alice]", "bots: [alice, mallory]"))).toBe(true);
     expect(changesReserved(project(), project().replace("monthUsd: 10", "monthUsd: 1000"))).toBe(true);
     expect(changesReserved(project(), project("defaults:\n  runsOn: self-hosted\n"))).toBe(true);
-    expect(changesReserved("repo: o/x\nfork: abc123-x\n", "repo: o/x\nfork: abc123-x\nbudgets: { implement: 50 }\n")).toBe(true);
-    expect(changesReserved(undefined, "repo: o/x\nfork: abc123-x\nplatforms: { windows: { runsOn: windows-2025 } }\n")).toBe(true);
-    expect(changesReserved("repo: o/x\nfork: abc123-x\ncaps: { loops: 3 }\n", undefined)).toBe(true);
+    expect(changesReserved("repo: o/x\n", "repo: o/x\nfork: abc123-x\nbudgets: { implement: 50 }\n")).toBe(true);
+    expect(changesReserved(undefined, "repo: o/x\nplatforms: { windows: { runsOn: windows-2025 } }\n")).toBe(true);
+    expect(changesReserved("repo: o/x\ncaps: { loops: 3 }\n", undefined)).toBe(true);
   });
 
   it("ignores key order, and reserves what it can't read", () => {
