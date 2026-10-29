@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
 import { PgBoss } from "pg-boss";
-import { CommitSha } from "@open-macaron/contracts";
+import { CommitSha, RepoSlug } from "@open-macaron/contracts";
 import { z } from "zod";
 import { describeError } from "../common/errors.ts";
 import { APP_ENV, type AppEnv } from "../config/env.ts";
@@ -21,6 +21,8 @@ export const Queue = {
   sweepKeys: "sweep-keys",
   /** open-macaron/config's Pages deployment succeeded: reload, retried until Pages serves that commit. */
   configPublished: "config-published",
+  /** A configured repository needs its fork checked or created; retried while GitHub is still creating it. */
+  ensureFork: "ensure-fork",
 } as const;
 export type QueueName = (typeof Queue)[keyof typeof Queue];
 
@@ -31,6 +33,7 @@ export const NoPayload = z.unknown();
 export const SettleCostJob = z.object({ runId: z.uuid(), previousMicros: z.int().nonnegative().optional() });
 export const RunCompletedJob = z.object({ ghRunId: z.int().positive(), conclusion: z.string().nullable() });
 export const ConfigPublishedJob = z.object({ commit: CommitSha });
+export const EnsureForkJob = z.object({ repo: RepoSlug });
 
 /**
  * pg-boss, on the same Postgres. It creates and migrates its own `pgboss` schema at startup.
@@ -58,6 +61,8 @@ export class Jobs implements OnModuleInit, OnApplicationShutdown {
     await this.boss.createQueue(Queue.sweepKeys, { policy: "singleton", expireInSeconds: 300 });
     // Pages' CDN can take a few minutes to serve a new deployment everywhere.
     await this.boss.createQueue(Queue.configPublished, { policy: "short", retryLimit: 8, retryDelay: 15, retryBackoff: true, expireInSeconds: 120 });
+    // GitHub creates a fork asynchronously, "in up to 5 minutes": the backoff spans about an hour.
+    await this.boss.createQueue(Queue.ensureFork, { policy: "short", retryLimit: 8, retryDelay: 15, retryBackoff: true, expireInSeconds: 120 });
     await this.boss.schedule(Queue.reconcile, "*/2 * * * *");
     await this.boss.schedule(Queue.sweepKeys, "17 * * * *");
   }
@@ -93,6 +98,11 @@ export class Jobs implements OnModuleInit, OnApplicationShutdown {
   /** Deduplicated by commit: GitHub may deliver a deployment status twice. */
   async configPublished(commit: CommitSha): Promise<void> {
     await this.boss.send(Queue.configPublished, { commit }, { singletonKey: commit });
+  }
+
+  /** Deduplicated by repository: a configuration applied twice in a row checks each fork once. */
+  async ensureFork(repo: RepoSlug): Promise<void> {
+    await this.boss.send(Queue.ensureFork, { repo }, { singletonKey: repo.toLowerCase() });
   }
 
   /** Settles a run's cost after `delayMs`; deduplicated by run id. */

@@ -18,6 +18,9 @@ import { PublishedConfigClient } from "./published-config.client.ts";
 /** A check a configuration must pass before it replaces the live one; returns its problems. */
 export type ConfigCheck = (snapshot: ConfigSnapshot) => Promise<readonly string[]>;
 
+/** Told about each configuration applied after boot (e.g. to onboard new repositories). */
+export type ConfigListener = (snapshot: ConfigSnapshot) => Promise<void>;
+
 export type ReloadResult =
   | { readonly applied: true; readonly commit: CommitSha | undefined }
   /** `retry`: worth trying again (the source was unreachable, or not serving the expected commit yet). */
@@ -35,6 +38,7 @@ export class RepoConfigService implements OnModuleInit, OnApplicationShutdown {
   private current: ConfigSnapshot | undefined;
   private currentCommit: CommitSha | undefined;
   private readonly checks: ConfigCheck[] = [];
+  private readonly listeners: ConfigListener[] = [];
   private readonly onHangup = (): void => {
     void this.reload();
   };
@@ -64,6 +68,11 @@ export class RepoConfigService implements OnModuleInit, OnApplicationShutdown {
     this.checks.push(check);
   }
 
+  /** Registers a listener for every configuration applied from now on. */
+  onApplied(listener: ConfigListener): void {
+    this.listeners.push(listener);
+  }
+
   /**
    * Loads the configuration again and applies it if it is valid and passes the checks; otherwise
    * keeps the live one. `commit`: the published commit expected (a Pages deployment reported it).
@@ -91,6 +100,14 @@ export class RepoConfigService implements OnModuleInit, OnApplicationShutdown {
     this.currentCommit = published?.commit;
     if (published !== undefined) await this.remember(published);
     this.logger.log(`configuration ${published?.commit ?? this.env.CONFIG_DIR} applied: ${String(snapshot.repos.size)} repositories`);
+    // The configuration is live either way: a listener's failure is logged, not the reload's.
+    for (const listener of this.listeners) {
+      try {
+        await listener(snapshot);
+      } catch (error: unknown) {
+        this.logger.error(`after applying configuration ${published?.commit ?? ""}: ${describeError(error)}`);
+      }
+    }
     return { applied: true, commit: published?.commit };
   }
 

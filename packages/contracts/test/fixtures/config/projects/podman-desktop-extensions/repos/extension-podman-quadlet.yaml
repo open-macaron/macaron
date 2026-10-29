@@ -4,7 +4,6 @@
 # axel7083/extension-podman-quadlet, in the same fork network.
 
 repo: podman-desktop/extension-podman-quadlet
-fork: fvqkrq-extension-podman-quadlet
 commands:
   build: pnpm build
   test: pnpm test:unit

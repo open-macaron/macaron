@@ -5,6 +5,7 @@ import { RepoConfigService } from "../config/repo-config.service.ts";
 import { BotIdentity } from "../github/bot-identity.ts";
 import { Jobs, Queue, RunCompletedJob, ThreadReadyJob } from "../jobs/jobs.ts";
 import { repoRef } from "../github/repo-ref.ts";
+import { ForkRegistry } from "../publish/fork-registry.ts";
 import { Publisher } from "../publish/publisher.ts";
 import { ReactionTargets, reactionTargetOf } from "../publish/reaction-targets.ts";
 import { isRefusal, platformOf, platformOfRun, type Route, route, type Subject, subjectOf, subjectOfRun, type ThreadState } from "../routing/routes.ts";
@@ -51,6 +52,7 @@ export class ThreadWorker implements OnApplicationBootstrap {
     private readonly publisher: Publisher,
     private readonly reactions: ReactionTargets,
     private readonly bot: BotIdentity,
+    private readonly forks: ForkRegistry,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -183,6 +185,8 @@ export class ThreadWorker implements OnApplicationBootstrap {
   private async start(config: RepoConfig, thread: ThreadRecord, routed: Route, trigger: Trigger, triggerGithubId: number | null): Promise<LaunchOutcome> {
     const platform = platformOf(routed);
     if (runnerFor(config, platform) === undefined) return { kind: "refused", reason: `\`${platform}\` isn't enabled for this repository` };
+    // Onboarding creates the fork once the configuration is live (ForkRegistry): until then, nothing to push to.
+    if ((await this.forks.of(config.repo)) === undefined) return { kind: "refused", reason: "this repository is still being onboarded: the bot's fork isn't ready yet" };
     const context = await this.contexts.build(config, thread, routed, trigger);
     // Nothing to check: no runner, no cost.
     if (context.review?.rules.length === 0) {

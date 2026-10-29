@@ -151,25 +151,19 @@ export const ProjectFile = z.strictObject({
 export type ProjectFile = z.infer<typeof ProjectFile>;
 
 /**
- * Name of the bot's fork of a repo: a random 6-character prefix and the upstream name
- * (`sf465s-podman-desktop`), so two upstreams with the same name never collide. Picked at
- * onboarding by the maintainer who creates the fork (REPOSITORIES.md §5); the owner is always
- * the bot account.
+ * `config/projects/<project>/repos/<name>.yaml`. The bot's fork isn't configured: the controller
+ * picks, creates and records it (REPOSITORIES.md §5), so a configuration can't point a repository at
+ * another of the bot's repositories. `fork`, from before, is accepted and ignored until the files drop it.
  */
-export const ForkName = z
-  .string()
-  .regex(/^[a-z0-9]{6}-[A-Za-z0-9._-]{1,93}$/, "expected <6 random lowercase chars>-<name>")
-  .brand<"ForkName">();
-export type ForkName = z.infer<typeof ForkName>;
-
-/** `config/projects/<project>/repos/<name>.yaml` */
-export const RepoFile = RepoSettingsPatch.extend({ repo: RepoSlug, fork: ForkName });
+export const RepoFile = RepoSettingsPatch.extend({
+  repo: RepoSlug,
+  fork: z.string().optional().meta({ deprecated: true, description: "Ignored: the controller creates and records the bot's fork." }),
+});
 export type RepoFile = z.infer<typeof RepoFile>;
 
 /** What the controller works with for one repository. */
 export const RepoConfig = RepoSettings.extend({
   repo: RepoSlug,
-  fork: ForkName,
   project: Slug,
   bots: z.array(GitHubLogin),
 });
@@ -190,9 +184,9 @@ export function applySettingsPatch(base: RepoSettings, patch: RepoSettingsPatch)
 
 /** global → project → repo. Throws a ZodError naming the offending field if the result is invalid. */
 export function resolveRepoConfig(global: GlobalFile, project: ProjectFile, repo: RepoFile): RepoConfig {
-  const { repo: slug, fork, ...repoPatch } = repo;
+  const { repo: slug, fork: _ignored, ...repoPatch } = repo;
   const settings = applySettingsPatch(applySettingsPatch(global.defaults, project.defaults), repoPatch);
-  return RepoConfig.parse({ ...settings, repo: slug, fork, project: project.project, bots: project.bots });
+  return RepoConfig.parse({ ...settings, repo: slug, project: project.project, bots: project.bots });
 }
 
 /** The runner label for `platform`, or undefined when the repository doesn't enable it. */

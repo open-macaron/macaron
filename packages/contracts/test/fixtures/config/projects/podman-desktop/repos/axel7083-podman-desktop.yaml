@@ -7,7 +7,6 @@
 # so the bot's branch names don't collide.
 
 repo: axel7083/podman-desktop
-fork: 2elnuw-podman-desktop
 timeoutMinutes: 75
 # A test fork: a status comment per run shows progress while trying the bot out.
 compact: false
