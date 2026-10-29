@@ -1,5 +1,7 @@
 <script lang="ts">
+  import ActivityIcon from "@lucide/svelte/icons/activity";
   import ExternalLinkIcon from "@lucide/svelte/icons/external-link";
+  import { resolve } from "$app/paths";
   import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
   import RowActions from "#lib/components/admin/row-actions.svelte";
   import * as DropdownMenu from "#lib/components/ui/dropdown-menu/index.js";
@@ -18,6 +20,14 @@
       Edit capabilities
     </DropdownMenu.Item>
   {/if}
+  <DropdownMenu.Item>
+    {#snippet child({ props })}
+      <a href="{resolve('/(app)/admin/activity')}?user={user.githubId}" {...props}>
+        <ActivityIcon />
+        View activity
+      </a>
+    {/snippet}
+  </DropdownMenu.Item>
   <DropdownMenu.Item>
     {#snippet child({ props })}
       <a href="https://github.com/{user.githubLogin}" target="_blank" rel="noopener noreferrer" {...props}>

@@ -98,3 +98,55 @@ test("an admin disables an endpoint after confirming, then enables it again", as
   await expect(page.getByText("Anthropic API is enabled")).toBeVisible();
   await expect(row.getByText("Enabled")).toBeVisible();
 });
+
+test("an admin sees every user's runs, who asked for each, and a run's details", async ({ signIn }) => {
+  const page = await signIn("octocat");
+  await page.goto("/admin/activity");
+  await expect(page.getByText("This month: 33 runs, 1 failed, $16.65 settled.")).toBeVisible();
+  await expect(page.getByRole("row")).toHaveCount(26);
+  await expect(page.getByRole("row", { name: /open-macaron\/sandbox#8/ }).getByText("No account")).toBeVisible();
+
+  await page.getByRole("button", { name: "Details of the run on open-macaron/sandbox#7" }).click();
+  const details = page.getByRole("dialog");
+  await expect(details.getByText("the agent ran out of turns before finishing")).toBeVisible();
+  await expect(details.getByText("@macaron-bot implement")).toBeVisible();
+  await expect(details.getByRole("link", { name: "The workflow run" })).toHaveAttribute("href", "https://github.com/open-macaron/runner/actions/runs/7");
+  await expect(details.getByRole("link", { name: "#9" })).toHaveAttribute("href", "https://github.com/open-macaron/sandbox/pull/9");
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "Load more" }).click();
+  await expect(page.getByRole("row")).toHaveCount(34);
+});
+
+test("an admin filters the activity, and the filters stay in the URL", async ({ signIn }) => {
+  const page = await signIn("octocat");
+  await page.goto("/admin/activity");
+  await page.getByLabel("Status").selectOption("failed");
+  await expect(page).toHaveURL(/status=failed/);
+  await expect(page.getByRole("row")).toHaveCount(2);
+  await expect(page.getByText("This month, under these filters: 1 run, 1 failed, $1.25 settled.")).toBeVisible();
+
+  await page.getByRole("link", { name: "Clear filters" }).click();
+  await expect(page.getByRole("row")).toHaveCount(26);
+});
+
+test("a user's row links to their activity, refusals included", async ({ signIn }) => {
+  const page = await signIn("octocat");
+  await page.goto("/admin/users");
+  await page.getByRole("button", { name: "Actions for @defunkt" }).click();
+  await page.getByRole("menuitem", { name: "View activity" }).click();
+  await expect(page).toHaveURL(/\/admin\/activity\?user=2$/);
+  await expect(page.getByLabel("Asked by")).toHaveValue("2");
+  await expect(page.getByText("This month, under these filters: 31 runs")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Refusals" }).click();
+  await expect(page.getByRole("row")).toHaveCount(2);
+  await expect(page.getByText("@defunkt may not ask for implement: an admin grants it on the Users page")).toBeVisible();
+  await expect(page.getByLabel("Status")).toBeDisabled();
+});
+
+test("refusals recorded before reasons were kept say so", async ({ signIn }) => {
+  const page = await signIn("octocat");
+  await page.goto("/admin/activity?tab=refusals");
+  await expect(page.getByRole("row", { name: /open-macaron\/macaron#12/ }).getByText("Not recorded")).toBeVisible();
+});

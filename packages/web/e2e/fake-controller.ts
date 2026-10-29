@@ -18,6 +18,8 @@ import {
   zGetMyUsageResponse,
   zListEndpointsResponse,
   zListInvitationsResponse,
+  zListRefusalsResponse,
+  zListRunsResponse,
   zListUsersResponse,
   zSaveMyLlmKeyBody,
   zSaveMyLlmKeyResponse,
@@ -36,6 +38,8 @@ type Endpoint = z.infer<typeof zListEndpointsResponse>["endpoints"][number];
 type LlmKey = NonNullable<z.infer<typeof zGetMyLlmKeyResponse>["key"]>;
 type LlmKeyEvent = z.infer<typeof zGetMyLlmKeyEventsResponse>["events"][number];
 type Run = z.infer<typeof zGetMyUsageResponse>["runs"][number];
+type AdminRun = z.infer<typeof zListRunsResponse>["runs"][number];
+type Refusal = z.infer<typeof zListRefusalsResponse>["refusals"][number];
 
 export const SESSION_COOKIE = "__Secure-macaron.session_token";
 const DAY = 86_400_000;
@@ -50,7 +54,11 @@ interface State {
   keyEvents: Map<string, LlmKeyEvent[]>;
   /** By user id; absent for no cap. */
   caps: Map<string, number>;
+  /** defunkt's runs: what /v1/me/usage lists. */
   runs: Run[];
+  /** Everyone's, newest first: what /v1/admin/runs lists. */
+  adminRuns: AdminRun[];
+  refusals: Refusal[];
   /** Session renewals the browser asked for (through the edge), counted for the session test. */
   renewals: number;
 }
@@ -80,7 +88,34 @@ function fresh(): State {
     costUsd: i === 0 ? null : 0.5,
     createdAt: at(-i / 10),
   }));
-  return { users, invitations, endpoints, keys: new Map(), keyEvents: new Map(), caps: new Map(), runs, renewals: 0 };
+  const defunkt = { githubId: 2, login: "defunkt", name: "Chris Wanstrath", avatarUrl: null, hasAccount: true };
+  const details = (run: Run, asker: AdminRun["asker"]): AdminRun => ({
+    ...run,
+    asker,
+    triggerUrl: `https://github.com/${run.repo}/issues/${String(run.number)}#issuecomment-${String(run.number)}`,
+    instruction: `@macaron-bot ${run.mode}`,
+    runUrl: `https://github.com/open-macaron/runner/actions/runs/${String(run.number)}`,
+    prNumber: null,
+    limitUsd: 2,
+    failure: null,
+    finishedAt: run.costUsd === null ? null : run.createdAt,
+  });
+  const adminRuns: AdminRun[] = [
+    details(
+      { id: randomUUID(), repo: "open-macaron/sandbox", number: 7, kind: "issue", mode: "implement", status: "failed", model: "claude-opus-5-5", costUsd: 1.25, createdAt: at(0) },
+      { githubId: 583231, login: "octocat", name: "The Octocat", avatarUrl: null, hasAccount: true },
+    ),
+    details(
+      { id: randomUUID(), repo: "open-macaron/sandbox", number: 8, kind: "pull", mode: "address_review", status: "completed", model: "claude-sonnet-5-5", costUsd: 0.4, createdAt: at(-0.05) },
+      { githubId: 9001, login: "review-bot", name: null, avatarUrl: null, hasAccount: false },
+    ),
+    ...runs.map((run) => details(run, defunkt)),
+  ].map((run) => (run.number === 7 ? { ...run, failure: "the agent ran out of turns before finishing", prNumber: 9 } : run));
+  const refusals: Refusal[] = [
+    { id: randomUUID(), repo: "open-macaron/sandbox", number: 11, kind: "issue", author: "defunkt", authorId: 2, url: "https://github.com/open-macaron/sandbox/issues/11#issuecomment-1", reason: "@defunkt may not ask for implement: an admin grants it on the Users page", createdAt: at(-0.2) },
+    { id: randomUUID(), repo: "open-macaron/macaron", number: 12, kind: "pull", author: "octocat", authorId: 583231, url: "https://github.com/open-macaron/macaron/pull/12#issuecomment-2", reason: null, createdAt: at(-3) },
+  ];
+  return { users, invitations, endpoints, keys: new Map(), keyEvents: new Map(), caps: new Map(), runs, adminRuns, refusals, renewals: 0 };
 }
 
 let state = fresh();
@@ -167,6 +202,24 @@ async function route(request: IncomingMessage): Promise<Reply> {
   }
   if (user.role !== "admin") return reply(403, undefined, { error: "forbidden" });
 
+  if (url.pathname === "/v1/admin/runs") {
+    const { user: asker, repo, status, mode } = Object.fromEntries(url.searchParams);
+    const matching = state.adminRuns.filter((run) => (asker === undefined || String(run.asker.githubId) === asker) && (repo === undefined || run.repo === repo) && (status === undefined || run.status === status) && (mode === undefined || run.mode === mode));
+    const { page, nextCursor } = paged(matching, url);
+    return reply(200, zListRunsResponse, {
+      runs: page,
+      nextCursor,
+      monthUsd: matching.reduce((sum, run) => sum + (run.costUsd ?? 0), 0),
+      monthRuns: matching.length,
+      monthFailed: matching.filter((run) => run.status === "failed").length,
+    });
+  }
+  if (url.pathname === "/v1/admin/refusals") {
+    const { user: asker, repo } = Object.fromEntries(url.searchParams);
+    const matching = state.refusals.filter((refusal) => (asker === undefined || String(refusal.authorId) === asker) && (repo === undefined || refusal.repo === repo));
+    const { page, nextCursor } = paged(matching, url);
+    return reply(200, zListRefusalsResponse, { refusals: page, nextCursor });
+  }
   if (url.pathname === "/v1/admin/invitations" && method === "GET") return reply(200, zListInvitationsResponse, { invitations: state.invitations });
   if (url.pathname === "/v1/admin/invitations" && method === "POST") {
     const body = zCreateInvitationBody.parse(await readJson(request));
@@ -211,6 +264,15 @@ async function route(request: IncomingMessage): Promise<Reply> {
     return reply(200, zSetUserCapabilitiesResponse, updated);
   }
   return reply(404, undefined, { error: "not_found" });
+}
+
+/** A page of a newest-first list; the cursor is the last row's id. */
+function paged<T extends { readonly id: string }>(rows: readonly T[], url: URL): { page: T[]; nextCursor: string | null } {
+  const limit = Number(url.searchParams.get("limit") ?? "25");
+  const before = url.searchParams.get("before");
+  const start = before === null ? 0 : rows.findIndex((row) => row.id === before) + 1;
+  const page = rows.slice(start, start + limit);
+  return { page, nextCursor: start + limit < rows.length ? (page.at(-1)?.id ?? null) : null };
 }
 
 /** In these tests octocat signed in a moment ago; defunkt's sign-in is too old to change a key. */
