@@ -1,6 +1,12 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Put, Req } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Put, Query, Req } from "@nestjs/common";
 import { ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import {
+  type AdminRefusalsPage,
+  AdminRefusalsPage as AdminRefusalsPageSchema,
+  AdminRefusalsQuery,
+  type AdminRunsPage,
+  AdminRunsPage as AdminRunsPageSchema,
+  AdminRunsQuery,
   CreateEndpoint,
   CreateInvitation,
   type Endpoint,
@@ -21,13 +27,14 @@ import {
 } from "@open-macaron/contracts";
 import type { Request } from "express";
 import { z } from "zod";
+import { ActivityService } from "../accounts/activity.service.ts";
 import { EndpointsService } from "../endpoints/endpoints.service.ts";
 import { InvitationsService } from "../accounts/invitations.service.ts";
 import { SessionsService } from "../accounts/sessions.service.ts";
 import { UsersService } from "../accounts/users.service.ts";
 
 /**
- * Invitations and capabilities. Admins only: every handler checks the session's role first. Reached
+ * Invitations, capabilities, endpoints and the bot's activity. Admins only: every handler checks the session's role first. Reached
  * only by the web app (the edge never routes /v1/admin).
  */
 @ApiTags("admin")
@@ -39,7 +46,26 @@ export class AdminController {
     private readonly invitations: InvitationsService,
     private readonly users: UsersService,
     private readonly endpoints: EndpointsService,
+    private readonly activity: ActivityService,
   ) {}
+
+  @Get("runs")
+  @ApiOperation({ operationId: "listRuns", summary: "Every run, newest first, with who asked for it" })
+  @ApiResponse({ status: 200, standardSchema: AdminRunsPageSchema })
+  @ApiResponse({ status: 403, description: "Not an admin" })
+  async listRuns(@Req() request: Request, @Query({ schema: AdminRunsQuery }) query: AdminRunsQuery): Promise<AdminRunsPage> {
+    await this.sessions.admin(request.headers);
+    return this.activity.runs(query);
+  }
+
+  @Get("refusals")
+  @ApiOperation({ operationId: "listRefusals", summary: "The requests the bot refused, newest first, with the reason it gave" })
+  @ApiResponse({ status: 200, standardSchema: AdminRefusalsPageSchema })
+  @ApiResponse({ status: 403, description: "Not an admin" })
+  async listRefusals(@Req() request: Request, @Query({ schema: AdminRefusalsQuery }) query: AdminRefusalsQuery): Promise<AdminRefusalsPage> {
+    await this.sessions.admin(request.headers);
+    return this.activity.refusals(query);
+  }
 
   @Get("invitations")
   @ApiOperation({ operationId: "listInvitations", summary: "Every invitation, newest first" })

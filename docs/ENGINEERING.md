@@ -33,7 +33,7 @@ macaron/                                (open-macaron/macaron, public)
 │   ├── owners/                         owner-approved merges (OWNERS.yaml per folder), shared by the two CLIs below
 │   ├── knowledge-cli/                  open-macaron/knowledge: validate, merge, build the Pages read API
 │   ├── config-cli/                     open-macaron/config: validate (the controller's checks), merge, build the Pages snapshot
-│   └── web/                            SvelteKit app: GitHub sign-in, users' LLM keys, usage history (talks to the controller only)
+│   └── web/                            SvelteKit app: GitHub sign-in, users' LLM keys, usage history, admins' activity (talks to the controller only)
 ├── deploy/                             openshift/ (manifests, scripts), bifrost/ (config, prices, dev.sh), see DEPLOYMENT.md
 ├── .github/workflows/                  ci.yml, release.yml  (agent workflows live in open-macaron/runner)
 └── docs/
@@ -69,7 +69,7 @@ Drizzle tables (`packages/controller/src/db/schema.ts`):
 export const pollState       = pgTable("poll_state",       { /* singleton: Last-Modified, interval, notBefore — the poller's pacing */ });
 export const configSnapshots = pgTable("config_snapshots", { /* commit, files — each published configuration applied, the boot fallback */ });
 export const threads    = pgTable("threads",    { /* repo, number, kind, branch, prNumber, cursor, loops, spentUsd */ });
-export const events     = pgTable("events",     { /* threadId, sourceId, author, kind, dueAt, claimedAt, status */ });
+export const events     = pgTable("events",     { /* threadId, sourceId, author, kind, dueAt, claimedAt, status, refusal */ });
 export const runs       = pgTable("runs",       { /* ticket, threadId, mode, ghRunId, keyHash, limitUsd, costUsd, status */ });
 export const ledger     = pgTable("ledger",     { /* runId | routerCallId, usd, at — append-only */ });
 export const effects    = pgTable("effects",    { /* threadId, loop, kind, externalId — idempotency */ });

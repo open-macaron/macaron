@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Capability } from "./capability.ts";
 import { GitHubLogin } from "./ids.ts";
+import { Mode } from "./mode.ts";
 
 // The web app's API on the controller (/v1/me, /v1/admin). Dates travel as ISO strings.
 
@@ -111,6 +112,84 @@ export const UsageQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
 });
 export type UsageQuery = z.infer<typeof UsageQuery>;
+
+const RunStatus = UsageRun.shape.status;
+
+/** Who asked for a run: their account when they have one, else the login of the comment that triggered it. */
+export const RunAsker = z.object({
+  githubId: z.int().positive().nullable(),
+  login: z.string(),
+  name: z.string().nullable(),
+  avatarUrl: z.string().nullable(),
+  /** False when no account has this GitHub id (a review bot, a deleted account). */
+  hasAccount: z.boolean(),
+});
+export type RunAsker = z.infer<typeof RunAsker>;
+
+export const AdminRun = UsageRun.extend({
+  asker: RunAsker,
+  /** The comment, review or issue that asked for the run. */
+  triggerUrl: z.string(),
+  instruction: z.string(),
+  /** The workflow run in the runner repository; null until it was dispatched. */
+  runUrl: z.string().nullable(),
+  prNumber: z.int().positive().nullable(),
+  limitUsd: z.number().nonnegative(),
+  /** Why the run failed or was aborted, as the controller recorded it. */
+  failure: z.string().nullable(),
+  finishedAt: Timestamp.nullable(),
+});
+export type AdminRun = z.infer<typeof AdminRun>;
+
+const ActivityFilters = z.object({
+  /** The asker's GitHub id. */
+  user: z.coerce.number().int().positive().optional(),
+  repo: z
+    .string()
+    .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/)
+    .optional(),
+});
+
+export const AdminRunsQuery = UsageQuery.extend(ActivityFilters.shape).extend({
+  status: RunStatus.optional(),
+  mode: Mode.optional(),
+});
+export type AdminRunsQuery = z.infer<typeof AdminRunsQuery>;
+
+export const AdminRunsPage = z.object({
+  runs: z.array(AdminRun),
+  nextCursor: z.string().nullable(),
+  /** This calendar month (UTC) under the same filters: settled cost, runs started, runs failed. */
+  monthUsd: z.number().nonnegative(),
+  monthRuns: z.int().nonnegative(),
+  monthFailed: z.int().nonnegative(),
+});
+export type AdminRunsPage = z.infer<typeof AdminRunsPage>;
+
+/** A request the bot refused to run (no key, a budget, a missing capability…). */
+export const AdminRefusal = z.object({
+  id: z.uuid(),
+  repo: z.string(),
+  number: z.int().positive(),
+  kind: z.enum(["issue", "pull"]),
+  author: z.string(),
+  authorId: z.int().positive().nullable(),
+  /** The comment that asked. */
+  url: z.string(),
+  /** Null for refusals recorded before reasons were kept. */
+  reason: z.string().nullable(),
+  createdAt: Timestamp,
+});
+export type AdminRefusal = z.infer<typeof AdminRefusal>;
+
+export const AdminRefusalsQuery = UsageQuery.extend(ActivityFilters.shape);
+export type AdminRefusalsQuery = z.infer<typeof AdminRefusalsQuery>;
+
+export const AdminRefusalsPage = z.object({
+  refusals: z.array(AdminRefusal),
+  nextCursor: z.string().nullable(),
+});
+export type AdminRefusalsPage = z.infer<typeof AdminRefusalsPage>;
 
 /**
  * An LLM endpoint an administrator approved: users' keys are only ever sent there. Its base URL

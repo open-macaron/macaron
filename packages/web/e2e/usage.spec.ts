@@ -25,7 +25,7 @@ test("a user who isn't an admin never sees administration", async ({ signIn }) =
   const page = await signIn("defunkt");
   await page.goto("/");
   await expect(page.getByText("Administration")).toHaveCount(0);
-  for (const path of ["/admin/users", "/admin/invitations", "/admin/endpoints"]) {
+  for (const path of ["/admin/activity", "/admin/users", "/admin/invitations", "/admin/endpoints"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/$/);
   }

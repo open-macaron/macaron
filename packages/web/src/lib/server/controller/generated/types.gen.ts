@@ -288,6 +288,101 @@ export type SetMyMonthlyCapResponses = {
 
 export type SetMyMonthlyCapResponse = SetMyMonthlyCapResponses[keyof SetMyMonthlyCapResponses];
 
+export type ListRunsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        before?: string;
+        limit?: number;
+        user?: number;
+        repo?: string;
+        status?: 'pending' | 'dispatched' | 'running' | 'completed' | 'failed' | 'aborted';
+        mode?: 'triage' | 'plan' | 'implement' | 'address_review' | 'reproduce' | 'verify' | 'retro' | 'review';
+    };
+    url: '/v1/admin/runs';
+};
+
+export type ListRunsErrors = {
+    /**
+     * Not an admin
+     */
+    403: unknown;
+};
+
+export type ListRunsResponses = {
+    200: {
+        runs: Array<{
+            id: string;
+            repo: string;
+            number: number;
+            kind: 'issue' | 'pull';
+            mode: string;
+            status: 'pending' | 'dispatched' | 'running' | 'completed' | 'failed' | 'aborted';
+            model: string;
+            costUsd: number | null;
+            createdAt: string;
+            asker: {
+                githubId: number | null;
+                login: string;
+                name: string | null;
+                avatarUrl: string | null;
+                hasAccount: boolean;
+            };
+            triggerUrl: string;
+            instruction: string;
+            runUrl: string | null;
+            prNumber: number | null;
+            limitUsd: number;
+            failure: string | null;
+            finishedAt: string | null;
+        }>;
+        nextCursor: string | null;
+        monthUsd: number;
+        monthRuns: number;
+        monthFailed: number;
+    };
+};
+
+export type ListRunsResponse = ListRunsResponses[keyof ListRunsResponses];
+
+export type ListRefusalsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        before?: string;
+        limit?: number;
+        user?: number;
+        repo?: string;
+    };
+    url: '/v1/admin/refusals';
+};
+
+export type ListRefusalsErrors = {
+    /**
+     * Not an admin
+     */
+    403: unknown;
+};
+
+export type ListRefusalsResponses = {
+    200: {
+        refusals: Array<{
+            id: string;
+            repo: string;
+            number: number;
+            kind: 'issue' | 'pull';
+            author: string;
+            authorId: number | null;
+            url: string;
+            reason: string | null;
+            createdAt: string;
+        }>;
+        nextCursor: string | null;
+    };
+};
+
+export type ListRefusalsResponse = ListRefusalsResponses[keyof ListRefusalsResponses];
+
 export type ListInvitationsData = {
     body?: never;
     path?: never;

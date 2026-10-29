@@ -146,6 +146,92 @@ export const zSetMyMonthlyCapResponse = z.object({
     reservedUsd: z.number().gte(0)
 });
 
+export const zListRunsQuery = z.object({
+    before: z.string().optional(),
+    limit: z.int().gte(1).lte(100).optional().default(25),
+    user: z.int().gt(0).lte(9007199254740991).optional(),
+    repo: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/).optional(),
+    status: z.enum([
+        'pending',
+        'dispatched',
+        'running',
+        'completed',
+        'failed',
+        'aborted'
+    ]).optional(),
+    mode: z.enum([
+        'triage',
+        'plan',
+        'implement',
+        'address_review',
+        'reproduce',
+        'verify',
+        'retro',
+        'review'
+    ]).optional()
+});
+
+export const zListRunsResponse = z.object({
+    runs: z.array(z.object({
+        id: z.uuid().regex(/^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/),
+        repo: z.string(),
+        number: z.int().gt(0).lte(9007199254740991),
+        kind: z.enum(['issue', 'pull']),
+        mode: z.string(),
+        status: z.enum([
+            'pending',
+            'dispatched',
+            'running',
+            'completed',
+            'failed',
+            'aborted'
+        ]),
+        model: z.string(),
+        costUsd: z.number().gte(0).nullable(),
+        createdAt: z.iso.datetime().regex(/^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$/),
+        asker: z.object({
+            githubId: z.int().gt(0).lte(9007199254740991).nullable(),
+            login: z.string(),
+            name: z.string().nullable(),
+            avatarUrl: z.string().nullable(),
+            hasAccount: z.boolean()
+        }),
+        triggerUrl: z.string(),
+        instruction: z.string(),
+        runUrl: z.string().nullable(),
+        prNumber: z.int().gt(0).lte(9007199254740991).nullable(),
+        limitUsd: z.number().gte(0),
+        failure: z.string().nullable(),
+        finishedAt: z.iso.datetime().regex(/^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$/).nullable()
+    })),
+    nextCursor: z.string().nullable(),
+    monthUsd: z.number().gte(0),
+    monthRuns: z.int().gte(0).lte(9007199254740991),
+    monthFailed: z.int().gte(0).lte(9007199254740991)
+});
+
+export const zListRefusalsQuery = z.object({
+    before: z.string().optional(),
+    limit: z.int().gte(1).lte(100).optional().default(25),
+    user: z.int().gt(0).lte(9007199254740991).optional(),
+    repo: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/).optional()
+});
+
+export const zListRefusalsResponse = z.object({
+    refusals: z.array(z.object({
+        id: z.uuid().regex(/^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/),
+        repo: z.string(),
+        number: z.int().gt(0).lte(9007199254740991),
+        kind: z.enum(['issue', 'pull']),
+        author: z.string(),
+        authorId: z.int().gt(0).lte(9007199254740991).nullable(),
+        url: z.string(),
+        reason: z.string().nullable(),
+        createdAt: z.iso.datetime().regex(/^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$/)
+    })),
+    nextCursor: z.string().nullable()
+});
+
 export const zListInvitationsResponse = z.object({
     invitations: z.array(z.object({
         id: z.uuid().regex(/^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/),
