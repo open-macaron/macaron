@@ -302,13 +302,15 @@ interface RunResult {
   action: "reply" | "plan" | "ask" | "commit" | "escalate" | "noop" | "review";
   escalateTo?: Mode; escalateOn?: Platform; commitMessage?: string;
   pr?: { title: string; body: string }; message?: string;
-  replies: { inReplyTo: number; body: string }[];        // bodies may embed ![caption](attachment:<id>)
+  replies: { inReplyTo: number; body: string }[];        // review comments only; bodies may embed ![caption](attachment:<id>)
   summary: string;
   attachments: { id: string; path: string; kind: "image" | "video"; caption: string; preview?: string }[];
   learnings: { scope: "global" | "project" | "repo"; topic: string; description?: string; text: string; evidence: string; updates?: string }[];
   review?: RuleVerdict[];                                // required when action is review
 }
 ```
+
+`macaron-agent finish` checks the result before it leaves the runner. Besides the schema, `.github/` and CRLF, it refuses a result that would read badly once published: an attachment no text places (the publisher shows one only where `attachment:<id>` is), or a reply to anything but a review comment (only those are threaded; any other is quoted after the message). The agent's own calls get the exact change to make; the last call, after the session, repairs instead of failing the run: unplaced attachments are added after the message (or the PR body), and an unthreadable reply becomes the message when there is none.
 
 The configuration lives in its own repository, [`open-macaron/config`](https://github.com/open-macaron/config). Each project folder's owners approve its changes (`OWNERS.yaml`, merged by `config-cli` like knowledge), and the platform team approves changes to who can trigger the bot and what it may spend or run on. A merge publishes a snapshot on GitHub Pages; the controller reloads it on the Pages deployment's webhook, without a deploy, and applies it only if it's valid (DEPLOYMENT.md §6). It holds, per global/project/repo level, the review bots whose comments count, harness and model, environment, budgets and caps (SCALING.md §2). Who may trigger the bot isn't there: it is an account of the web app, invited by an administrator, with the capabilities they granted (§7).
 

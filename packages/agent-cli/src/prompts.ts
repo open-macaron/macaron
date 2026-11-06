@@ -23,7 +23,7 @@ The overall verdict is the worst item: any ❌ makes it ❌, otherwise any ⚠�
 
 const MODE_INSTRUCTIONS: Readonly<Record<Mode, string>> = {
   triage:
-    "Decide what the trigger needs, cheaply. Do not set up the project or change files. If it is a question you can answer from the code and the thread, answer it (`reply`, or `replies` to specific comments). If real work is needed, `escalate` with `escalateTo` = `plan`, `implement`, `reproduce` or `address_review`. If the request is unclear, `ask` one precise question.",
+    "Decide what the trigger needs, cheaply. Do not set up the project or change files. If it is a question you can answer from the code and the thread, answer it (`reply`, in `message`; `replies` only to specific review comments). If real work is needed, `escalate` with `escalateTo` = `plan`, `implement`, `reproduce` or `address_review`. If the request is unclear, `ask` one precise question.",
   plan: "Write an implementation plan for the issue: the approach, the files involved, the risks, how it will be tested. Do not change files. Put the plan in `message` (Markdown) with action `plan`, or `ask` if something essential is unclear.",
   implement:
     "Implement the issue. Keep the change focused and consistent with the codebase. Build and test with the repository's commands before finishing. If the environment can show the change (see its section below), show it and attach screenshots of the result. Finish with action `commit`: a conventional `commitMessage`, and `pr` with a title and a body that explains the change and how it was verified, with the screenshots. If you are blocked, `ask` instead.",
@@ -117,8 +117,8 @@ ${MODE_INSTRUCTIONS[context.mode]}${platformChoice(context)}
 Allowed actions in this mode: ${allowedActions[context.mode].join(", ")}.
 
 ## How to finish
-1. Write your result as JSON to \`${outDir}/result.json\`, following the schema below. Your file changes in the working tree are collected automatically: do not describe them in the JSON.
-2. Screenshots and videos: \`macaron-agent attach <file> --kind image|video --caption "…"\` copies the file and prints a reference \`attachment:<id>\`. Use it in text as \`![caption](attachment:<id>)\`. Attachments are added to the result for you. At most ${String(context.attachments.maxFiles)} files, ${megabytes(context.attachments.maxFileBytes)} each and ${megabytes(context.attachments.maxTotalBytes)} in total: beyond that the result is refused, so attach only what shows the point.
+1. Write your result as JSON to \`${outDir}/result.json\`, following the schema below. Your file changes in the working tree are collected automatically: do not describe them in the JSON. \`replies\` are threaded under review comments only: answer any other comment in \`message\`, a reply to it is refused.
+2. Screenshots and videos: \`macaron-agent attach <file> --kind image|video --caption "…"\` copies the file and prints a reference \`attachment:<id>\`. Use it in text as \`![caption](attachment:<id>)\`, where it shows the point: an attachment no text places is not shown, and is refused. Attachments are added to the result for you. At most ${String(context.attachments.maxFiles)} files, ${megabytes(context.attachments.maxFileBytes)} each and ${megabytes(context.attachments.maxTotalBytes)} in total: beyond that the result is refused, so attach only what shows the point.
 3. Run \`macaron-agent finish\`. If it reports problems, fix them and run it again. You are done when it prints "result ready".
 
 ## Result schema

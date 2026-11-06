@@ -8,6 +8,7 @@ import { bootstrap as requestBootstrap } from "./controller-api.ts";
 import { changesSince, checkout, crlfIntroduced } from "./git.ts";
 import { claudeBinary, claudeEnvironment, installHarness, runHarness } from "./harness.ts";
 import { type Inputs, type Paths, paths, readInputs } from "./inputs.ts";
+import { presentationProblems, repairPresentation } from "./presentation.ts";
 import { systemPrompt, taskPrompt } from "./prompts.ts";
 import { writeRules, writeSkills } from "./skills.ts";
 import { fetchPullBase } from "./review-diff.ts";
@@ -78,7 +79,7 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
   });
   await rm(p.keyFile, { force: true });
   if (exitCode !== 0) core.warning(`harness exited with ${String(exitCode)}`);
-  return finish(inputs);
+  return finish(inputs, { final: true });
 }
 
 /** The run's LLM endpoint and key, as bootstrap left them. */
@@ -140,7 +141,7 @@ async function review(inputs: Inputs, context: RunContext, state: BootstrapState
     attachments: [],
     learnings: [],
   });
-  return finish(inputs);
+  return finish(inputs, { final: true });
 }
 
 /** `macaron-agent attach <file> --kind image|video --caption …`: prints the reference to use in text. */
@@ -157,8 +158,12 @@ export async function attach(file: string, kind: "image" | "video", caption: str
   return `attachment:${attachmentId}`;
 }
 
-/** Validates result.json, merges attachments, collects file changes. Exit code 0 only when publishable. */
-export async function finish(inputs: Inputs = readInputs()): Promise<number> {
+/**
+ * Validates result.json, merges attachments, collects file changes. Exit code 0 only when publishable.
+ * The agent's own calls refuse a result that would read badly, so it fixes it; the `final` one,
+ * after the session, repairs it instead.
+ */
+export async function finish(inputs: Inputs = readInputs(), { final = false }: { readonly final?: boolean } = {}): Promise<number> {
   const p = paths(inputs);
   const context = await readJson(p.contextFile, RunContext);
   let raw: unknown;
@@ -175,7 +180,23 @@ export async function finish(inputs: Inputs = readInputs()): Promise<number> {
     core.error(`result.json does not match the schema:\n${z.prettifyError(parsed.error)}`);
     return 1;
   }
-  const result: RunResult = { ...parsed.data, attachments: mergeAttachments(parsed.data.attachments, attachments) };
+  let result: RunResult = { ...parsed.data, attachments: mergeAttachments(parsed.data.attachments, attachments) };
+  const reviewCommentIds = new Set(context.reviewComments.map((comment) => comment.id));
+  const problems = presentationProblems(result, reviewCommentIds);
+  if (problems.length > 0) {
+    if (!final) {
+      await writeJson(p.resultFile, result);
+      core.error(`result.json would read badly once published, fix it:\n- ${problems.join("\n- ")}`);
+      return 1;
+    }
+    const repaired = RunResult.safeParse(repairPresentation(result, reviewCommentIds));
+    if (!repaired.success) {
+      core.error(`result.json could not be repaired (${problems.join("; ")}):\n${z.prettifyError(repaired.error)}`);
+      return 1;
+    }
+    core.warning(`repaired result.json: ${problems.join("; ")}`);
+    result = repaired.data;
+  }
   await writeJson(p.resultFile, result);
 
   const changes = await changesSince(p.work, context.baseSha);

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { Changes, CommitSha, PublishedRule, RepoSlug, RunContext, RunResult, Ticket } from "@open-macaron/contracts";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { attach, finish } from "../src/commands.ts";
 import { type Inputs, paths } from "../src/inputs.ts";
 import { systemPrompt, taskPrompt } from "../src/prompts.ts";
@@ -122,6 +122,27 @@ describe("finish", () => {
     expect(await finish(inputs)).toBe(0);
     await writeFile(join(p.work, "README.md"), "hello\r\nworld\r\n");
     expect(await finish(inputs)).toBe(1);
+  });
+
+  it("refuses, on the agent's own call, a result that would read badly, and repairs it on the last one", async () => {
+    const p = paths(inputs);
+    const shot = join(root, "shot.png");
+    await writeFile(shot, PNG);
+    await attach(shot, "image", "The dropdown", undefined, inputs);
+    // As in #156: the screenshot in no text, the answer again as a reply to a conversation comment.
+    await writeFile(p.resultFile, JSON.stringify({ action: "reply", replies: [{ inReplyTo: 777, body: "Verified." }], summary: "Verified." }));
+    const output = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+
+    expect(await finish(inputs)).toBe(1);
+    const told = output.mock.calls.map(([chunk]) => String(chunk)).join("");
+    expect(told).toContain("add ![The dropdown](attachment:image-1) to message");
+    expect(told).toContain("the reply to comment 777 can't be threaded");
+
+    expect(await finish(inputs, { final: true })).toBe(0);
+    output.mockRestore();
+    const result = RunResult.parse(JSON.parse(await readFile(p.resultFile, "utf8")));
+    expect(result.message).toBe("Verified.\n\n![The dropdown](attachment:image-1)");
+    expect(result.replies).toEqual([]);
   });
 
   it("fails clearly when the agent wrote no result", async () => {

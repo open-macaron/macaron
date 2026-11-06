@@ -133,6 +133,9 @@ export type ReviewVerdicts = z.infer<typeof ReviewVerdicts>;
 /** Reference used in reply bodies: `![caption](attachment:<id>)`. */
 export const AttachmentId = z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/, "lowercase id, digits and hyphens");
 
+/** Every `attachment:<id>` in a text, the id captured. Global: use it with `matchAll` or `replace` only. */
+export const ATTACHMENT_REFERENCE = /attachment:([a-z0-9][a-z0-9-]{0,62})/g;
+
 export const Attachment = z.strictObject({
   id: AttachmentId,
   path: z
