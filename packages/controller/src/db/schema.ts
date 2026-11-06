@@ -157,6 +157,8 @@ export const runs = pgTable(
     keySecret: text("key_secret"),
     limitMicros: usdMicros("limit_micros").notNull(),
     costMicros: usdMicros("cost_micros"),
+    /** The tokens its key counted, read at settlement when the key had a token cap (it could use a free model); null otherwise. */
+    tokensUsed: bigint("tokens_used", { mode: "number" }),
     /** GitHub id of the user who asked for the run (retries and escalations keep it). Null for runs before this column existed. */
     triggerGithubId: bigint("trigger_github_id", { mode: "number" }),
     /** The account the run is billed to, on its own LLM key. Null for runs before users' keys. */

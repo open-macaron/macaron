@@ -166,11 +166,11 @@ export class RunsRepository {
   }
 
   /** Records the run's final cost, once, in the run and in the append-only ledger. */
-  async settle(runId: string, costMicros: UsdMicros, attribution: { repo: string; project: string }, now: Date): Promise<boolean> {
+  async settle(runId: string, costMicros: UsdMicros, attribution: { repo: string; project: string }, now: Date, tokensUsed: number | null = null): Promise<boolean> {
     return this.db.transaction(async (tx) => {
       const [settled] = await tx
         .update(runs)
-        .set({ costMicros, settledAt: now })
+        .set({ costMicros, tokensUsed, settledAt: now })
         .where(and(eq(runs.id, runId), isNull(runs.settledAt)))
         .returning({ id: runs.id });
       if (settled === undefined) return false;
