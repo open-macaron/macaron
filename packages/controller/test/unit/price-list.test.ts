@@ -26,12 +26,12 @@ describe("PriceList", () => {
 
   it("reads the free models and the token ceiling of each", () => {
     const prices = PriceList.fromFile(PINNED);
-    expect(prices.free()).toEqual(["rits/deepseek-ai/DeepSeek-V4.1-Flash-1017", "rits/zai-org/glm-5-3"]);
-    expect(prices.patch("rits/zai-org/glm-5-3")).toEqual({ input_cost_per_token: 0, output_cost_per_token: 0 });
-    expect(prices.runTokens("rits/zai-org/glm-5-3")).toBe(50_000_000);
-    expect(prices.isFree("rits/zai-org/glm-5-3")).toBe(true);
+    expect(prices.free()).toEqual(["rits/deepseek-ai/DeepSeek-V4.1-Flash-1017"]);
+    expect(prices.patch("rits/deepseek-ai/DeepSeek-V4.1-Flash-1017")).toEqual({ input_cost_per_token: 0, output_cost_per_token: 0 });
+    expect(prices.runTokens("rits/deepseek-ai/DeepSeek-V4.1-Flash-1017")).toBe(50_000_000);
+    expect(prices.isFree("rits/deepseek-ai/DeepSeek-V4.1-Flash-1017")).toBe(true);
     expect(prices.runTokens("claude-sonnet-5-5")).toBeUndefined();
-    expect(prices.billable()).toContain("rits/zai-org/glm-5-3");
+    expect(prices.billable()).toContain("rits/deepseek-ai/DeepSeek-V4.1-Flash-1017");
   });
 
   it("calls unbillable a model it doesn't list, or lists without both prices", () => {

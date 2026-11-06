@@ -13,7 +13,7 @@ const user = liveUpstream();
 /** The models a Bifrost deployment allows runs to use: each must be priced, or free and capped by tokens. */
 const MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5"];
 /** Free on EnMaaS, and capped by tokens by the pinned list. */
-const FREE_MODEL = "rits/zai-org/glm-5-3";
+const FREE_MODEL = "rits/deepseek-ai/DeepSeek-V4.1-Flash-1017";
 
 /** Whether the developer's endpoint serves the free model: the token-cap test skips otherwise. */
 async function listsFree(): Promise<boolean> {
