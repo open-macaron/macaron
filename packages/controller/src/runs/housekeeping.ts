@@ -72,7 +72,7 @@ export class Housekeeping implements OnApplicationBootstrap {
           continue;
         }
         const timeoutMinutes = this.config.repo(run.context.repo)?.timeoutMinutes ?? 60;
-        if (now - run.createdAt.getTime() > timeoutMinutes * 60_000 + TIMEOUT_GRACE_MS) await this.launcher.abort(run, "the run timed out");
+        if (now - run.createdAt.getTime() > timeoutMinutes * 60_000 + TIMEOUT_GRACE_MS) await this.launcher.abort(run, await this.launcher.timeoutReason(run));
       } catch (error: unknown) {
         this.logger.error(`reconciling run ${run.id} failed: ${describeError(error)}`);
       }

@@ -170,5 +170,24 @@
     "thinking_always_on": true,
     "web_search_billing_unit": "per_request",
     "web_search_cost_per_request": 0.01
+  },
+  "rits/deepseek-ai/DeepSeek-V4.1-Flash-1017": {
+    "free": true,
+    "input_cost_per_token": 0,
+    "max_run_tokens": 50000000,
+    "mode": "chat",
+    "output_cost_per_token": 0,
+    "source": "EnMaaS serves it at no charge; a run on it is capped by tokens (max_run_tokens)"
+  },
+  "rits/zai-org/glm-5-3": {
+    "free": true,
+    "input_cost_per_token": 0,
+    "max_input_tokens": 1048576,
+    "max_output_tokens": 65536,
+    "max_run_tokens": 50000000,
+    "max_tokens": 65536,
+    "mode": "chat",
+    "output_cost_per_token": 0,
+    "source": "EnMaaS serves it at no charge; a run on it is capped by tokens (max_run_tokens)"
   }
 }

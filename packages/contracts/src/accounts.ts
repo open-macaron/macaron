@@ -286,8 +286,8 @@ export const SavedLlmKey = z.object({
 export type SavedLlmKey = z.infer<typeof SavedLlmKey>;
 
 /**
- * The models a user's runs use instead of the projects' defaults, among the ones the gateway prices.
- * Each field left out keeps the configuration's choice.
+ * The models a user's runs use instead of the projects' defaults, among the ones the gateway prices
+ * or serves for free. Each field left out keeps the configuration's choice.
  */
 export const ModelPreference = z.object({
   /** The model runs use, unless the configuration sets one for their mode. */
@@ -299,8 +299,10 @@ export type ModelPreference = z.infer<typeof ModelPreference>;
 
 /** What the signed-in user may pick, and what they picked. */
 export const MyModels = z.object({
-  /** The models the gateway prices (deploy/bifrost/pricing.json): the only ones a run's budget can cap. */
+  /** The models the gateway prices or serves for free (deploy/bifrost/pricing.json). */
   models: z.array(z.string()),
+  /** The subset of `models` served at no charge: a run on one is capped by tokens, not dollars. */
+  free: z.array(z.string()),
   preference: ModelPreference,
 });
 export type MyModels = z.infer<typeof MyModels>;

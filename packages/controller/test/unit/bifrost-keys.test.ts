@@ -20,7 +20,9 @@ const prices = PriceList.of(
   new Map([
     ["claude-sonnet-5-5", { input_cost_per_token: 3e-6, output_cost_per_token: 1.5e-5, cache_read_input_token_cost: 3e-7 }],
     ["claude-haiku-4-5", { input_cost_per_token: 1e-6, output_cost_per_token: 5e-6 }],
+    ["free-preview", { input_cost_per_token: 0, output_cost_per_token: 0 }],
   ]),
+  new Map([["free-preview", 5_000_000]]),
 );
 const ENDPOINT = "0a8c5f8e-7a51-4c8e-9a4e-3f1d2b6c7d8e";
 const PROVIDER = `macaron-ep-${ENDPOINT}`;
@@ -32,7 +34,7 @@ const AT = "2026-10-19T12:00:00Z";
 interface FakeBifrost {
   providers: Map<string, { baseUrl: string; keys: Map<string, { name: string; value: string }> }>;
   overrides: { id: string; pattern: string; provider: string; patch: Record<string, number> }[];
-  virtualKeys: Map<string, { name: string; active: boolean; provider: string; keyIds: string[]; usage: number }>;
+  virtualKeys: Map<string, { name: string; active: boolean; provider: string; keyIds: string[]; usage: number; tokens: { used: number; limit: number | undefined } | undefined }>;
   calls: string[];
   bodies: Map<string, unknown>;
   failVirtualKey: boolean;
@@ -61,6 +63,15 @@ function virtualKey(id: string) {
     created_at: at,
     updated_at: at,
     budgets: [{ id: "b-1", max_limit: 0.5, reset_duration: "1Y", last_reset: at, current_usage: vk.usage, config_hash: null, created_at: at, updated_at: at }],
+    // Every run key has a rate limit (its requests per minute); Bifrost omits an unset token cap.
+    rate_limit: {
+      id: "rl-1",
+      request_max_limit: 60,
+      request_reset_duration: "1m",
+      request_current_usage: 0,
+      token_current_usage: vk.tokens?.used ?? 0,
+      ...(vk.tokens?.limit === undefined ? {} : { token_max_limit: vk.tokens.limit, token_reset_duration: "1Y" }),
+    },
   };
 }
 
@@ -121,7 +132,7 @@ const server = setupServer(
     const body = VirtualKeyBody.parse(raw);
     const [config] = body.provider_configs;
     bifrost.bodies.set("virtual key", raw);
-    bifrost.virtualKeys.set("vk-1", { name: body.name, active: true, provider: config?.provider ?? "", keyIds: config?.key_ids ?? [], usage: 0 });
+    bifrost.virtualKeys.set("vk-1", { name: body.name, active: true, provider: config?.provider ?? "", keyIds: config?.key_ids ?? [], usage: 0, tokens: undefined });
     return HttpResponse.json({ message: "created", virtual_key: { ...virtualKey("vk-1"), value: "sk-bf-run-key" } });
   }),
   http.get(`${ADMIN}/api/governance/virtual-keys/:id`, ({ params }) => {
@@ -158,9 +169,26 @@ afterAll(() => {
 const keys = (): BifrostKeys => new BifrostKeys(settings, prices);
 const expires = new Date("2026-10-19T13:15:00Z");
 
+describe("BifrostKeys.tokenUsage", () => {
+  it("reads a key's token counter and the cap it ran into", async () => {
+    bifrost.virtualKeys.set("vk-1", { name: "macaron-run-r9", active: true, provider: PROVIDER, keyIds: [], usage: 0, tokens: { used: 2_000_001, limit: 2_000_000 } });
+
+    expect(await keys().tokenUsage("vk-1")).toEqual({ used: 2_000_001, limit: 2_000_000 });
+  });
+
+  it("says nothing of a key without a token cap, with a zero one, or one settlement already deleted", async () => {
+    bifrost.virtualKeys.set("vk-2", { name: "macaron-run-r10", active: true, provider: PROVIDER, keyIds: [], usage: 0, tokens: undefined });
+    bifrost.virtualKeys.set("vk-3", { name: "macaron-run-r11", active: true, provider: PROVIDER, keyIds: [], usage: 0, tokens: { used: 0, limit: 0 } });
+
+    expect(await keys().tokenUsage("vk-2")).toBeUndefined();
+    expect(await keys().tokenUsage("vk-3")).toBeUndefined();
+    expect(await keys().tokenUsage("vk-gone")).toBeUndefined();
+  });
+});
+
 describe("BifrostKeys.create", () => {
   it("creates the endpoint's provider and prices, adds the user's key for this run, and binds the virtual key to it alone", async () => {
-    const key = await keys().create("macaron-run-r1", 0.5, expires, ["claude-sonnet-5-5", "claude-haiku-4-5", "claude-sonnet-5-5"], upstream);
+    const key = await keys().create("macaron-run-r1", { usd: 0.5 }, expires, ["claude-sonnet-5-5", "claude-haiku-4-5", "claude-sonnet-5-5"], upstream);
 
     expect(key).toEqual({ key: "sk-bf-run-key", hash: "vk-1" });
     expect(bifrost.calls).toEqual([`create provider ${PROVIDER}`, "price claude-sonnet-5-5", "price claude-haiku-4-5", "add key macaron-run-r1"]);
@@ -183,31 +211,45 @@ describe("BifrostKeys.create", () => {
     });
   });
 
+  it("caps a run key by tokens when asked, for the key's whole life", async () => {
+    await keys().create("macaron-run-r6", { usd: 0.5, tokens: 2_000_000 }, expires, ["claude-haiku-4-5"], upstream);
+
+    expect(bifrost.bodies.get("virtual key")).toMatchObject({
+      rate_limit: { token_max_limit: 2_000_000, token_reset_duration: "1Y", request_max_limit: 60, request_reset_duration: "1m" },
+    });
+  });
+
+  it("mints a key for a free model, priced at zero over the pinned list", async () => {
+    await keys().create("macaron-run-r7", { usd: 0.5, tokens: 5_000_000 }, expires, ["free-preview"], upstream);
+
+    expect(bifrost.overrides.find((override) => override.pattern === "free-preview")?.patch).toEqual({ input_cost_per_token: 0, output_cost_per_token: 0 });
+  });
+
   it("reuses the endpoint's provider and prices, bringing a changed price back to the pinned one", async () => {
     bifrost.providers.set(PROVIDER, { baseUrl: "https://gateway.example.com/", keys: new Map() });
     bifrost.overrides.push({ id: "po-1", pattern: "claude-haiku-4-5", provider: PROVIDER, patch: { input_cost_per_token: 1e-6, output_cost_per_token: 5e-6 } });
     bifrost.overrides.push({ id: "po-2", pattern: "claude-sonnet-5-5", provider: PROVIDER, patch: { input_cost_per_token: 1e-9, output_cost_per_token: 1e-9 } });
 
-    await keys().create("macaron-run-r2", 0.5, expires, ["claude-sonnet-5-5", "claude-haiku-4-5"], upstream);
+    await keys().create("macaron-run-r2", { usd: 0.5 }, expires, ["claude-sonnet-5-5", "claude-haiku-4-5"], upstream);
 
     expect(bifrost.calls).toEqual(["reprice po-2", "add key macaron-run-r2"]);
   });
 
   it("refuses an endpoint whose provider points at another host", async () => {
     bifrost.providers.set(PROVIDER, { baseUrl: "https://elsewhere.example.com", keys: new Map() });
-    await expect(keys().create("macaron-run-r3", 0.5, expires, ["claude-haiku-4-5"], upstream)).rejects.toThrow(/points at https:\/\/elsewhere/);
+    await expect(keys().create("macaron-run-r3", { usd: 0.5 }, expires, ["claude-haiku-4-5"], upstream)).rejects.toThrow(/points at https:\/\/elsewhere/);
     expect(bifrost.providers.get(PROVIDER)?.keys.size).toBe(0);
   });
 
   it("refuses a model without a pinned price before calling Bifrost", async () => {
-    await expect(keys().create("macaron-run-r4", 0.5, expires, ["claude-haiku-4-5", "vendor/unpriced"], upstream)).rejects.toThrow(/no price for vendor\/unpriced/);
+    await expect(keys().create("macaron-run-r4", { usd: 0.5 }, expires, ["claude-haiku-4-5", "vendor/unpriced"], upstream)).rejects.toThrow(/no price or free mark for vendor\/unpriced/);
     expect(bifrost.calls).toEqual([]);
   });
 
   it("removes the user's key when the virtual key can't be created, and never repeats Bifrost's answer", async () => {
     bifrost.failVirtualKey = true;
     const failure = await keys()
-      .create("macaron-run-r5", 0.5, expires, ["claude-haiku-4-5"], upstream)
+      .create("macaron-run-r5", { usd: 0.5 }, expires, ["claude-haiku-4-5"], upstream)
       .then(() => undefined, (error: unknown) => error);
     expect(failure).toBeInstanceOf(UpstreamError);
     expect(String(failure)).not.toContain(USER_KEY);
@@ -218,7 +260,7 @@ describe("BifrostKeys.create", () => {
 describe("BifrostKeys after a run", () => {
   async function minted(): Promise<BifrostKeys> {
     const bifrostKeys = keys();
-    await bifrostKeys.create("macaron-run-r6", 0.5, expires, ["claude-haiku-4-5"], upstream);
+    await bifrostKeys.create("macaron-run-r6", { usd: 0.5 }, expires, ["claude-haiku-4-5"], upstream);
     return bifrostKeys;
   }
 

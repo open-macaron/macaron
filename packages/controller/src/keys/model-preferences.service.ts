@@ -15,9 +15,10 @@ export interface RunModels {
 }
 
 /**
- * The models each user picks for their runs, among the ones the gateway prices: a run's budget
- * can't cap any other. A pick replaces the configuration's defaults, not a model it sets for a mode
- * (reviews tuned for one); one that loses its price refuses the run rather than silently falling back.
+ * The models each user picks for their runs, among the ones the gateway prices or serves for free:
+ * a run's budget or token cap can't bound any other. A pick replaces the configuration's defaults,
+ * not a model it sets for a mode (reviews tuned for one); one that loses its price or its free mark
+ * refuses the run rather than silently falling back.
  */
 @Injectable()
 export class ModelPreferencesService {
@@ -29,29 +30,29 @@ export class ModelPreferencesService {
 
   /** What the user may pick, and what they picked. */
   async mine(userId: string): Promise<MyModels> {
-    return { models: this.prices.priced(), preference: await this.preference(userId) };
+    return { models: this.prices.billable(), free: this.prices.free(), preference: await this.preference(userId) };
   }
 
-  /** Stores the picks, all of them priced, or refuses the one that isn't. */
+  /** Stores the picks, all of them billable, or refuses the one that isn't. */
   async save(userId: string, preference: ModelPreference): Promise<MyModels> {
     for (const field of ["model", "fastModel"] as const) {
       const model = preference[field];
-      if (model !== undefined && this.prices.patch(model) === undefined) throw new FieldRefused(field, `${model} has no pinned price, so a run's budget couldn't cap it.`);
+      if (model !== undefined && this.prices.patch(model) === undefined) throw new FieldRefused(field, `${model} has no pinned price and isn't marked free, so nothing could cap a run on it.`);
     }
     await this.db.update(users).set({ modelPreferences: preference, updatedAt: this.clock.now() }).where(eq(users.id, userId));
     return this.mine(userId);
   }
 
   /**
-   * The models a run uses, or why a pick that lost its price since it was saved refuses it
-   * (`settings` is the key page's address).
+   * The models a run uses, or why a pick that lost its price or free mark since it was saved refuses
+   * it (`settings` is the key page's address).
    */
   async resolve(userId: string, mode: Mode, config: RepoConfig, settings: string): Promise<{ readonly models: RunModels } | { readonly refusal: string }> {
     const preference = await this.preference(userId);
     const model = config.models[mode] === undefined ? preference.model : undefined;
     const fastModel = preference.fastModel;
     for (const [what, picked] of [["model", model], ["fast model", fastModel]] as const) {
-      if (picked !== undefined && this.prices.patch(picked) === undefined) return { refusal: `the ${what} you picked (${picked}) has no pinned price any more: pick another on macaron (${settings})` };
+      if (picked !== undefined && this.prices.patch(picked) === undefined) return { refusal: `the ${what} you picked (${picked}) has no pinned price any more and isn't marked free: pick another on macaron (${settings})` };
     }
     return { models: { model: config.models[mode] ?? model ?? config.model, fastModel: fastModel ?? config.fastModel } };
   }

@@ -58,7 +58,7 @@ flowchart LR
 
 ## 5. Choosing the models (#131)
 
-- The key page's **Models** card offers the models the gateway prices (`deploy/bifrost/pricing.json`), plus a blank choice meaning the configuration's: a run's budget can't cap any other (DESIGN.md, "Bifrost only charges priced models"). Free models come with #132.
+- The key page's **Models** card offers the models the gateway prices or serves for free (`deploy/bifrost/pricing.json`), plus a blank choice meaning the configuration's: a run's USD budget or token cap can't bound any other (DESIGN.md, "Bifrost only charges priced models, so a free one is capped by tokens"). Free models are labelled `(free, capped by tokens)`.
 - A user picks a model and a fast model. The preference is `users.model_preferences` (JSONB) and is served by `GET /v1/me/models` and `PUT /v1/me/models`; a pick without a price is refused with the offending field.
 - Precedence at launch: `config.models[mode] ?? preference.model ?? config.model`, so a model the configuration sets for a mode (reviews, tuned for their rules) keeps it; the fast model is `preference.fastModel ?? config.fastModel`. This applies only to runs the user pays for: their own runs, and the escalations, retries and review comments billed to them. A model per mode is a follow-up.
 - A run whose pick lost its price since it was saved is **refused**, not silently run on another model: the refusal links to the key page.

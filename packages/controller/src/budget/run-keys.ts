@@ -5,6 +5,18 @@ export interface ProvisionedKey {
   readonly hash: string;
 }
 
+/** What a run's key may consume: dollars always, tokens when the run can use a free model. */
+export interface RunLimits {
+  readonly usd: number;
+  readonly tokens?: number | undefined;
+}
+
+/** A key's token counter, when the key has a cap: what names an exhausted budget in the thread. */
+export interface TokenUsage {
+  readonly used: number;
+  readonly limit: number;
+}
+
 /** Where a run's LLM calls go, and the key they're billed to: its payer's. */
 export interface Upstream {
   readonly endpointId: string;
@@ -31,10 +43,10 @@ export abstract class RunKeys {
 
   /** Checks the gateway is usable before the controller accepts work. */
   abstract init(): Promise<void>;
-  /** A key capped at `limitUsd`, refused after `expiresAt`, usable only with `models`, over `upstream`'s key. */
-  abstract create(name: string, limitUsd: number, expiresAt: Date, models: readonly string[], upstream: Upstream): Promise<ProvisionedKey>;
-  /** The models among `models` that can't be billed, so a key's budget wouldn't limit them. */
-  abstract unpriced(models: readonly string[]): Promise<string[]>;
+  /** A key capped at `limits`, refused after `expiresAt`, usable only with `models`, over `upstream`'s key. */
+  abstract create(name: string, limits: RunLimits, expiresAt: Date, models: readonly string[], upstream: Upstream): Promise<ProvisionedKey>;
+  /** The models among `models` that can't be billed (neither priced nor marked free): nothing would limit a key on them. */
+  abstract unbillable(models: readonly string[]): Promise<string[]>;
   /** Immediate: the next request made with the key is refused. */
   abstract disable(hash: string): Promise<void>;
   /** Idempotent: deleting a key that is already gone is not an error. */
@@ -45,4 +57,6 @@ export abstract class RunKeys {
   abstract sweepUpstreamKeys(prefix: string, keep: ReadonlySet<string>): Promise<string[]>;
   /** What the key spent, in USD, between `since` (a little before the run started) and now. */
   abstract spentSince(hash: string, since: Date): Promise<number>;
+  /** The key's token counter and its cap, or undefined when the key has no cap or is gone. */
+  abstract tokenUsage(hash: string): Promise<TokenUsage | undefined>;
 }

@@ -3,7 +3,7 @@ import { Clock } from "../common/clock.ts";
 import { describeError, UpstreamError } from "../common/errors.ts";
 import { toMicros, type UsdMicros } from "../common/money.ts";
 import { CONFIGURED_MODELS } from "../config/configured-models.ts";
-import { type KeyStatus, RunKeys, type Upstream } from "./run-keys.ts";
+import { type KeyStatus, RunKeys, type RunLimits, type TokenUsage, type Upstream } from "./run-keys.ts";
 
 /** Prefix of every key we mint; the sweeper only ever touches keys with this prefix. */
 export const RUN_KEY_PREFIX = "macaron-run-";
@@ -37,21 +37,21 @@ export class BudgetService implements OnModuleInit, OnApplicationBootstrap {
   /**
    * Refuses to start when a configured model can't be billed: every run would otherwise fail at
    * launch. A reloaded configuration goes through the same check (registered on RepoConfigService);
-   * minting still refuses an unpriced model.
+   * minting still refuses an unbillable model.
    */
   async onApplicationBootstrap(): Promise<void> {
-    const unpriced = await this.keys.unpriced(this.configuredModels());
-    if (unpriced.length > 0) throw new Error(`the LLM gateway has no price for configured models: ${unpriced.join(", ")}`);
+    const unbillable = await this.keys.unbillable(this.configuredModels());
+    if (unbillable.length > 0) throw new Error(`the LLM gateway has no price or free mark for configured models: ${unbillable.join(", ")}`);
   }
 
   /**
-   * A key for one run, over `upstream` (the payer's endpoint and key): capped at `limitUsd`, usable
+   * A key for one run, over `upstream` (the payer's endpoint and key): capped at `limits`, usable
    * only with `models`, and expiring by itself `ttlMinutes` from now even if the controller never
    * gets to settle it.
    */
-  async mint(runId: string, limitUsd: number, ttlMinutes: number, models: readonly string[], upstream: Upstream): Promise<MintedKey> {
+  async mint(runId: string, limits: RunLimits, ttlMinutes: number, models: readonly string[], upstream: Upstream): Promise<MintedKey> {
     const expiresAt = new Date(this.clock.now().getTime() + ttlMinutes * 60_000);
-    return this.keys.create(`${RUN_KEY_PREFIX}${runId}`, limitUsd, expiresAt, models, upstream);
+    return this.keys.create(`${RUN_KEY_PREFIX}${runId}`, limits, expiresAt, models, upstream);
   }
 
   /** Where runners send their requests with a run key. */
@@ -67,6 +67,19 @@ export class BudgetService implements OnModuleInit, OnApplicationBootstrap {
   /** What the key spent since `since` (a little before the run started). */
   async usage(ref: RunKeyRef, since: Date): Promise<UsdMicros> {
     return toMicros(await this.keys.spentSince(ref.hash, since));
+  }
+
+  /**
+   * The key's token counter, when it has a cap. Best effort: naming an exhausted budget in a
+   * failure message must not turn a gateway hiccup into one, so unreadable is undefined.
+   */
+  async tokenUsage(ref: RunKeyRef): Promise<TokenUsage | undefined> {
+    try {
+      return await this.keys.tokenUsage(ref.hash);
+    } catch (error: unknown) {
+      this.logger.warn(`reading the token usage of key ${ref.hash.slice(0, 8)}… failed: ${describeError(error)}`);
+      return undefined;
+    }
   }
 
   /** Spending stops now: the next request with the key is refused. Idempotent. */

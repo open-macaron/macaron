@@ -138,6 +138,7 @@ export const zGetMyLlmKeyEventsResponse = z.object({
 
 export const zGetMyModelsResponse = z.object({
     models: z.array(z.string()),
+    free: z.array(z.string()),
     preference: z.object({
         model: z.string().min(1).max(200).optional(),
         fastModel: z.string().min(1).max(200).optional()
@@ -153,6 +154,7 @@ export const zSetMyModelsBody = z.object({
 
 export const zSetMyModelsResponse = z.object({
     models: z.array(z.string()),
+    free: z.array(z.string()),
     preference: z.object({
         model: z.string().min(1).max(200).optional(),
         fastModel: z.string().min(1).max(200).optional()

@@ -35,7 +35,7 @@ import {
   zSetUserCapabilitiesResponse,
 } from "../src/lib/server/controller/generated/zod.gen.ts";
 import { PORTS } from "./ports.ts";
-import { PRICED } from "./pricing.ts";
+import { FREE, PRICED } from "./pricing.ts";
 
 type User = z.infer<typeof zListUsersResponse>["users"][number];
 type Invitation = z.infer<typeof zListInvitationsResponse>["invitations"][number];
@@ -247,12 +247,12 @@ async function route(request: IncomingMessage): Promise<Reply> {
   if (url.pathname === "/v1/me/models") {
     if (method === "PUT") {
       const { preference } = zSetMyModelsBody.parse(await readJson(request));
-      const refused = (field: string, model: string | undefined): Reply | undefined => (model === undefined || PRICED.includes(model) ? undefined : reply(409, undefined, { error: "field_refused", field, message: `${model} has no pinned price, so a run's budget couldn't cap it.` }));
+      const refused = (field: string, model: string | undefined): Reply | undefined => (model === undefined || PRICED.includes(model) ? undefined : reply(409, undefined, { error: "field_refused", field, message: `${model} has no pinned price and isn't marked free, so nothing could cap a run on it.` }));
       const refusal = refused("model", preference.model) ?? refused("fastModel", preference.fastModel);
       if (refusal !== undefined) return refusal;
       state.preferences.set(user.id, preference);
     }
-    return reply(200, method === "PUT" ? zSetMyModelsResponse : zGetMyModelsResponse, { models: PRICED, preference: state.preferences.get(user.id) ?? {} });
+    return reply(200, method === "PUT" ? zSetMyModelsResponse : zGetMyModelsResponse, { models: PRICED, free: FREE, preference: state.preferences.get(user.id) ?? {} });
   }
   if (url.pathname === "/v1/me/month" || url.pathname === "/v1/me/monthly-cap") {
     if (method === "PUT") {

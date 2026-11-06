@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runLimitUsd } from "../../src/runs/run-limit.ts";
+import { runLimitTokens, runLimitUsd, tokenBudgetExhausted } from "../../src/runs/run-limit.ts";
 
 const config = {
   budgets: { triage: 0.2, plan: 1, implement: 5, address_review: 2, reproduce: 3, verify: 3, retro: 0.5, review: 1 },
@@ -16,5 +16,35 @@ describe("runLimitUsd", () => {
 
   it("keeps other modes' budgets flat", () => {
     expect(runLimitUsd(config, "implement", {})).toBe(5);
+  });
+});
+
+describe("runLimitTokens", () => {
+  const ceilings: ReadonlyMap<string, number> = new Map([
+    ["free-a", 50_000_000],
+    ["free-b", 30_000_000],
+  ]);
+  const runTokens = (model: string): number | undefined => ceilings.get(model);
+
+  it("caps a run that allows a free model by the strictest ceiling it allows", () => {
+    expect(runLimitTokens(["free-a", "free-a"], runTokens)).toBe(50_000_000);
+    expect(runLimitTokens(["free-b", "free-a"], runTokens)).toBe(30_000_000);
+    expect(runLimitTokens(["paid", "free-b"], runTokens)).toBe(30_000_000);
+  });
+
+  it("leaves a paid run to its USD budget", () => {
+    expect(runLimitTokens(["paid", "paid"], runTokens)).toBeUndefined();
+  });
+});
+
+describe("tokenBudgetExhausted", () => {
+  it("names the budget and its size for the thread once the key reached its cap", () => {
+    expect(tokenBudgetExhausted({ used: 50_000_123, limit: 50_000_000 })).toBe("its token budget was exhausted (50000123 of 50000000 tokens)");
+    expect(tokenBudgetExhausted({ used: 50_000_000, limit: 50_000_000 })).toBe("its token budget was exhausted (50000000 of 50000000 tokens)");
+  });
+
+  it("leaves the conclusion alone for a key under its cap, or without one", () => {
+    expect(tokenBudgetExhausted({ used: 49_999_999, limit: 50_000_000 })).toBeUndefined();
+    expect(tokenBudgetExhausted(undefined)).toBeUndefined();
   });
 });

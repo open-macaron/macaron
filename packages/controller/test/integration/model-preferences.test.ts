@@ -11,13 +11,15 @@ import { FakeClock } from "../support/fakes.ts";
 import { startPostgres } from "../support/postgres.ts";
 
 const SETTINGS = "https://macaron.example.test/settings/key";
-/** `free-preview` has an entry but no price: a budget can't cap it. */
+/** `free-preview` is marked free and capped by tokens; `forgotten` has a zero price and no mark: refused. */
 const prices = PriceList.of(
   new Map([
     ["claude-sonnet-5-5", { input_cost_per_token: 2e-6, output_cost_per_token: 1e-5 }],
     ["claude-haiku-4-5", { input_cost_per_token: 1e-6, output_cost_per_token: 5e-6 }],
     ["free-preview", { input_cost_per_token: 0, output_cost_per_token: 0 }],
+    ["forgotten", { input_cost_per_token: 0, output_cost_per_token: 0 }],
   ]),
+  new Map([["free-preview", 5_000_000]]),
 );
 
 let container: StartedPostgreSqlContainer;
@@ -41,15 +43,20 @@ afterAll(async () => {
 });
 
 describe("ModelPreferencesService", () => {
-  it("offers the priced models, and nothing picked yet", async () => {
-    expect(await service.mine("alice")).toEqual({ models: ["claude-haiku-4-5", "claude-sonnet-5-5"], preference: {} });
+  it("offers the priced models and the free ones, and nothing picked yet", async () => {
+    expect(await service.mine("alice")).toEqual({ models: ["claude-haiku-4-5", "claude-sonnet-5-5", "free-preview"], free: ["free-preview"], preference: {} });
   });
 
-  it("refuses a pick without a pinned price, naming its field", async () => {
-    await expect(service.save("alice", { model: "free-preview" })).rejects.toThrow(FieldRefused);
+  it("refuses a pick without a pinned price and without the free mark, naming its field", async () => {
+    await expect(service.save("alice", { model: "forgotten" })).rejects.toThrow(FieldRefused);
     await expect(service.save("alice", { model: "unknown-model" })).rejects.toThrow(/has no pinned price/);
-    await expect(service.save("alice", { fastModel: "free-preview" })).rejects.toMatchObject({ field: "fastModel" });
+    await expect(service.save("alice", { fastModel: "forgotten" })).rejects.toMatchObject({ field: "fastModel" });
     expect((await service.mine("alice")).preference).toEqual({});
+  });
+
+  it("accepts a free model as a pick", async () => {
+    expect(await service.save("alice", { model: "free-preview" })).toMatchObject({ preference: { model: "free-preview" } });
+    await service.save("alice", {});
   });
 
   it("stores the picks, and a run uses them over the configuration's defaults", async () => {

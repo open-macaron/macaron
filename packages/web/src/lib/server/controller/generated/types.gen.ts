@@ -279,6 +279,7 @@ export type GetMyModelsErrors = {
 export type GetMyModelsResponses = {
     200: {
         models: Array<string>;
+        free: Array<string>;
         preference: {
             model?: string;
             fastModel?: string;
@@ -320,6 +321,7 @@ export type SetMyModelsError = SetMyModelsErrors[keyof SetMyModelsErrors];
 export type SetMyModelsResponses = {
     200: {
         models: Array<string>;
+        free: Array<string>;
         preference: {
             model?: string;
             fastModel?: string;
