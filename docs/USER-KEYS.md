@@ -55,6 +55,7 @@ flowchart LR
 
 - The run is billed to the account it runs for (#71), recorded on `runs.payer_id`: whoever asked, or for escalations, retries and review bots' comments, whoever asked first. Without a usable key (none saved, rejected, endpoint disabled, unreadable, endpoint unreachable) the run is refused with a reply that says why and links to the key page.
 - A monthly cap per user (calendar month, UTC), optional: a run is refused when what the month was billed to the user, plus the limits of their runs in progress, plus its own limit would pass the cap. The refusal says what's left. Project and repository budgets apply as well.
+- A monthly token cap per user, for runs on free models, which cost $0 and so never meet the dollar cap: the same rule over tokens (what their runs on free models used this month, plus the token ceilings of those in progress, plus the run's own ceiling), with the same refusal (`this run may use up to 50M tokens, and your monthly token cap of 500M has 20M left: …`). Every user starts at 500M (`DEFAULT_MONTHLY_TOKEN_CAP`, existing users included); clearing it means no cap, as for dollars.
 
 ## 5. Choosing the models (#131)
 

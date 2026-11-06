@@ -31,13 +31,30 @@ export const MonthlyCapUsd = z.number().positive("a cap is above $0").max(100_00
 export const SetMonthlyCap = z.object({ monthlyCapUsd: MonthlyCapUsd });
 export type SetMonthlyCap = z.infer<typeof SetMonthlyCap>;
 
-/** The signed-in user's monthly cap, and what their key was billed this month (UTC). */
+/**
+ * What a user's runs on free models may use each calendar month (UTC), in tokens; null for no cap.
+ * Free models cost $0, so the dollar cap can't bound them.
+ */
+export const MonthlyTokenCap = z.int().positive("a cap is above 0 tokens").max(100_000_000_000).nullable();
+
+/** Every user's token cap until they change it. */
+export const DEFAULT_MONTHLY_TOKEN_CAP = 500_000_000;
+
+export const SetMonthlyTokenCap = z.object({ monthlyTokenCap: MonthlyTokenCap });
+export type SetMonthlyTokenCap = z.infer<typeof SetMonthlyTokenCap>;
+
+/** The signed-in user's monthly caps, and what their key was billed and used this month (UTC). */
 export const MyMonth = z.object({
   monthlyCapUsd: MonthlyCapUsd,
   /** Settled runs billed to this user's key. */
   spentUsd: z.number().nonnegative(),
   /** The limits of their runs not settled yet, counted against the cap until they are. */
   reservedUsd: z.number().nonnegative(),
+  monthlyTokenCap: MonthlyTokenCap,
+  /** Tokens of their settled runs on free models. */
+  tokensUsed: z.int().nonnegative(),
+  /** The token ceilings of their runs on free models not settled yet, counted against the token cap until they are. */
+  tokensReserved: z.int().nonnegative(),
 });
 export type MyMonth = z.infer<typeof MyMonth>;
 

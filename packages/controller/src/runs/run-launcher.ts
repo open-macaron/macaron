@@ -125,6 +125,10 @@ export class RunLauncher {
     if ("refusal" in chosen) return { kind: "refused", reason: chosen.refusal };
     const { models } = chosen;
     const limitUsd = runLimitUsd(config, mode, context);
+    const limitTokens = runLimitTokens(keyModels(models), (model) => this.prices.runTokens(model));
+    // Runs on free models cost $0: their payer's token cap bounds them instead, with the same words.
+    const overTokens = limitTokens === undefined ? undefined : await this.caps.tokenRefusal(payer.userId, limitTokens, settings);
+    if (overTokens !== undefined) return { kind: "refused", reason: overTokens };
     const run = await this.runs.createRun({
       threadId: thread.id,
       ticket: Ticket.parse(`t_${randomBytes(32).toString("base64url")}`),
@@ -135,6 +139,7 @@ export class RunLauncher {
       context,
       route,
       limitMicros: toMicros(limitUsd),
+      tokenLimit: limitTokens,
       triggerGithubId: request.triggerGithubId,
       payerId: payer.userId,
     });
@@ -143,7 +148,6 @@ export class RunLauncher {
     let dispatched: RunRecord;
     try {
       const allowed = keyModels(run);
-      const limitTokens = runLimitTokens(allowed, (model) => this.prices.runTokens(model));
       const minted = await this.budget.mint(run.id, { usd: limitUsd, tokens: limitTokens }, config.timeoutMinutes + KEY_GRACE_MINUTES, allowed, upstream);
       key = minted;
       await this.keys.recordUse(payer.userId, run.id, upstream.endpointId, upstream.last4);

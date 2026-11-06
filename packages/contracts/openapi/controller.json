@@ -1666,12 +1666,32 @@
                     "reservedUsd": {
                       "type": "number",
                       "minimum": 0
+                    },
+                    "monthlyTokenCap": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000000
+                    },
+                    "tokensUsed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "tokensReserved": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
                     "monthlyCapUsd",
                     "spentUsd",
-                    "reservedUsd"
+                    "reservedUsd",
+                    "monthlyTokenCap",
+                    "tokensUsed",
+                    "tokensReserved"
                   ],
                   "additionalProperties": false
                 }
@@ -1743,12 +1763,32 @@
                     "reservedUsd": {
                       "type": "number",
                       "minimum": 0
+                    },
+                    "monthlyTokenCap": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000000
+                    },
+                    "tokensUsed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "tokensReserved": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
                     "monthlyCapUsd",
                     "spentUsd",
-                    "reservedUsd"
+                    "reservedUsd",
+                    "monthlyTokenCap",
+                    "tokensUsed",
+                    "tokensReserved"
                   ],
                   "additionalProperties": false
                 }
@@ -1765,6 +1805,102 @@
           }
         ],
         "summary": "Set or clear the signed-in user's monthly cap",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/monthly-token-cap": {
+      "put": {
+        "operationId": "setMyMonthlyTokenCap",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "monthlyTokenCap": {
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 100000000000
+                  }
+                },
+                "required": [
+                  "monthlyTokenCap"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "monthlyCapUsd": {
+                      "nullable": true,
+                      "type": "number",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000,
+                      "multipleOf": 0.01
+                    },
+                    "spentUsd": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "reservedUsd": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "monthlyTokenCap": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000000
+                    },
+                    "tokensUsed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "tokensReserved": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "monthlyCapUsd",
+                    "spentUsd",
+                    "reservedUsd",
+                    "monthlyTokenCap",
+                    "tokensUsed",
+                    "tokensReserved"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Set or clear the signed-in user's monthly token cap on free models",
         "tags": [
           "me"
         ]

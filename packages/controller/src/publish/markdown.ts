@@ -1,6 +1,7 @@
 import { ATTACHMENT_REFERENCE, type Mode, type Platform, type RunKnowledge } from "@open-macaron/contracts";
 import { markdownTable } from "markdown-table";
 import { formatUsd, type UsdMicros } from "../common/money.ts";
+import { formatTokens } from "../common/tokens.ts";
 import { applyEdits, htmlRanges, proseRanges } from "./markdown-ast.ts";
 
 /** Shown while Bifrost hasn't reported a loop's final cost yet. */
@@ -155,14 +156,12 @@ function lessonsPart({ commit, lessons }: StatusHeader["knowledge"]): string[] {
   return [`${count} from [open-macaron/knowledge@${commit.slice(0, 7)}](https://github.com/open-macaron/knowledge/tree/${commit})`];
 }
 
-const TOKENS = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
-
 /**
  * The status comment's last line: what the thread has cost so far, and the tokens its runs used
  * (all a run on free models shows, at $0), ⏳ while a loop is still settling.
  */
 export function spentLine(spentMicros: UsdMicros, settling: boolean, tokens?: number): string {
-  const used = tokens === undefined ? "" : ` and ${TOKENS.format(tokens)} tokens`;
+  const used = tokens === undefined ? "" : ` and ${formatTokens(tokens)} tokens`;
   return `<sub>Spent on this thread: ${formatUsd(spentMicros)}${used}${settling ? " ⏳" : ""}.</sub>`;
 }
 

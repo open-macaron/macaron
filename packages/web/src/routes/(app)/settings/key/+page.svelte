@@ -16,6 +16,7 @@
   import { getModels, getMonth, getMyKey } from "./key.remote.ts";
   import ModelPreference from "./model-preference.svelte";
   import MonthlyCap from "./monthly-cap.svelte";
+  import MonthlyTokenCap from "./monthly-token-cap.svelte";
 
   // Bumped after a change: the history starts again from its newest page.
   let historyVersion = $state(0);
@@ -134,14 +135,16 @@
 </svelte:boundary>
 
 <svelte:boundary>
-  <MonthlyCap month={await getMonth()} />
+  {@const month = await getMonth()}
+  <MonthlyCap {month} />
+  <MonthlyTokenCap {month} />
   {#snippet pending()}
     <Card.Root><Card.Content class="grid gap-3"><Skeleton class="h-5 w-40" /><Skeleton class="h-2 w-full" /></Card.Content></Card.Root>
   {/snippet}
   {#snippet failed(error, reset)}
     <Empty.Root>
       <Empty.Header>
-        <Empty.Title>Your monthly cap could not be loaded</Empty.Title>
+        <Empty.Title>Your monthly caps could not be loaded</Empty.Title>
         <Empty.Description>{error instanceof Error ? error.message : "Try again in a moment."}</Empty.Description>
       </Empty.Header>
       <Empty.Content><Button variant="outline" onclick={reset}>Try again</Button></Empty.Content>

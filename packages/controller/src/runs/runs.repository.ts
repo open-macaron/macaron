@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDrizzle } from "@nestjs/drizzle";
 import type { Harness, Mode, RunContext, Ticket } from "@open-macaron/contracts";
-import { and, count, eq, gte, inArray, isNull, like, sql } from "drizzle-orm";
+import { and, count, eq, gte, inArray, isNotNull, isNull, like, sql } from "drizzle-orm";
 import type { MintedKey } from "../budget/budget.service.ts";
 import { TicketAlreadyRedeemed, TicketRejected } from "../common/errors.ts";
 import type { Route } from "../routing/routes.ts";
@@ -25,6 +25,8 @@ export interface NewRun {
   readonly context: RunContext;
   readonly route: Route;
   readonly limitMicros: UsdMicros;
+  /** The run's token ceiling, when its key could use a free model. */
+  readonly tokenLimit?: number | undefined;
   readonly triggerGithubId: number | null;
   /** The account billed for the run. */
   readonly payerId: string;
@@ -95,6 +97,7 @@ export class RunsRepository {
           context: run.context,
           route: run.route,
           limitMicros: run.limitMicros,
+          tokenLimit: run.tokenLimit ?? null,
           triggerGithubId: run.triggerGithubId,
           payerId: run.payerId,
           loop: thread.loops,
@@ -209,6 +212,24 @@ export class RunsRepository {
       .from(ledger)
       .innerJoin(runs, eq(ledger.runId, runs.id))
       .where(and(eq(runs.payerId, payerId), gte(ledger.at, since)));
+    return row?.total ?? 0;
+  }
+
+  /** Tokens of the payer's settled runs on free models (those with a token ceiling) since `since`. */
+  async tokensByPayerSince(payerId: string, since: Date): Promise<number> {
+    const [row] = await this.db
+      .select({ total: sql<number>`coalesce(sum(${runs.tokensUsed}), 0)`.mapWith(Number) })
+      .from(runs)
+      .where(and(eq(runs.payerId, payerId), isNotNull(runs.tokenLimit), gte(runs.settledAt, since)));
+    return row?.total ?? 0;
+  }
+
+  /** Token ceilings of the payer's runs on free models not settled yet, as reservedMicros for dollars. */
+  async reservedTokens(payerId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ total: sql<number>`coalesce(sum(${runs.tokenLimit}), 0)`.mapWith(Number) })
+      .from(runs)
+      .where(and(eq(runs.payerId, payerId), isNull(runs.settledAt)));
     return row?.total ?? 0;
   }
 

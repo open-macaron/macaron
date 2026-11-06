@@ -42,6 +42,17 @@ export const CapInput = z.object({
     .transform((cap) => cap ?? null),
 });
 
+/** In millions of tokens, as the key page asks for it; an empty field clears the cap. */
+export const TokenCapInput = z.object({
+  monthlyTokenCapMillions: z
+    .number("Enter millions of tokens, like 500.")
+    .int("Use whole millions of tokens.")
+    .positive("A cap is above 0 tokens: clear the field for no cap.")
+    .max(100_000, "Keep the cap under 100,000 million tokens.")
+    .optional()
+    .transform((cap) => cap ?? null),
+});
+
 /** A model pick; blank leaves that choice to the configuration. */
 const ModelField = z
   .string()
