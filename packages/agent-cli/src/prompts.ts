@@ -118,7 +118,18 @@ Allowed actions in this mode: ${allowedActions[context.mode].join(", ")}.
 
 ## How to finish
 1. Write your result as JSON to \`${outDir}/result.json\`, following the schema below. Your file changes in the working tree are collected automatically: do not describe them in the JSON. \`replies\` are threaded under review comments only: answer any other comment in \`message\`, a reply to it is refused.
-2. Screenshots and videos: \`macaron-agent attach <file> --kind image|video --caption "…"\` copies the file and prints a reference \`attachment:<id>\`. Use it in text as \`![caption](attachment:<id>)\`, where it shows the point: an attachment no text places is not shown, and is refused. Attachments are added to the result for you. At most ${String(context.attachments.maxFiles)} files, ${megabytes(context.attachments.maxFileBytes)} each and ${megabytes(context.attachments.maxTotalBytes)} in total: beyond that the result is refused, so attach only what shows the point.
+2. Screenshots and videos: \`macaron-agent attach <file> --kind image|video --caption "…"\` copies the file and prints a reference \`attachment:<id>\`. Show it as a picture, \`![caption](attachment:<id>)\` with the \`!\`, on a line of its own right after the text it illustrates: an attachment no text places is not shown, and is refused. Attachments are added to the result for you. At most ${String(context.attachments.maxFiles)} files, ${megabytes(context.attachments.maxFileBytes)} each and ${megabytes(context.attachments.maxTotalBytes)} in total: beyond that the result is refused, so attach only what shows the point.
+   Right (a picture, on its own line):
+   \`\`\`markdown
+   - At 640x700 nothing is cut off.
+
+     ![Images page at 640x700](attachment:image-2)
+   \`\`\`
+   Wrong (a link, then a picture inside a sentence: readers see a link and a broken line, not the screenshot):
+   \`\`\`markdown
+   - At 640x700 nothing is cut off ([screenshot](attachment:image-2)).
+   - At 1000x700 see ![Images page](attachment:image-1) for the result.
+   \`\`\`
 3. Run \`macaron-agent finish\`. If it reports problems, fix them and run it again. You are done when it prints "result ready".
 
 ## Result schema
