@@ -1,5 +1,11 @@
 # @open-macaron/agent-cli
 
+## 0.3.4
+
+### Patch Changes
+
+- 1f265cf: The prompt shows how to place a screenshot: a picture (`![caption](attachment:id)`) on a line of its own, with a right and a wrong example.
+
 ## 0.3.3
 
 ### Patch Changes
