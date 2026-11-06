@@ -350,6 +350,9 @@ export type GetMyMonthResponses = {
         monthlyCapUsd: number | null;
         spentUsd: number;
         reservedUsd: number;
+        monthlyTokenCap: number | null;
+        tokensUsed: number;
+        tokensReserved: number;
     };
 };
 
@@ -376,10 +379,42 @@ export type SetMyMonthlyCapResponses = {
         monthlyCapUsd: number | null;
         spentUsd: number;
         reservedUsd: number;
+        monthlyTokenCap: number | null;
+        tokensUsed: number;
+        tokensReserved: number;
     };
 };
 
 export type SetMyMonthlyCapResponse = SetMyMonthlyCapResponses[keyof SetMyMonthlyCapResponses];
+
+export type SetMyMonthlyTokenCapData = {
+    body: {
+        monthlyTokenCap: number | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/me/monthly-token-cap';
+};
+
+export type SetMyMonthlyTokenCapErrors = {
+    /**
+     * No valid session
+     */
+    401: unknown;
+};
+
+export type SetMyMonthlyTokenCapResponses = {
+    200: {
+        monthlyCapUsd: number | null;
+        spentUsd: number;
+        reservedUsd: number;
+        monthlyTokenCap: number | null;
+        tokensUsed: number;
+        tokensReserved: number;
+    };
+};
+
+export type SetMyMonthlyTokenCapResponse = SetMyMonthlyTokenCapResponses[keyof SetMyMonthlyTokenCapResponses];
 
 export type ListRunsData = {
     body?: never;

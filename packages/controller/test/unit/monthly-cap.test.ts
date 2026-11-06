@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capRefusal, monthStart } from "../../src/accounts/monthly-cap.service.ts";
+import { capRefusal, monthStart, tokenCapRefusal } from "../../src/accounts/monthly-cap.service.ts";
 
 const SETTINGS = "https://macaron.example.test/settings/key";
 const usd = (amount: number): number => Math.round(amount * 1_000_000);
@@ -23,5 +23,19 @@ describe("monthStart", () => {
   it("is the first of the month at midnight UTC", () => {
     expect(monthStart(new Date("2026-10-31T23:59:59-05:00"))).toEqual(new Date("2026-11-01T00:00:00Z"));
     expect(monthStart(new Date("2026-10-23T12:00:00Z"))).toEqual(new Date("2026-10-01T00:00:00Z"));
+  });
+});
+
+describe("tokenCapRefusal", () => {
+  it("lets a run through without a cap, or within it", () => {
+    expect(tokenCapRefusal(null, 900_000_000, 0, 50_000_000, SETTINGS)).toBeUndefined();
+    expect(tokenCapRefusal(500_000_000, 400_000_000, 50_000_000, 50_000_000, SETTINGS)).toBeUndefined();
+  });
+
+  it("says, as for dollars, what the run may use and what's left", () => {
+    expect(tokenCapRefusal(500_000_000, 420_000_000, 50_000_000, 50_000_000, SETTINGS)).toBe(
+      `this run may use up to 50M tokens, and your monthly token cap of 500M has 30M left: raise it on macaron (${SETTINGS}), or wait for next month`,
+    );
+    expect(tokenCapRefusal(500_000_000, 520_000_000, 0, 50_000_000, SETTINGS)).toMatch(/has 0 left/);
   });
 });

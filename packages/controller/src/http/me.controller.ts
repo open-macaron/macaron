@@ -19,6 +19,7 @@ import {
   SaveLlmKey,
   SaveModelPreference,
   SetMonthlyCap,
+  SetMonthlyTokenCap,
   type UsagePage,
   UsagePage as UsagePageSchema,
   UsageQuery,
@@ -154,5 +155,14 @@ export class MeController {
   async setMyMonthlyCap(@Req() request: Request, @Body({ schema: SetMonthlyCap }) body: SetMonthlyCap): Promise<MyMonth> {
     const user = await this.sessions.user(request.headers);
     return this.caps.set(user.id, body.monthlyCapUsd);
+  }
+
+  @Put("monthly-token-cap")
+  @ApiOperation({ operationId: "setMyMonthlyTokenCap", summary: "Set or clear the signed-in user's monthly token cap on free models" })
+  @ApiResponse({ status: 200, standardSchema: MyMonthSchema })
+  @ApiResponse({ status: 401, description: "No valid session" })
+  async setMyMonthlyTokenCap(@Req() request: Request, @Body({ schema: SetMonthlyTokenCap }) body: SetMonthlyTokenCap): Promise<MyMonth> {
+    const user = await this.sessions.user(request.headers);
+    return this.caps.setTokens(user.id, body.monthlyTokenCap);
   }
 }

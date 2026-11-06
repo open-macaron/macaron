@@ -14,7 +14,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { Capability, type ModelPreference, type RunContext } from "@open-macaron/contracts";
+import { Capability, DEFAULT_MONTHLY_TOKEN_CAP, type ModelPreference, type RunContext } from "@open-macaron/contracts";
 import type { Route } from "../routing/routes.ts";
 
 /** Money is stored as integer micro-dollars: no floating point anywhere near a bill. */
@@ -159,6 +159,8 @@ export const runs = pgTable(
     costMicros: usdMicros("cost_micros"),
     /** The tokens its key counted, read at settlement; null before this was recorded, or when Bifrost couldn't be read. */
     tokensUsed: bigint("tokens_used", { mode: "number" }),
+    /** The run's token ceiling, fixed at launch when its key could use a free model: reserved against its payer's token cap until settled. */
+    tokenLimit: bigint("token_limit", { mode: "number" }),
     /** GitHub id of the user who asked for the run (retries and escalations keep it). Null for runs before this column existed. */
     triggerGithubId: bigint("trigger_github_id", { mode: "number" }),
     /** The account the run is billed to, on its own LLM key. Null for runs before users' keys. */
@@ -236,6 +238,8 @@ export const users = pgTable("users", {
   capabilities: capability("capabilities").array().notNull().default(sql`'{}'::capability[]`),
   /** What the user's runs may cost each calendar month (UTC), on their key; null for no cap of their own. */
   monthlyCapMicros: usdMicros("monthly_cap_micros"),
+  /** The tokens the user's runs on free models may use each month; null for no cap. Existing users get the default too. */
+  monthlyTokenCap: bigint("monthly_token_cap", { mode: "number" }).default(DEFAULT_MONTHLY_TOKEN_CAP),
   /** The models the user picked for their runs, each one priced by the gateway; null for none. */
   modelPreferences: jsonb("model_preferences").$type<ModelPreference>(),
   /** When the user closed the web app's onboarding; null until then, so it opens at their first visit. */

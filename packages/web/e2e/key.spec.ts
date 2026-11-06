@@ -111,6 +111,30 @@ test("a user sets a monthly cap, sees how much of it is used, and clears it", as
   await expect(page.getByText("No cap", { exact: true })).toBeVisible();
 });
 
+test("a user starts with a token cap for free models, changes it, and clears it", async ({ signIn }) => {
+  const page = await signIn("octocat");
+  await page.goto("/settings/key");
+  const cap = page.getByLabel("Monthly token cap in millions of tokens");
+  // Everyone starts at the default, in millions of tokens.
+  await expect(page.getByText("of 500M")).toBeVisible();
+  await expect(cap).toHaveValue("500");
+  await expect(page.getByRole("progressbar", { name: "Share of the monthly token cap used" })).toBeVisible();
+
+  await cap.fill("0");
+  await page.getByRole("button", { name: "Save token cap" }).click();
+  await expect(page.getByText("A cap is above 0 tokens: clear the field for no cap.")).toBeVisible();
+
+  await cap.fill("200");
+  await page.getByRole("button", { name: "Save token cap" }).click();
+  await expect(page.getByText("Your monthly token cap is 200M tokens")).toBeVisible();
+  await expect(page.getByText("of 200M")).toBeVisible();
+
+  await cap.fill("");
+  await page.getByRole("button", { name: "Save token cap" }).click();
+  await expect(page.getByText("Your monthly token cap is cleared")).toBeVisible();
+  await expect(page.getByRole("progressbar", { name: "Share of the monthly token cap used" })).toBeHidden();
+});
+
 test("a user picks the models their runs use, among the ones the gateway prices", async ({ signIn }) => {
   const page = await signIn("octocat");
   await page.goto("/settings/key");

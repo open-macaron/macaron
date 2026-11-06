@@ -164,7 +164,10 @@ export const zSetMyModelsResponse = z.object({
 export const zGetMyMonthResponse = z.object({
     monthlyCapUsd: z.number().gt(0).lte(100000).nullable(),
     spentUsd: z.number().gte(0),
-    reservedUsd: z.number().gte(0)
+    reservedUsd: z.number().gte(0),
+    monthlyTokenCap: z.int().gt(0).lte(100000000000).nullable(),
+    tokensUsed: z.int().gte(0).lte(9007199254740991),
+    tokensReserved: z.int().gte(0).lte(9007199254740991)
 });
 
 export const zSetMyMonthlyCapBody = z.object({
@@ -174,7 +177,23 @@ export const zSetMyMonthlyCapBody = z.object({
 export const zSetMyMonthlyCapResponse = z.object({
     monthlyCapUsd: z.number().gt(0).lte(100000).nullable(),
     spentUsd: z.number().gte(0),
-    reservedUsd: z.number().gte(0)
+    reservedUsd: z.number().gte(0),
+    monthlyTokenCap: z.int().gt(0).lte(100000000000).nullable(),
+    tokensUsed: z.int().gte(0).lte(9007199254740991),
+    tokensReserved: z.int().gte(0).lte(9007199254740991)
+});
+
+export const zSetMyMonthlyTokenCapBody = z.object({
+    monthlyTokenCap: z.int().gt(0).lte(100000000000).nullable()
+});
+
+export const zSetMyMonthlyTokenCapResponse = z.object({
+    monthlyCapUsd: z.number().gt(0).lte(100000).nullable(),
+    spentUsd: z.number().gte(0),
+    reservedUsd: z.number().gte(0),
+    monthlyTokenCap: z.int().gt(0).lte(100000000000).nullable(),
+    tokensUsed: z.int().gte(0).lte(9007199254740991),
+    tokensReserved: z.int().gte(0).lte(9007199254740991)
 });
 
 export const zListRunsQuery = z.object({

@@ -5,6 +5,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
+import { DEFAULT_MONTHLY_TOKEN_CAP } from "@open-macaron/contracts";
 import type { z } from "zod";
 import {
   zApproveEndpointBody,
@@ -27,6 +28,8 @@ import {
   zSaveMyLlmKeyResponse,
   zSetMyMonthlyCapBody,
   zSetMyMonthlyCapResponse,
+  zSetMyMonthlyTokenCapBody,
+  zSetMyMonthlyTokenCapResponse,
   zSetMyModelsBody,
   zSetMyModelsResponse,
   zSetEndpointEnabledBody,
@@ -69,6 +72,8 @@ interface State {
   keyEvents: Map<string, LlmKeyEvent[]>;
   /** By user id; absent for no cap. */
   caps: Map<string, number>;
+  /** Users who changed their token cap; the others have the default. */
+  tokenCaps: Map<string, number | null>;
   /** defunkt's runs: what /v1/me/usage lists. */
   runs: Run[];
   /** Everyone's, newest first: what /v1/admin/runs lists. */
@@ -134,7 +139,7 @@ function fresh(): State {
     { id: randomUUID(), repo: "open-macaron/sandbox", number: 11, kind: "issue", author: "defunkt", authorId: 2, url: "https://github.com/open-macaron/sandbox/issues/11#issuecomment-1", reason: "@defunkt may not ask for implement: an admin grants it on the Users page", createdAt: at(-0.2) },
     { id: randomUUID(), repo: "open-macaron/macaron", number: 12, kind: "pull", author: "octocat", authorId: 583231, url: "https://github.com/open-macaron/macaron/pull/12#issuecomment-2", reason: null, createdAt: at(-3) },
   ];
-  return { users, invitations, endpoints, keys: new Map(), preferences: new Map(), keyEvents: new Map(), caps: new Map(), runs, adminRuns, refusals, onboarded: new Map(users.map((user) => [user.id, user.createdAt])), projectsBroken: false, renewals: 0 };
+  return { users, invitations, endpoints, keys: new Map(), preferences: new Map(), keyEvents: new Map(), caps: new Map(), tokenCaps: new Map(), runs, adminRuns, refusals, onboarded: new Map(users.map((user) => [user.id, user.createdAt])), projectsBroken: false, renewals: 0 };
 }
 
 let state = fresh();
@@ -254,15 +259,19 @@ async function route(request: IncomingMessage): Promise<Reply> {
     }
     return reply(200, method === "PUT" ? zSetMyModelsResponse : zGetMyModelsResponse, { models: PRICED, free: FREE, preference: state.preferences.get(user.id) ?? {} });
   }
-  if (url.pathname === "/v1/me/month" || url.pathname === "/v1/me/monthly-cap") {
-    if (method === "PUT") {
+  if (url.pathname === "/v1/me/month" || url.pathname === "/v1/me/monthly-cap" || url.pathname === "/v1/me/monthly-token-cap") {
+    if (method === "PUT" && url.pathname === "/v1/me/monthly-cap") {
       const { monthlyCapUsd } = zSetMyMonthlyCapBody.parse(await readJson(request));
       if (monthlyCapUsd === null) state.caps.delete(user.id);
       else state.caps.set(user.id, monthlyCapUsd);
     }
+    if (method === "PUT" && url.pathname === "/v1/me/monthly-token-cap") state.tokenCaps.set(user.id, zSetMyMonthlyTokenCapBody.parse(await readJson(request)).monthlyTokenCap);
     const spentUsd = state.runs.reduce((sum, run) => sum + (run.costUsd ?? 0), 0);
     const reservedUsd = state.runs.filter((run) => run.costUsd === null).length * 2;
-    return reply(200, method === "PUT" ? zSetMyMonthlyCapResponse : zGetMyMonthResponse, { monthlyCapUsd: state.caps.get(user.id) ?? null, spentUsd, reservedUsd });
+    const monthlyTokenCap = state.tokenCaps.has(user.id) ? (state.tokenCaps.get(user.id) ?? null) : DEFAULT_MONTHLY_TOKEN_CAP;
+    const month = { monthlyCapUsd: state.caps.get(user.id) ?? null, spentUsd, reservedUsd, monthlyTokenCap, tokensUsed: 120_000_000, tokensReserved: 0 };
+    if (method !== "PUT") return reply(200, zGetMyMonthResponse, month);
+    return reply(200, url.pathname === "/v1/me/monthly-cap" ? zSetMyMonthlyCapResponse : zSetMyMonthlyTokenCapResponse, month);
   }
   if (user.role !== "admin") return reply(403, undefined, { error: "forbidden" });
 
