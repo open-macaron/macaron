@@ -1,5 +1,14 @@
 # @open-macaron/agent-cli
 
+## 0.3.2
+
+### Patch Changes
+
+- 9dfb39a: `macaron-agent finish` refuses a result that would read badly once published: an attachment no text places (it would never be shown) and a reply to anything but a review comment (it would be quoted after the message, repeating it), each with the exact change to make. The prompt says so too. The last check, after the session, repairs instead of failing the run: unplaced attachments are added after the message, and an unthreadable reply becomes the message when there is none. The pattern of `attachment:<id>` references is shared from contracts (`ATTACHMENT_REFERENCE`).
+- Updated dependencies [9dfb39a]
+  - @open-macaron/contracts@0.14.1
+  - @open-macaron/review@0.3.15
+
 ## 0.3.1
 
 ### Patch Changes
