@@ -183,7 +183,7 @@ describe("Publisher in compact mode", () => {
     expect(writer.bodies()[0]).toContain("<sub>Spent on this thread: $0.26.</sub>");
   });
 
-  it("shows the tokens a run on a free model used, once it settles at $0", async () => {
+  it("shows the tokens a run used once it settles, a free one's at $0", async () => {
     const { thread, run, writer, publisher } = await dispatched();
     await publisher.publish({ run, thread, config: repoConfig(true), publishable: publishable(), runUrl: RUN_URL });
 
@@ -191,7 +191,7 @@ describe("Publisher in compact mode", () => {
     await publisher.refreshCost(thread, run);
 
     expect(writer.bodies()).toHaveLength(1);
-    expect(writer.bodies()[0]).toContain("<sub>Spent on this thread: $0.00 and 1.2M tokens on free models.</sub>");
+    expect(writer.bodies()[0]).toContain("<sub>Spent on this thread: $0.00 and 1.2M tokens.</sub>");
   });
 
   it("still says why a run failed, in a comment of its own", async () => {

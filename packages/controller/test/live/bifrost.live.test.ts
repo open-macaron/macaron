@@ -82,8 +82,10 @@ describe.skipIf(env === undefined || user === undefined)("Bifrost run keys over 
 
       await budget.freeze(key);
       expect((await message(key.key, "claude-haiku-4-5")).status).toBe(403);
-      // A paid key has no token cap: a failure on it must not claim an exhausted token budget.
-      expect(await budget.tokenUsage(key)).toBeUndefined();
+      // A paid key has no token cap, but Bifrost counts its tokens all the same: settlement keeps them.
+      const tokens = await budget.tokenUsage(key);
+      expect(tokens?.limit).toBeUndefined();
+      expect(tokens?.used).toBeGreaterThan(0);
       // The user's key left Bifrost; settlement still reads the frozen key's spend.
       expect(await keys.sweepUpstreamKeys(`${RUN_KEY_PREFIX}${runId}`, new Set([`${RUN_KEY_PREFIX}${runId}-other`]))).toEqual([]);
       expect(await budget.usage(key, new Date())).toBe(spent);

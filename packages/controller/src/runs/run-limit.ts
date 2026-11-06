@@ -27,6 +27,6 @@ export function runLimitTokens(models: readonly string[], runTokens: (model: str
  * for a key under its cap, or without one.
  */
 export function tokenBudgetExhausted(usage: TokenUsage | undefined): string | undefined {
-  if (usage === undefined || usage.used < usage.limit) return undefined;
+  if (usage?.limit === undefined || usage.used < usage.limit) return undefined;
   return `its token budget was exhausted (${String(usage.used)} of ${String(usage.limit)} tokens)`;
 }

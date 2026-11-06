@@ -157,7 +157,7 @@ export const runs = pgTable(
     keySecret: text("key_secret"),
     limitMicros: usdMicros("limit_micros").notNull(),
     costMicros: usdMicros("cost_micros"),
-    /** The tokens its key counted, read at settlement when the key had a token cap (it could use a free model); null otherwise. */
+    /** The tokens its key counted, read at settlement; null before this was recorded, or when Bifrost couldn't be read. */
     tokensUsed: bigint("tokens_used", { mode: "number" }),
     /** GitHub id of the user who asked for the run (retries and escalations keep it). Null for runs before this column existed. */
     triggerGithubId: bigint("trigger_github_id", { mode: "number" }),
