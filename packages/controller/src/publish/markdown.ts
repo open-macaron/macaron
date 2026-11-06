@@ -1,4 +1,4 @@
-import type { Mode, Platform, RunKnowledge } from "@open-macaron/contracts";
+import { ATTACHMENT_REFERENCE, type Mode, type Platform, type RunKnowledge } from "@open-macaron/contracts";
 import { markdownTable } from "markdown-table";
 import { formatUsd, type UsdMicros } from "../common/money.ts";
 import { applyEdits, htmlRanges, proseRanges } from "./markdown-ast.ts";
@@ -40,7 +40,7 @@ export function sanitize(body: string, allowedMentions: ReadonlySet<string>): st
 
 /** Replaces `attachment:<id>` targets with the hosted URLs. Unknown ids were rejected by the Gate. */
 export function resolveAttachments(body: string, urls: ReadonlyMap<string, string>): string {
-  return body.replace(/attachment:([a-z0-9][a-z0-9-]{0,62})/g, (match, id: string) => urls.get(id) ?? match);
+  return body.replace(ATTACHMENT_REFERENCE, (match, id: string) => urls.get(id) ?? match);
 }
 
 /** A loop's state as shown in the cost table. */

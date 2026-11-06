@@ -1,4 +1,4 @@
-import { type Attachment, allowedActions, type Changes, type FileChange, type Mode, type RunContext, type RunResult } from "@open-macaron/contracts";
+import { ATTACHMENT_REFERENCE, type Attachment, allowedActions, type Changes, type FileChange, type Mode, type RunContext, type RunResult } from "@open-macaron/contracts";
 import { type PullDiff, type RuleResult, verifyReview } from "@open-macaron/review";
 import { type DetectedMedia, detectMedia } from "./media-type.ts";
 import { findSecrets } from "./secrets.ts";
@@ -47,7 +47,6 @@ export type Verdict = { readonly ok: true; readonly publishable: Publishable } |
 
 /** Paths the bot must never change, whatever the repo. ForkCommitter refuses them too. */
 export const FORBIDDEN_PATH = /^(\.github\/|\.git\/|\.gitmodules$)|(^|\/)\.git(\/|$)/;
-const ATTACHMENT_REF = /attachment:([a-z0-9][a-z0-9-]{0,62})/g;
 
 /**
  * The deterministic policy between an untrusted run and anything public.
@@ -190,7 +189,7 @@ async function checkAttachments(
   const ids = new Set(result.attachments.map((attachment) => attachment.id));
   const bodies = [result.message, result.pr?.body, ...result.replies.map((reply) => reply.body)];
   for (const body of bodies) {
-    for (const match of body?.matchAll(ATTACHMENT_REF) ?? []) {
+    for (const match of body?.matchAll(ATTACHMENT_REFERENCE) ?? []) {
       const id = match[1];
       if (id !== undefined && !ids.has(id)) problems.push(`reference to unknown attachment "${id}"`);
     }
