@@ -98,6 +98,25 @@ describe("finish", () => {
     expect(await readFile(join(p.media, "image-1.png"))).toEqual(PNG);
   });
 
+  it("keeps the file `attach` copied when result.json lists the attachment again, and refuses one with no file", async () => {
+    const p = paths(inputs);
+    const shot = join(root, "repro-1000x700.png");
+    await writeFile(shot, PNG);
+    const reference = await attach(shot, "image", "The crash", undefined, inputs);
+    const listed = { id: "image-1", path: "media/repro-1000x700.png", kind: "image", caption: "At 1000x700" };
+    await writeFile(p.resultFile, JSON.stringify({ action: "reply", message: `Reproduced:\n\n![At 1000x700](${reference})`, summary: "Reproduced.", attachments: [listed] }));
+
+    expect(await finish(inputs)).toBe(0);
+    expect(RunResult.parse(JSON.parse(await readFile(p.resultFile, "utf8"))).attachments).toEqual([{ id: "image-1", path: "media/image-1.png", kind: "image", caption: "At 1000x700" }]);
+
+    const unattached = { id: "image-2", path: "media/never-copied.png", kind: "image", caption: "Elsewhere" };
+    await writeFile(
+      p.resultFile,
+      JSON.stringify({ action: "reply", message: `Reproduced:\n\n![a](${reference})\n\n![b](attachment:image-2)`, summary: "Reproduced.", attachments: [unattached] }),
+    );
+    expect(await finish(inputs)).toBe(1);
+  });
+
   it("refuses an invalid result and changes under .github/", async () => {
     const p = paths(inputs);
     await writeFile(p.resultFile, JSON.stringify({ action: "commit", summary: "no message" }));

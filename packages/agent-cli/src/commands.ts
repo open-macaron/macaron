@@ -181,6 +181,12 @@ export async function finish(inputs: Inputs = readInputs(), { final = false }: {
     return 1;
   }
   let result: RunResult = { ...parsed.data, attachments: mergeAttachments(parsed.data.attachments, attachments) };
+  const missing = await missingFiles(p, result.attachments);
+  if (missing.length > 0) {
+    await writeJson(p.resultFile, result);
+    core.error(`these attachments have no file: ${missing.join(", ")}. Attach each file with \`macaron-agent attach\` and leave \`attachments\` out of result.json`);
+    return 1;
+  }
   const reviewCommentIds = new Set(context.reviewComments.map((comment) => comment.id));
   const problems = presentationProblems(result, reviewCommentIds);
   if (problems.length > 0) {
@@ -224,8 +230,28 @@ async function existingAttachments(p: Paths): Promise<Attachment[]> {
   }
 }
 
+/** `attach` copied the file: an entry of result.json may change its caption, never point it at another file. */
 function mergeAttachments(fromResult: readonly Attachment[], recorded: readonly Attachment[]): Attachment[] {
   const byId = new Map(recorded.map((attachment) => [attachment.id, attachment]));
-  for (const attachment of fromResult) byId.set(attachment.id, attachment);
+  for (const attachment of fromResult) {
+    const known = byId.get(attachment.id);
+    byId.set(attachment.id, known === undefined ? attachment : { ...known, caption: attachment.caption });
+  }
   return [...byId.values()];
+}
+
+/** Only the output directory is uploaded: an attachment whose file isn't there is refused by the Gate. */
+async function missingFiles(p: Paths, attachments: readonly Attachment[]): Promise<string[]> {
+  const missing: string[] = [];
+  for (const attachment of attachments) {
+    for (const path of [attachment.path, attachment.preview]) {
+      if (path === undefined) continue;
+      try {
+        await stat(join(p.out, path));
+      } catch {
+        missing.push(`${attachment.id} (${path})`);
+      }
+    }
+  }
+  return missing;
 }
