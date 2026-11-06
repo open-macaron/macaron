@@ -202,10 +202,15 @@ export class Publisher {
     });
   }
 
-  /** What the thread has cost so far, and whether a loop is still settling. */
-  private async spent(thread: ThreadRecord): Promise<[number, boolean]> {
+  /** What the thread has cost so far, whether a loop is still settling, and its tokens on free models if any. */
+  private async spent(thread: ThreadRecord): Promise<[number, boolean, number | undefined]> {
     const loops = await this.runs.loops(thread.id);
-    return [loops.reduce((total, loop) => total + (loop.costMicros ?? 0), 0), loops.some((loop) => loop.settledAt === null)];
+    const capped = loops.flatMap((loop) => (loop.tokensUsed === null ? [] : [loop.tokensUsed]));
+    return [
+      loops.reduce((total, loop) => total + (loop.costMicros ?? 0), 0),
+      loops.some((loop) => loop.settledAt === null),
+      capped.length === 0 ? undefined : capped.reduce((total, tokens) => total + tokens, 0),
+    ];
   }
 
   /** A review run's cost is settled: its review shows the amount instead of ⏳. */

@@ -282,7 +282,9 @@ export class RunLauncher {
     const thread = await this.runs.threadById(run.threadId);
     const config = this.config.repo(thread.repo);
     const attribution = config === undefined ? { repo: thread.repo, project: "unknown" } : this.attribution(config);
-    if (await this.runs.settle(run.id, decision.costMicros, attribution, now)) {
+    // Read before the key is revoked: a free run's footer shows tokens, its cost being $0.
+    const tokens = key === undefined ? undefined : await this.budget.tokenUsage(key);
+    if (await this.runs.settle(run.id, decision.costMicros, attribution, now, tokens?.used ?? null)) {
       this.logger.log(`run ${run.id} cost ${String(decision.costMicros)} µ$`);
       if (key !== undefined) await this.budget.revoke(key);
       const current = await this.runs.threadById(thread.id);

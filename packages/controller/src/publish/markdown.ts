@@ -155,9 +155,16 @@ function lessonsPart({ commit, lessons }: StatusHeader["knowledge"]): string[] {
   return [`${count} from [open-macaron/knowledge@${commit.slice(0, 7)}](https://github.com/open-macaron/knowledge/tree/${commit})`];
 }
 
-/** The status comment's last line: what the thread has cost so far, ⏳ while a loop is still settling. */
-export function spentLine(spentMicros: UsdMicros, settling: boolean): string {
-  return `<sub>Spent on this thread: ${formatUsd(spentMicros)}${settling ? " ⏳" : ""}.</sub>`;
+const TOKENS = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+
+/**
+ * The status comment's last line: what the thread has cost so far, ⏳ while a loop is still settling.
+ * `tokens` counts its runs on free models, which cost $0: all of such a run's tokens, a paid fast
+ * model's included.
+ */
+export function spentLine(spentMicros: UsdMicros, settling: boolean, tokens?: number): string {
+  const free = tokens === undefined ? "" : ` and ${TOKENS.format(tokens)} tokens on free models`;
+  return `<sub>Spent on this thread: ${formatUsd(spentMicros)}${free}${settling ? " ⏳" : ""}.</sub>`;
 }
 
 /** A status comment with its spent line replaced (unchanged if it has none, e.g. edited by hand). */

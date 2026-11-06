@@ -183,6 +183,17 @@ describe("Publisher in compact mode", () => {
     expect(writer.bodies()[0]).toContain("<sub>Spent on this thread: $0.26.</sub>");
   });
 
+  it("shows the tokens a run on a free model used, once it settles at $0", async () => {
+    const { thread, run, writer, publisher } = await dispatched();
+    await publisher.publish({ run, thread, config: repoConfig(true), publishable: publishable(), runUrl: RUN_URL });
+
+    await runs.settle(run.id, 0, { repo: thread.repo, project: "sandbox" }, new Date(), 1_234_567);
+    await publisher.refreshCost(thread, run);
+
+    expect(writer.bodies()).toHaveLength(1);
+    expect(writer.bodies()[0]).toContain("<sub>Spent on this thread: $0.00 and 1.2M tokens on free models.</sub>");
+  });
+
   it("still says why a run failed, in a comment of its own", async () => {
     const { thread, run, writer, publisher } = await dispatched();
 
