@@ -1,5 +1,13 @@
 # @open-macaron/agent-cli
 
+## 0.3.3
+
+### Patch Changes
+
+- Updated dependencies [75749f8]
+  - @open-macaron/contracts@0.15.0
+  - @open-macaron/review@0.3.16
+
 ## 0.3.2
 
 ### Patch Changes
