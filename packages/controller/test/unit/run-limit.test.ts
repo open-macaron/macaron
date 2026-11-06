@@ -46,5 +46,7 @@ describe("tokenBudgetExhausted", () => {
   it("leaves the conclusion alone for a key under its cap, or without one", () => {
     expect(tokenBudgetExhausted({ used: 49_999_999, limit: 50_000_000 })).toBeUndefined();
     expect(tokenBudgetExhausted(undefined)).toBeUndefined();
+    // A paid run's key counts tokens too, with no cap to exhaust.
+    expect(tokenBudgetExhausted({ used: 80_000_000, limit: undefined })).toBeUndefined();
   });
 });

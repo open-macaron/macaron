@@ -176,12 +176,15 @@ describe("BifrostKeys.tokenUsage", () => {
     expect(await keys().tokenUsage("vk-1")).toEqual({ used: 2_000_001, limit: 2_000_000 });
   });
 
-  it("says nothing of a key without a token cap, with a zero one, or one settlement already deleted", async () => {
-    bifrost.virtualKeys.set("vk-2", { name: "macaron-run-r10", active: true, provider: PROVIDER, keyIds: [], usage: 0, tokens: undefined });
+  it("reads the counter of a key without a token cap (a paid run's), or with a zero one, as uncapped", async () => {
+    bifrost.virtualKeys.set("vk-2", { name: "macaron-run-r10", active: true, provider: PROVIDER, keyIds: [], usage: 0.12, tokens: { used: 340_000, limit: undefined } });
     bifrost.virtualKeys.set("vk-3", { name: "macaron-run-r11", active: true, provider: PROVIDER, keyIds: [], usage: 0, tokens: { used: 0, limit: 0 } });
 
-    expect(await keys().tokenUsage("vk-2")).toBeUndefined();
-    expect(await keys().tokenUsage("vk-3")).toBeUndefined();
+    expect(await keys().tokenUsage("vk-2")).toEqual({ used: 340_000, limit: undefined });
+    expect(await keys().tokenUsage("vk-3")).toEqual({ used: 0, limit: undefined });
+  });
+
+  it("says nothing of a key settlement already deleted", async () => {
     expect(await keys().tokenUsage("vk-gone")).toBeUndefined();
   });
 });

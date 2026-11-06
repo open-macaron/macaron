@@ -14,7 +14,8 @@ export interface RunLimits {
 /** A key's token counter, when the key has a cap: what names an exhausted budget in the thread. */
 export interface TokenUsage {
   readonly used: number;
-  readonly limit: number;
+  /** The key's cap, when it has one (it could use a free model). */
+  readonly limit: number | undefined;
 }
 
 /** Where a run's LLM calls go, and the key they're billed to: its payer's. */
@@ -57,6 +58,6 @@ export abstract class RunKeys {
   abstract sweepUpstreamKeys(prefix: string, keep: ReadonlySet<string>): Promise<string[]>;
   /** What the key spent, in USD, between `since` (a little before the run started) and now. */
   abstract spentSince(hash: string, since: Date): Promise<number>;
-  /** The key's token counter and its cap, or undefined when the key has no cap or is gone. */
+  /** The key's token counter, and its cap if any; undefined when the key is gone. */
   abstract tokenUsage(hash: string): Promise<TokenUsage | undefined>;
 }

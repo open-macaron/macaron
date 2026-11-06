@@ -180,14 +180,18 @@ export class BifrostKeys extends RunKeys {
     return (key.virtual_key.budgets ?? []).reduce((total, budget) => total + budget.current_usage, 0);
   }
 
-  /** The key's token counter and its cap; a key without one, or already deleted, has none. */
+  /**
+   * The key's token counter, and its cap if any. Bifrost counts tokens on every rate limit, capped
+   * or not, and every run key has one (its requests per minute); a key already deleted has none.
+   */
   async tokenUsage(hash: string): Promise<TokenUsage | undefined> {
     try {
       const key = await this.request("read key tokens", "GET", `/api/governance/virtual-keys/${encodeURIComponent(hash)}?from_memory=true`, KeyTokens);
       const rate = key.virtual_key.rate_limit;
+      if (rate === undefined) return undefined;
       // Bifrost omits an unset cap; a zero one would make every key look exhausted.
-      if (rate?.token_max_limit === undefined || rate.token_max_limit <= 0n) return undefined;
-      return { used: Number(rate.token_current_usage), limit: Number(rate.token_max_limit) };
+      const capped = rate.token_max_limit !== undefined && rate.token_max_limit > 0n;
+      return { used: Number(rate.token_current_usage), limit: capped ? Number(rate.token_max_limit) : undefined };
     } catch (error: unknown) {
       // Settlement deletes a key once its cost is final: a completion arriving after that (a
       // delivery can lag by minutes) still names the generic failure.

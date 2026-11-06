@@ -126,15 +126,15 @@ describe("spent line", () => {
     expect(spentLine(0, true)).toBe("<sub>Spent on this thread: $0.00 ⏳.</sub>");
   });
 
-  it("adds the tokens of its runs on free models, which cost $0", () => {
-    expect(spentLine(0, false, 1_234_567)).toBe("<sub>Spent on this thread: $0.00 and 1.2M tokens on free models.</sub>");
-    expect(spentLine(258_972, true, 48_200)).toBe("<sub>Spent on this thread: $0.26 and 48.2K tokens on free models ⏳.</sub>");
-    expect(spentLine(0, false, 950)).toBe("<sub>Spent on this thread: $0.00 and 950 tokens on free models.</sub>");
+  it("adds the tokens its runs used, all a run on free models shows at $0", () => {
+    expect(spentLine(0, false, 1_234_567)).toBe("<sub>Spent on this thread: $0.00 and 1.2M tokens.</sub>");
+    expect(spentLine(258_972, true, 48_200)).toBe("<sub>Spent on this thread: $0.26 and 48.2K tokens ⏳.</sub>");
+    expect(spentLine(0, false, 950)).toBe("<sub>Spent on this thread: $0.00 and 950 tokens.</sub>");
   });
 
   it("replaces only the spent line of a status comment", () => {
     expect(withSpentLine(status, spentLine(258_972, false))).toBe(status.replace("$0.00 ⏳", "$0.26"));
     expect(withSpentLine("edited by a maintainer", spentLine(1, false))).toBe("edited by a maintainer");
-    expect(withSpentLine(status, spentLine(0, false, 3_400_000))).toBe(status.replace("$0.00 ⏳", "$0.00 and 3.4M tokens on free models"));
+    expect(withSpentLine(status, spentLine(0, false, 3_400_000))).toBe(status.replace("$0.00 ⏳", "$0.00 and 3.4M tokens"));
   });
 });
