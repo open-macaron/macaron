@@ -20,11 +20,16 @@
     "@actions/core": "catalog:",
     "@open-macaron/contracts": "workspace:*",
     "@open-macaron/review": "workspace:*",
+    "mdast-util-from-markdown": "catalog:",
+    "mdast-util-gfm": "catalog:",
+    "micromark-extension-gfm": "catalog:",
     "p-retry": "catalog:",
+    "unist-util-visit": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "catalog:",
+    "@types/mdast": "catalog:",
     "esbuild": "catalog:"
   }
 }

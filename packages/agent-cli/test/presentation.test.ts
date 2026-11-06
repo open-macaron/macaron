@@ -11,9 +11,9 @@ const result = (fields: Record<string, unknown>): RunResult => RunResult.parse({
 describe("presentationProblems", () => {
   it("accepts attachments placed in any text readers see, and replies to review comments", () => {
     const placed = result({
-      message: "Before: ![a](attachment:image-1)",
-      pr: { title: "fix", body: "After: ![b](attachment:image-2)" },
-      replies: [{ inReplyTo: REVIEW_COMMENT, body: "Fixed: ![c](attachment:image-3)" }],
+      message: "Before:\n![a](attachment:image-1)",
+      pr: { title: "fix", body: "- After:\n\n  ![b](attachment:image-2)" },
+      replies: [{ inReplyTo: REVIEW_COMMENT, body: "Fixed.\n\n![c](attachment:image-3)\n\nThanks." }],
       attachments: [shot("image-1", "a"), shot("image-2", "b"), shot("image-3", "c")],
     });
 
@@ -32,9 +32,34 @@ describe("presentationProblems", () => {
       "the reply to comment 777 can't be threaded (only review comments can): answer it in message and remove it from replies",
     ]);
   });
+
+  it("names each attachment linked, left bare or set inside a sentence, with the markdown that shows it", () => {
+    const sloppy = result({
+      message: "- 1000x700: complete ([screenshot](attachment:image-1)).\n- 640x700: see ![b](attachment:image-2) here.\n- Logs: attachment:image-3",
+      attachments: [shot("image-1", "1000x700"), shot("image-2", "640x700"), shot("image-3", "Logs")],
+    });
+
+    expect(presentationProblems(sloppy, reviewCommentIds)).toEqual([
+      "attachment image-1 is linked or inside a sentence, so it won't read as a picture: replace it with ![1000x700](attachment:image-1) on a line of its own, after the text it illustrates",
+      "attachment image-2 is linked or inside a sentence, so it won't read as a picture: replace it with ![640x700](attachment:image-2) on a line of its own, after the text it illustrates",
+      "attachment image-3 is linked or inside a sentence, so it won't read as a picture: replace it with ![Logs](attachment:image-3) on a line of its own, after the text it illustrates",
+    ]);
+  });
 });
 
 describe("repairPresentation", () => {
+  it("moves attachments linked inside a sentence after the message, as pictures", () => {
+    const sloppy = result({
+      message: "- 1000x700: complete ([screenshot](attachment:image-1)).\n- 640x700: complete.",
+      attachments: [shot("image-1", "1000x700")],
+    });
+
+    const repaired = repairPresentation(sloppy, reviewCommentIds);
+
+    expect(repaired.message).toBe("- 1000x700: complete.\n- 640x700: complete.\n\n![1000x700](attachment:image-1)");
+    expect(presentationProblems(repaired, reviewCommentIds)).toEqual([]);
+  });
+
   it("adds unplaced attachments after the message, captions as alt text", () => {
     const repaired = repairPresentation(result({ message: "Verified.", attachments: [shot("image-1", "Dropdown open"), shot("image-2", "Filtered")] }), reviewCommentIds);
 

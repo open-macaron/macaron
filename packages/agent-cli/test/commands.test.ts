@@ -88,7 +88,7 @@ describe("finish", () => {
     const shot = join(root, "shot.png");
     await writeFile(shot, PNG);
     const reference = await attach(shot, "image", "The crash", undefined, inputs);
-    await writeFile(p.resultFile, JSON.stringify({ action: "reply", message: `Reproduced: ![The crash](${reference})`, summary: "Reproduced." }));
+    await writeFile(p.resultFile, JSON.stringify({ action: "reply", message: `Reproduced:\n\n![The crash](${reference})`, summary: "Reproduced." }));
 
     expect(await finish(inputs)).toBe(0);
 
