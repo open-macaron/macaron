@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { InjectDrizzle } from "@nestjs/drizzle";
-import type { AdminRefusalsPage, AdminRefusalsQuery, AdminRunsPage, AdminRunsQuery } from "@open-macaron/contracts";
-import { and, desc, eq, gte, isNotNull, lt, or, type SQL, sql } from "drizzle-orm";
+import type { AdminModelStats, AdminRefusalsPage, AdminRefusalsQuery, AdminRunsPage, AdminRunsQuery, ModelStatsRange } from "@open-macaron/contracts";
+import { and, count, desc, eq, gte, isNotNull, lt, or, type SQL, sql } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { Clock } from "../common/clock.ts";
 import { decodeCursor, encodeCursor } from "../common/cursor.ts";
@@ -118,6 +118,27 @@ export class ActivityService {
     };
   }
 
+  /** Each model's average and total cost and tokens over the settled runs of the range. */
+  async models(range: ModelStatsRange): Promise<AdminModelStats> {
+    const now = this.clock.now();
+    const days = { "7d": 7, "30d": 30, "90d": 90 }[range];
+    const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (days - 1)));
+    const models = await this.db
+      .select({
+        model: runs.model,
+        runs: count(),
+        avgCostUsd: sql<number>`avg(${runs.costMicros}) / 1e6`.mapWith(Number),
+        avgTokens: sql<number | null>`avg(${runs.tokensUsed})`.mapWith(Number),
+        totalCostUsd: sql<number>`coalesce(sum(${runs.costMicros}), 0) / 1e6`.mapWith(Number),
+        totalTokens: sql<number>`coalesce(sum(${runs.tokensUsed}), 0)`.mapWith(Number),
+      })
+      .from(runs)
+      .where(and(isNotNull(runs.settledAt), gte(runs.createdAt, since)))
+      .groupBy(runs.model)
+      .orderBy(desc(count()), runs.model);
+    return { since: since.toISOString(), models };
+  }
+
   private monthStart(): Date {
     const now = this.clock.now();
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -129,3 +150,4 @@ function after(createdAt: PgColumn, id: PgColumn, before: string | undefined): S
   const cursor = before === undefined ? undefined : decodeCursor(before);
   return cursor === undefined ? undefined : or(lt(createdAt, cursor.at), and(eq(createdAt, cursor.at), lt(id, cursor.id)));
 }
+

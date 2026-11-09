@@ -6,7 +6,7 @@ import { z } from "zod";
 
 // Records are the controller's API types, from its generated client. Type-only: erased from the
 // browser bundle, so nothing of the server-only client reaches it.
-import type { GetMeResponse, GetMyUsageResponse, ListEndpointsResponse, ListInvitationsResponse, ListRefusalsResponse, ListRunsData, ListRunsResponse, ListUsersResponse } from "#lib/server/controller/generated/types.gen.js";
+import type { GetMeResponse, GetModelStatsResponse, GetMyUsageResponse, ListEndpointsResponse, ListInvitationsResponse, ListRefusalsResponse, ListRunsData, ListRunsResponse, ListUsersResponse } from "#lib/server/controller/generated/types.gen.js";
 
 export type Invitation = ListInvitationsResponse["invitations"][number];
 export type InvitationStatus = Invitation["status"];
@@ -19,6 +19,17 @@ export type AdminRun = AdminRunsPage["runs"][number];
 export type AdminRefusal = ListRefusalsResponse["refusals"][number];
 export type RunStatus = UsageRun["status"];
 export type RunMode = NonNullable<NonNullable<ListRunsData["query"]>["mode"]>;
+export type ModelStats = GetModelStatsResponse;
+
+/** How far back the models page looks. */
+export const ModelStatsRange = z.enum(["7d", "30d", "90d"]);
+export type ModelStatsRange = z.infer<typeof ModelStatsRange>;
+
+export const modelStatsRangeLabels: Readonly<Record<ModelStatsRange, string>> = {
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  "90d": "Last 3 months",
+};
 
 /** Every run mode, as the activity page's filter lists them. */
 export const runModeLabels: Readonly<Record<RunMode, string>> = {

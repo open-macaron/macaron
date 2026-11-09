@@ -1,6 +1,9 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Put, Query, Req } from "@nestjs/common";
 import { ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import {
+  type AdminModelStats,
+  AdminModelStats as AdminModelStatsSchema,
+  AdminModelStatsQuery,
   type AdminRefusalsPage,
   AdminRefusalsPage as AdminRefusalsPageSchema,
   AdminRefusalsQuery,
@@ -65,6 +68,15 @@ export class AdminController {
   async listRefusals(@Req() request: Request, @Query({ schema: AdminRefusalsQuery }) query: AdminRefusalsQuery): Promise<AdminRefusalsPage> {
     await this.sessions.admin(request.headers);
     return this.activity.refusals(query);
+  }
+
+  @Get("models")
+  @ApiOperation({ operationId: "getModelStats", summary: "Each model's average and total cost and tokens over the settled runs of a range" })
+  @ApiResponse({ status: 200, standardSchema: AdminModelStatsSchema })
+  @ApiResponse({ status: 403, description: "Not an admin" })
+  async getModelStats(@Req() request: Request, @Query({ schema: AdminModelStatsQuery }) query: AdminModelStatsQuery): Promise<AdminModelStats> {
+    await this.sessions.admin(request.headers);
+    return this.activity.models(query.range);
   }
 
   @Get("invitations")
