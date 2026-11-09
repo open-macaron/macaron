@@ -58,6 +58,7 @@ export class ActivityService {
         status: run.status,
         model: run.model,
         costUsd: run.costMicros === null ? null : toUsd(run.costMicros),
+        tokensUsed: run.tokensUsed,
         createdAt: run.createdAt.toISOString(),
         asker: {
           githubId: run.triggerGithubId,

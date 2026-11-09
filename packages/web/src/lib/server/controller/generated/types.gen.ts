@@ -83,6 +83,7 @@ export type GetMyUsageResponses = {
             status: 'pending' | 'dispatched' | 'running' | 'completed' | 'failed' | 'aborted';
             model: string;
             costUsd: number | null;
+            tokensUsed: number | null;
             createdAt: string;
         }>;
         nextCursor: string | null;
@@ -448,6 +449,7 @@ export type ListRunsResponses = {
             status: 'pending' | 'dispatched' | 'running' | 'completed' | 'failed' | 'aborted';
             model: string;
             costUsd: number | null;
+            tokensUsed: number | null;
             createdAt: string;
             asker: {
                 githubId: number | null;

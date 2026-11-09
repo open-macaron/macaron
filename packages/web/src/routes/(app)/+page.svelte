@@ -3,6 +3,7 @@
   import ArrowRightIcon from "@lucide/svelte/icons/arrow-right";
   import KeyRoundIcon from "@lucide/svelte/icons/key-round";
   import CircleDollarSignIcon from "@lucide/svelte/icons/circle-dollar-sign";
+  import CoinsIcon from "@lucide/svelte/icons/coins";
   import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
   import { resolve } from "$app/paths";
   import CapabilityBadges from "#lib/components/admin/capability-badges.svelte";
@@ -14,7 +15,7 @@
   import * as Empty from "#lib/components/ui/empty/index.js";
   import { Skeleton } from "#lib/components/ui/skeleton/index.js";
   import RunsTable from "#lib/components/usage/runs-table.svelte";
-  import { formatUsd } from "#lib/format.js";
+  import { formatTokens, formatUsd } from "#lib/format.js";
   import type { MyLlmKey } from "#lib/keys/forms.js";
   import { getMe, getUsage } from "./me.remote.ts";
   import { Progress } from "#lib/components/ui/progress/index.js";
@@ -69,12 +70,17 @@
 
     <Card.Root>
       <Card.Header>
-        <Card.Description>Runs this month</Card.Description>
-        <Card.Title class="text-3xl font-semibold tabular-nums">{usage.monthRuns}</Card.Title>
-        <Card.Action><ActivityIcon class="size-4 text-muted-foreground" /></Card.Action>
+        <Card.Description>Tokens this month</Card.Description>
+        <Card.Title class="text-3xl font-semibold tabular-nums">{formatTokens(month.tokensUsed)}</Card.Title>
+        <Card.Action><CoinsIcon class="size-4 text-muted-foreground" /></Card.Action>
       </Card.Header>
-      <Card.Content>
-        <p class="text-xs text-muted-foreground">Reviews, plans, fixes and answers the bot ran because you mentioned it.</p>
+      <Card.Content class="grid gap-2">
+        {#if month.monthlyTokenCap !== null}
+          <Progress value={Math.min(100, ((month.tokensUsed + month.tokensReserved) / month.monthlyTokenCap) * 100)} aria-label="Share of your monthly token cap used" />
+          <p class="text-xs text-muted-foreground">Of your {formatTokens(month.monthlyTokenCap)} monthly token cap, on free models.</p>
+        {:else}
+          <p class="text-xs text-muted-foreground">Used by your runs on free models. <a class="underline underline-offset-4" href={resolve("/(app)/settings/key")}>Set a monthly token cap</a>.</p>
+        {/if}
       </Card.Content>
     </Card.Root>
 

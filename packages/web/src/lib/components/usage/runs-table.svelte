@@ -19,7 +19,7 @@
   import { Badge } from "#lib/components/ui/badge/index.js";
   import { Button } from "#lib/components/ui/button/index.js";
   import * as Table from "#lib/components/ui/table/index.js";
-  import { formatDate, formatUsd } from "#lib/format.js";
+  import { formatDate, formatMillions, formatUsd } from "#lib/format.js";
 
   let {
     runs,
@@ -43,6 +43,7 @@
       <Table.Head>Mode</Table.Head>
       <Table.Head>Model</Table.Head>
       <Table.Head>Status</Table.Head>
+      <Table.Head class="text-end">Tokens</Table.Head>
       <Table.Head class={["text-end", onselect === undefined && "pe-6"]}>Cost</Table.Head>
       {#if onselect}<Table.Head class="w-12 pe-6"><span class="sr-only">Details</span></Table.Head>{/if}
     </Table.Row>
@@ -60,6 +61,9 @@
         <Table.Cell><Badge variant="outline">{run.mode.replace("_", " ")}</Badge></Table.Cell>
         <Table.Cell><code class="text-xs text-muted-foreground">{run.model}</code></Table.Cell>
         <Table.Cell><StatusBadge tone={toneOf[run.status]} label={runStatusLabels[run.status]} /></Table.Cell>
+        <Table.Cell class="text-end tabular-nums">
+          {#if run.tokensUsed === null}<span class="text-muted-foreground">—</span>{:else}{formatMillions(run.tokensUsed)}{/if}
+        </Table.Cell>
         <Table.Cell class={["text-end tabular-nums", onselect === undefined && "pe-6"]}>
           {#if run.costUsd === null}<span class="text-muted-foreground">Settling…</span>{:else}{formatUsd(run.costUsd)}{/if}
         </Table.Cell>

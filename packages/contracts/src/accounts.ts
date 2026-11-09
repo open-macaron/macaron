@@ -112,6 +112,8 @@ export const UsageRun = z.object({
   model: z.string(),
   /** Settled cost; null until the backend reported the run's final usage. */
   costUsd: z.number().nonnegative().nullable(),
+  /** Tokens its key counted, read at settlement; null until then, or when they couldn't be read. */
+  tokensUsed: z.int().nonnegative().nullable(),
   createdAt: Timestamp,
 });
 export type UsageRun = z.infer<typeof UsageRun>;

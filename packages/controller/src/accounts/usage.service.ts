@@ -47,6 +47,7 @@ export class UsageService {
         status: run.status,
         model: run.model,
         costUsd: run.costMicros === null ? null : toUsd(run.costMicros),
+        tokensUsed: run.tokensUsed,
         createdAt: run.createdAt.toISOString(),
       })),
       nextCursor: rows.length > limit && last !== undefined ? encodeCursor(last.run.createdAt, last.run.id) : null,

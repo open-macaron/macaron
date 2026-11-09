@@ -4,7 +4,9 @@ test("the overview shows this month, the user's capabilities and recent runs", a
   const page = await signIn("defunkt");
   await page.goto("/");
   await expect(page.getByText("$15.00")).toBeVisible();
-  await expect(page.getByText("30", { exact: true })).toBeVisible();
+  await expect(page.getByText("Tokens this month")).toBeVisible();
+  await expect(page.getByText("120M", { exact: true })).toBeVisible();
+  await expect(page.getByText("Of your 500M monthly token cap, on free models.")).toBeVisible();
   await expect(page.getByText("Review", { exact: true })).toBeVisible();
   await expect(page.getByRole("row")).toHaveCount(6);
   await expect(page.getByText("Settling…")).toBeVisible();
@@ -15,6 +17,8 @@ test("the usage history pages with Load more, in one table", async ({ signIn }) 
   const page = await signIn("defunkt");
   await page.goto("/usage");
   await expect(page.getByRole("row")).toHaveCount(26);
+  await expect(page.getByRole("columnheader", { name: "Tokens" })).toBeVisible();
+  await expect(page.getByText("1.25M").first()).toBeVisible();
   await page.getByRole("button", { name: "Load more" }).click();
   await expect(page.getByRole("row")).toHaveCount(32);
   await expect(page.getByRole("columnheader", { name: "Thread" })).toHaveCount(1);
