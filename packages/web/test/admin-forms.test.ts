@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CapabilitiesInput, InvitationInput } from "../src/lib/admin/forms.ts";
-import { formatUsd } from "../src/lib/format.ts";
+import { formatMillions, formatUsd } from "../src/lib/format.ts";
 
 describe("InvitationInput", () => {
   it("takes a GitHub login and deduplicated capabilities", () => {
@@ -32,5 +32,14 @@ describe("formatUsd", () => {
     expect(formatUsd(0)).toBe("$0.00");
     expect(formatUsd(0.004)).toBe("<$0.01");
     expect(formatUsd(1.8)).toBe("$1.80");
+  });
+});
+
+describe("formatMillions", () => {
+  it("shows a run's tokens in millions, never a non-zero count as zero", () => {
+    expect(formatMillions(0)).toBe("0.00M");
+    expect(formatMillions(4_999)).toBe("<0.01M");
+    expect(formatMillions(5_000)).toBe("0.01M");
+    expect(formatMillions(1_254_000)).toBe("1.25M");
   });
 });

@@ -52,7 +52,7 @@ beforeAll(async () => {
     await runs.markDispatched(run.id, 9000 + index);
     if (launch.outcome !== "running") {
       await runs.finish(run.id, { status: launch.outcome === "failed" ? "failed" : "completed", failure: launch.outcome === "failed" ? "the agent ran out of turns" : null }, new Date(launch.at));
-      await runs.settle(run.id, 500_000, { repo: launch.repo, project: "x" }, new Date(launch.at));
+      await runs.settle(run.id, 500_000, { repo: launch.repo, project: "x" }, new Date(launch.at), 1_500_000);
     }
     await db.update(runsTable).set({ createdAt: new Date(launch.at) }).where(eq(runsTable.id, run.id));
   }
@@ -72,6 +72,7 @@ describe("ActivityService.runs", () => {
       runUrl: "https://github.com/open-macaron/runner/actions/runs/9003",
       limitUsd: 2,
       costUsd: null,
+      tokensUsed: null,
     });
     // Without an account, the login is the one the comment was written under.
     expect(first.runs[1]?.asker).toEqual({ githubId: NO_ACCOUNT, login: "review-bot", name: null, avatarUrl: null, hasAccount: false });
@@ -80,7 +81,7 @@ describe("ActivityService.runs", () => {
 
     const second = await activity.runs(AdminRunsQuery.parse({ limit: 2, before: first.nextCursor ?? undefined }));
     expect(second.runs.map((run) => run.number)).toEqual([2, 1]);
-    expect(second.runs[0]).toMatchObject({ status: "failed", failure: "the agent ran out of turns" });
+    expect(second.runs[0]).toMatchObject({ status: "failed", failure: "the agent ran out of turns", tokensUsed: 1_500_000 });
     expect(second.nextCursor).toBeNull();
   });
 

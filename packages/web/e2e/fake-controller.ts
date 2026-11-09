@@ -110,6 +110,7 @@ function fresh(): State {
     status: i === 0 ? "running" : "completed",
     model: "claude-sonnet-5-5",
     costUsd: i === 0 ? null : 0.5,
+    tokensUsed: i === 0 ? null : 1_250_000,
     createdAt: at(-i / 10),
   }));
   const defunkt = { githubId: 2, login: "defunkt", name: "Chris Wanstrath", avatarUrl: null, hasAccount: true };
@@ -126,11 +127,11 @@ function fresh(): State {
   });
   const adminRuns: AdminRun[] = [
     details(
-      { id: randomUUID(), repo: "open-macaron/sandbox", number: 7, kind: "issue", mode: "implement", status: "failed", model: "claude-opus-5-5", costUsd: 1.25, createdAt: at(0) },
+      { id: randomUUID(), repo: "open-macaron/sandbox", number: 7, kind: "issue", mode: "implement", status: "failed", model: "claude-opus-5-5", costUsd: 1.25, tokensUsed: 3_400_000, createdAt: at(0) },
       { githubId: 583231, login: "octocat", name: "The Octocat", avatarUrl: null, hasAccount: true },
     ),
     details(
-      { id: randomUUID(), repo: "open-macaron/sandbox", number: 8, kind: "pull", mode: "address_review", status: "completed", model: "claude-sonnet-5-5", costUsd: 0.4, createdAt: at(-0.05) },
+      { id: randomUUID(), repo: "open-macaron/sandbox", number: 8, kind: "pull", mode: "address_review", status: "completed", model: "claude-sonnet-5-5", costUsd: 0.4, tokensUsed: 2_000, createdAt: at(-0.05) },
       { githubId: 9001, login: "review-bot", name: null, avatarUrl: null, hasAccount: false },
     ),
     ...runs.map((run) => details(run, defunkt)),

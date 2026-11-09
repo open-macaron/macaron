@@ -27,6 +27,11 @@ export function formatUsd(usd: number): string {
   return usd > 0 && usd < 0.01 ? "<$0.01" : usdFormat.format(usd);
 }
 
+/** "1.25M": a run's tokens, in millions; counts that would round to "0.00M" show as "<0.01M". */
+export function formatMillions(tokens: number): string {
+  return tokens > 0 && tokens < 5_000 ? "<0.01M" : `${(tokens / 1_000_000).toFixed(2)}M`;
+}
+
 /** "1.2M", "48.2K", "950": tokens as people read them, as the bot's footer writes them. */
 export function formatTokens(tokens: number): string {
   return tokensFormat.format(tokens);

@@ -32,7 +32,7 @@
   }
 </script>
 
-<PageHeader title="Usage" description="Every run you asked for: thread, mode, model, status and estimated cost." />
+<PageHeader title="Usage" description="Every run you asked for: thread, mode, model, status, tokens and estimated cost." />
 
 <svelte:boundary>
   {@const first = await getUsage({ limit: PAGE })}

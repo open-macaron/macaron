@@ -300,11 +300,13 @@ describe("UsageService", () => {
         payerId: admin.id,
       });
       await db.update(runsTable).set({ createdAt: new Date(`2026-10-0${String(n)}T00:00:00Z`) }).where(eq(runsTable.id, run.id));
-      if (n !== 3) await runs.settle(run.id, 250_000 * n, { repo: "org-x/repo-a", project: "x" }, clock.now());
+      if (n !== 3) await runs.settle(run.id, 250_000 * n, { repo: "org-x/repo-a", project: "x" }, clock.now(), 1_000_000 * n);
     }
     const usage = new UsageService(db, clock);
     const first = await usage.page(102, 2, undefined);
     expect(first.runs.map((run) => run.createdAt)).toEqual(["2026-10-03T00:00:00.000Z", "2026-10-02T00:00:00.000Z"]);
+    // The unsettled run has no tokens yet.
+    expect(first.runs.map((run) => run.tokensUsed)).toEqual([null, 2_000_000]);
     expect(first).toMatchObject({ monthUsd: 0.75, monthRuns: 2 });
     expect(first.nextCursor).not.toBeNull();
     const second = await usage.page(102, 2, first.nextCursor ?? undefined);
