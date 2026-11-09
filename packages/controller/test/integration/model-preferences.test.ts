@@ -15,7 +15,7 @@ const SETTINGS = "https://macaron.example.test/settings/key";
 const prices = PriceList.of(
   new Map([
     ["claude-sonnet-5-5", { input_cost_per_token: 2e-6, output_cost_per_token: 1e-5 }],
-    ["claude-haiku-4-5", { input_cost_per_token: 1e-6, output_cost_per_token: 5e-6 }],
+    ["claude-haiku-5-5", { input_cost_per_token: 1e-6, output_cost_per_token: 5e-6 }],
     ["free-preview", { input_cost_per_token: 0, output_cost_per_token: 0 }],
     ["forgotten", { input_cost_per_token: 0, output_cost_per_token: 0 }],
   ]),
@@ -44,7 +44,7 @@ afterAll(async () => {
 
 describe("ModelPreferencesService", () => {
   it("offers the priced models and the free ones, and nothing picked yet", async () => {
-    expect(await service.mine("alice")).toEqual({ models: ["claude-haiku-4-5", "claude-sonnet-5-5", "free-preview"], free: ["free-preview"], preference: {} });
+    expect(await service.mine("alice")).toEqual({ models: ["claude-haiku-5-5", "claude-sonnet-5-5", "free-preview"], free: ["free-preview"], preference: {} });
   });
 
   it("refuses a pick without a pinned price and without the free mark, naming its field", async () => {
@@ -60,13 +60,13 @@ describe("ModelPreferencesService", () => {
   });
 
   it("stores the picks, and a run uses them over the configuration's defaults", async () => {
-    expect(await service.save("alice", { model: "claude-haiku-4-5", fastModel: "claude-haiku-4-5" })).toMatchObject({ preference: { model: "claude-haiku-4-5", fastModel: "claude-haiku-4-5" } });
-    expect(await service.resolve("alice", "plan", config, SETTINGS)).toEqual({ models: { model: "claude-haiku-4-5", fastModel: "claude-haiku-4-5" } });
+    expect(await service.save("alice", { model: "claude-haiku-5-5", fastModel: "claude-haiku-5-5" })).toMatchObject({ preference: { model: "claude-haiku-5-5", fastModel: "claude-haiku-5-5" } });
+    expect(await service.resolve("alice", "plan", config, SETTINGS)).toEqual({ models: { model: "claude-haiku-5-5", fastModel: "claude-haiku-5-5" } });
   });
 
   it("keeps a model the configuration sets for a mode: reviews stay on the one their rules were tuned for", async () => {
     expect(config.models.review).toBe("claude-sonnet-5-5");
-    expect(await service.resolve("alice", "review", config, SETTINGS)).toEqual({ models: { model: "claude-sonnet-5-5", fastModel: "claude-haiku-4-5" } });
+    expect(await service.resolve("alice", "review", config, SETTINGS)).toEqual({ models: { model: "claude-sonnet-5-5", fastModel: "claude-haiku-5-5" } });
   });
 
   it("leaves every choice to the configuration when the user picked nothing", async () => {
@@ -75,11 +75,11 @@ describe("ModelPreferencesService", () => {
   });
 
   it("refuses a run whose pick lost its price, pointing at the key page", async () => {
-    await service.save("alice", { model: "claude-haiku-4-5" });
+    await service.save("alice", { model: "claude-haiku-5-5" });
     // A redeploy took the model out of the pinned prices.
     const repriced = new ModelPreferencesService(db, PriceList.of(new Map([["claude-sonnet-5-5", { input_cost_per_token: 2e-6, output_cost_per_token: 1e-5 }]])), new FakeClock(new Date()));
     const resolved = await repriced.resolve("alice", "plan", config, SETTINGS);
-    expect(resolved).toEqual({ refusal: expect.stringContaining("claude-haiku-4-5") });
+    expect(resolved).toEqual({ refusal: expect.stringContaining("claude-haiku-5-5") });
     expect(JSON.stringify(resolved)).toContain(SETTINGS);
     // A review doesn't use the pick: the configuration's model runs it.
     expect(await repriced.resolve("alice", "review", config, SETTINGS)).toEqual({ models: { model: "claude-sonnet-5-5", fastModel: config.fastModel } });

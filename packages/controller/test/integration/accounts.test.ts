@@ -292,7 +292,7 @@ describe("UsageService", () => {
         mode: "plan",
         harness: "claude",
         model: "claude-sonnet-5-5",
-        fastModel: "claude-haiku-4-5",
+        fastModel: "claude-haiku-5-5",
         context: runContext({ mode: "plan" }),
         route: { mode: "plan", subject: { kind: "issue", number: 4242 }, checkout: { from: "defaultBranch" }, branch: "macaron/4242-work" },
         limitMicros: 1_000_000,

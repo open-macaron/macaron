@@ -11,7 +11,7 @@ const env = liveBifrost();
 const user = liveUpstream();
 
 /** The models a Bifrost deployment allows runs to use: each must be priced, or free and capped by tokens. */
-const MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5"];
+const MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
 /** Free on EnMaaS, and capped by tokens by the pinned list. */
 const FREE_MODEL = "rits/deepseek-ai/DeepSeek-V4.1-Flash-1017";
 
@@ -70,18 +70,18 @@ describe.skipIf(env === undefined || user === undefined)("Bifrost run keys over 
       }
       expect(spent).toBeLessThan(10_000);
       // Each virtual key uses its own payer's key only: the other run never reaches the real one.
-      for (let attempt = 0; attempt < 5; attempt++) expect((await message(other.key, "claude-haiku-4-5")).status).toBe(401);
+      for (let attempt = 0; attempt < 5; attempt++) expect((await message(other.key, "claude-haiku-5-5")).status).toBe(401);
       // While a user's key is live: Bifrost resolves the provider before it authenticates (since
       // v2.3.1), so only a routable model shows that a request without a virtual key is refused.
-      expect((await message("", "claude-haiku-4-5")).status).toBe(401);
-      expect((await message("sk-bf-00000000-0000-0000-0000-000000000000", "claude-haiku-4-5")).status).toBe(401);
+      expect((await message("", "claude-haiku-5-5")).status).toBe(401);
+      expect((await message("sk-bf-00000000-0000-0000-0000-000000000000", "claude-haiku-5-5")).status).toBe(401);
 
       // Outside the key's allowlist: Bifrost can't route it for this key (400) or refuses it (403).
       expect([400, 403]).toContain((await message(key.key, "claude-sonnet-4-6")).status);
       await expect(budget.mint(`${runId}-unpriced`, { usd: 0.05 }, 10, ["claude-sonnet-4-6"], { endpointId, ...user })).rejects.toThrow(/no price or free mark for claude-sonnet-4-6/);
 
       await budget.freeze(key);
-      expect((await message(key.key, "claude-haiku-4-5")).status).toBe(403);
+      expect((await message(key.key, "claude-haiku-5-5")).status).toBe(403);
       // A paid key has no token cap, but Bifrost counts its tokens all the same: settlement keeps them.
       const tokens = await budget.tokenUsage(key);
       expect(tokens?.limit).toBeUndefined();

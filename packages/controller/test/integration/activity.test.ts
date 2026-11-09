@@ -42,7 +42,7 @@ beforeAll(async () => {
       mode: launch.outcome === "failed" ? "implement" : "plan",
       harness: "claude",
       model: "claude-sonnet-5-5",
-      fastModel: "claude-haiku-4-5",
+      fastModel: "claude-haiku-5-5",
       context: runContext({ mode: "plan", trigger: { kind: "mention", author: launch.asker === MONALISA ? "mona-old-login" : "review-bot", url: `https://github.com/${launch.repo}/issues/${String(launch.number)}#issuecomment-1`, instruction: "@macaron-bot plan" } }),
       route: { mode: "plan", subject: { kind: "issue", number: launch.number }, checkout: { from: "defaultBranch" }, branch: `macaron/${String(launch.number)}-work` },
       limitMicros: 2_000_000,

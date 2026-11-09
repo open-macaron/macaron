@@ -28,8 +28,8 @@ function lookupOf(host: string): Promise<{ error: Error | null; address: unknown
 
 describe("probeEndpoint", () => {
   it("lists the models with the key in x-api-key", async () => {
-    const fake = endpoint(200, JSON.stringify({ data: [{ id: "claude-sonnet-5-5" }, { id: "claude-haiku-4-5" }], has_more: false }));
-    expect(await probeEndpoint("https://api.example.com", KEY, fake.get)).toEqual({ outcome: "accepted", models: ["claude-sonnet-5-5", "claude-haiku-4-5"] });
+    const fake = endpoint(200, JSON.stringify({ data: [{ id: "claude-sonnet-5-5" }, { id: "claude-haiku-5-5" }], has_more: false }));
+    expect(await probeEndpoint("https://api.example.com", KEY, fake.get)).toEqual({ outcome: "accepted", models: ["claude-sonnet-5-5", "claude-haiku-5-5"] });
     expect(fake.calls).toEqual([{ url: "https://api.example.com/v1/models?limit=1000", headers: { "x-api-key": KEY, "anthropic-version": "2023-06-01", accept: "application/json" } }]);
   });
 

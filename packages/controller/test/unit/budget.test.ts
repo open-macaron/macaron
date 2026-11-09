@@ -75,10 +75,10 @@ describe("BudgetService", () => {
   it("mints a key named after its run, expiring after its TTL, and says where runners send it", async () => {
     const { keys, budget } = setup();
 
-    const minted = await budget.mint("run-1", { usd: 0.5 }, 75, ["claude-sonnet-5-5", "claude-haiku-4-5"], upstream);
+    const minted = await budget.mint("run-1", { usd: 0.5 }, 75, ["claude-sonnet-5-5", "claude-haiku-5-5"], upstream);
 
     expect(minted).toEqual({ key: "vk-secret", hash: "vk-hash" });
-    expect(keys.calls).toEqual([`create ${RUN_KEY_PREFIX}run-1 0.5 - 2026-10-19T13:15:00.000Z claude-sonnet-5-5,claude-haiku-4-5 on ep-1`]);
+    expect(keys.calls).toEqual([`create ${RUN_KEY_PREFIX}run-1 0.5 - 2026-10-19T13:15:00.000Z claude-sonnet-5-5,claude-haiku-5-5 on ep-1`]);
     expect(budget.baseUrl).toBe("https://bifrost.example.test");
     expect(budget.usageLagMs).toBe(15_000);
   });

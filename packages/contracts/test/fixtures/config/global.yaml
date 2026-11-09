@@ -20,8 +20,7 @@ defaults:
   models:
     review: claude-sonnet-5-5
   # Claude Code's small background model. The run's key allows only it and the run's model.
-  # Haiku 4.5: the upstream doesn't serve Haiku 5.5 yet.
-  fastModel: claude-haiku-4-5
+  fastModel: claude-haiku-5-5
   runsOn: ubuntu-24.04
   draftPr: true
   timeoutMinutes: 60

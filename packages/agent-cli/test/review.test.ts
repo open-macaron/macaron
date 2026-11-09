@@ -98,7 +98,7 @@ describe("review run", () => {
     await writeFile(p.contextFile, JSON.stringify(context));
     await writeFile(
       p.bootstrapFile,
-      JSON.stringify({ harness: "claude", model: "claude-sonnet-5-5", baseUrl: "https://llm.example.test/anthropic", fastModel: "claude-haiku-4-5" }),
+      JSON.stringify({ harness: "claude", model: "claude-sonnet-5-5", baseUrl: "https://llm.example.test/anthropic", fastModel: "claude-haiku-5-5" }),
     );
     await writeFile(p.keyFile, "sk-bf-test");
   });
@@ -127,7 +127,7 @@ describe("review run", () => {
     expect(result).toMatchObject({ action: "review", review: [verdict], summary: "Checked 1 of 1 rule." });
     const seen = await readFile(log, "utf8");
     expect(seen).toContain("dontAsk");
-    expect(seen).toContain("env https://llm.example.test/anthropic sk-bf-test claude-haiku-4-5");
+    expect(seen).toContain("env https://llm.example.test/anthropic sk-bf-test claude-haiku-5-5");
     expect(seen).toContain("+     2 | eval(input);");
     expect(seen).toContain("### `org-x/no-eval` (error): No eval");
   });
