@@ -33,7 +33,7 @@ async function run(payerId: string, limitUsd: number, costUsd?: number, at: Date
     mode: "plan",
     harness: "claude",
     model: "claude-sonnet-5-5",
-    fastModel: "claude-haiku-4-5",
+    fastModel: "claude-haiku-5-5",
     context: runContext(),
     route: { mode: "plan", subject: { kind: "issue", number: 3000 + next }, checkout: { from: "defaultBranch" }, branch: `macaron/${String(3000 + next)}-plan` },
     limitMicros: Math.round(limitUsd * 1_000_000),

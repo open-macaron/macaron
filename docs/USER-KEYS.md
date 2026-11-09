@@ -10,7 +10,7 @@ Against `deploy/bifrost/dev.sh up` (Bifrost v2.3.0, the pinned image, configured
 |---|---|
 | A provider at runtime, base type `anthropic`, a custom `base_url`, one key? | Yes: `POST /api/providers` (`custom_provider_config.base_provider_type: anthropic`), then `POST /api/providers/{p}/keys`. Key values come back masked (first and last 4 characters). |
 | Does it answer Claude Code's calls? | Yes, once `allowed_requests` has `responses`, `responses_stream`, `count_tokens` and `list_models` (Bifrost maps Anthropic Messages to `responses`): messages, streaming, token counting and the model list all work through the edge. |
-| Routing | A virtual key whose `provider_configs` hold only that provider routes unprefixed model names (`claude-haiku-4-5`) to it: Claude Code needs no change. |
+| Routing | A virtual key whose `provider_configs` hold only that provider routes unprefixed model names (`claude-haiku-5-5`) to it: Claude Code needs no change. |
 | Pricing | A runtime provider's models are **unpriced** (`/api/models/details` has no costs: charged $0, so a budget can't limit them). A `provider`-scoped **pricing override** per model fixes it; `/api/models/details` then reports the prices under `overridden_pricing`. Charges were exact (2 calls × (10 in × $1/M + 4 out × $5/M) = $0.00006). |
 | One user's run using another's key? | Not when the virtual key's `key_ids` names the run's key: with a valid and an invalid key on the same provider, the key bound to the invalid one failed every call (401), the other succeeded every call. **Never `key_ids: ["*"]` on a shared provider.** |
 | A key deleted mid-run | Its virtual key's next call fails (`no_key_supports_model`): settlement cuts access at once. |

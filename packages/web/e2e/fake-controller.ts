@@ -421,7 +421,7 @@ function modelStats(range: string): z.infer<typeof zGetModelStatsResponse> {
   const models = [
     { model: "claude-sonnet-5-5", perDay: 3, avgCostUsd: 0.59, avgTokens: 1_550_000 },
     { model: "claude-opus-5-5", perDay: 1.5, avgCostUsd: 1.86, avgTokens: 2_510_000 },
-    { model: "claude-haiku-4-5", perDay: 1.4, avgCostUsd: 0.09, avgTokens: 980_000 },
+    { model: "claude-haiku-5-5", perDay: 1.4, avgCostUsd: 0.09, avgTokens: 980_000 },
     { model: "claude-sonnet-4-5", perDay: 1.2, avgCostUsd: 0.93, avgTokens: 1_930_000 },
     { model: "rits/deepseek-ai/DeepSeek-V4.1-Flash-1017", perDay: 0.8, avgCostUsd: 0, avgTokens: 3_290_000 },
     { model: "claude-opus-4-5", perDay: 0.7, avgCostUsd: 0.71, avgTokens: 1_120_000 },

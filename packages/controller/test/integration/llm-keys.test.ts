@@ -23,7 +23,7 @@ const v1v2 = KeyRing.of(new Map([[1, Buffer.alloc(32, 1)], [2, Buffer.alloc(32, 
 
 /** The endpoints, as far as these tests need them: the key decides the answer. */
 const probe = (_baseUrl: string, key: string): Promise<ProbeResult> => {
-  if (key.startsWith("sk-ant-good")) return Promise.resolve({ outcome: "accepted", models: ["claude-sonnet-5-5", "claude-haiku-4-5"] });
+  if (key.startsWith("sk-ant-good")) return Promise.resolve({ outcome: "accepted", models: ["claude-sonnet-5-5", "claude-haiku-5-5"] });
   if (key.startsWith("sk-ant-down")) return Promise.resolve({ outcome: "unreachable", reason: "no answer within 10 seconds" });
   return Promise.resolve({ outcome: "rejected", status: 401 });
 };
@@ -221,7 +221,7 @@ describe("LlmKeysService at a run's start", () => {
       mode: "review",
       harness: "claude",
       model: "claude-sonnet-5-5",
-      fastModel: "claude-haiku-4-5",
+      fastModel: "claude-haiku-5-5",
       context: runContext(),
       route: { mode: "review", subject: { kind: "pullRequest", number: 77 }, checkout: { from: "defaultBranch" }, branch: "macaron/77-review" },
       limitMicros: 500_000,

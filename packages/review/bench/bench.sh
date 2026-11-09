@@ -20,7 +20,7 @@ ENGINE="$(realpath "${1:?engine bundle}")"; LABEL="${2:?label}"; CHECKOUT="${3:?
 RESULTS="${6:-bench-results.jsonl}"
 ENV_FILE="${MACARON_ENV_FILE:-$HOME/.config/macaron/dev.env}"
 ADMIN="http://127.0.0.1:18080"
-MODEL="${BENCH_MODEL:-claude-haiku-4-5}"
+MODEL="${BENCH_MODEL:-claude-haiku-5-5}"
 BUDGET="${BENCH_BUDGET_USD:-5}"
 RPM="${BENCH_RPM:-60}"
 DB=(podman exec -i macaron-bifrost-dev-postgres psql -tA -U bifrost -d bifrost)
