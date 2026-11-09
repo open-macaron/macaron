@@ -1,5 +1,17 @@
 # @open-macaron/controller
 
+## 0.20.0
+
+### Minor Changes
+
+- b4e2518: Show token usage: the overview's "Runs this month" card becomes "Tokens this month", with progress against the monthly token cap, and each run on the usage and activity pages shows the tokens it used, in millions.
+
+### Patch Changes
+
+- Updated dependencies [b4e2518]
+  - @open-macaron/contracts@0.16.0
+  - @open-macaron/review@0.3.17
+
 ## 0.19.0
 
 ### Minor Changes

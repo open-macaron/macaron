@@ -1,5 +1,11 @@
 # @open-macaron/contracts
 
+## 0.16.0
+
+### Minor Changes
+
+- b4e2518: Show token usage: the overview's "Runs this month" card becomes "Tokens this month", with progress against the monthly token cap, and each run on the usage and activity pages shows the tokens it used, in millions.
+
 ## 0.15.0
 
 ### Minor Changes
