@@ -121,3 +121,14 @@ describe("ActivityService.refusals", () => {
     expect((await activity.refusals(AdminRefusalsQuery.parse({ repo: "org-x/repo-a" }))).refusals).toEqual([]);
   });
 });
+
+describe("ActivityService.models", () => {
+  it("averages and totals each model's settled runs since the range's first day", async () => {
+    // The three settled runs; the one still running isn't counted.
+    expect(await activity.models("30d")).toEqual({
+      since: "2026-09-24T00:00:00.000Z",
+      models: [{ model: "claude-sonnet-5-5", runs: 3, avgCostUsd: 0.5, avgTokens: 1_500_000, totalCostUsd: 1.5, totalTokens: 4_500_000 }],
+    });
+    expect(await activity.models("7d")).toEqual({ since: "2026-10-17T00:00:00.000Z", models: [] });
+  });
+});

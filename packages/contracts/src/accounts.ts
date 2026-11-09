@@ -187,6 +187,30 @@ export const AdminRunsPage = z.object({
 });
 export type AdminRunsPage = z.infer<typeof AdminRunsPage>;
 
+/** How far back the models page looks: today and the days before it (UTC). */
+export const ModelStatsRange = z.enum(["7d", "30d", "90d"]);
+export type ModelStatsRange = z.infer<typeof ModelStatsRange>;
+
+export const AdminModelStatsQuery = z.object({ range: ModelStatsRange.default("30d") });
+export type AdminModelStatsQuery = z.infer<typeof AdminModelStatsQuery>;
+
+/** What each model's settled runs cost and used over a range, most runs first. */
+export const AdminModelStats = z.object({
+  since: Timestamp,
+  models: z.array(
+    z.object({
+      model: z.string(),
+      runs: z.int().positive(),
+      avgCostUsd: z.number().nonnegative(),
+      /** Over the runs whose tokens could be read; null when none could. */
+      avgTokens: z.number().nonnegative().nullable(),
+      totalCostUsd: z.number().nonnegative(),
+      totalTokens: z.int().nonnegative(),
+    }),
+  ),
+});
+export type AdminModelStats = z.infer<typeof AdminModelStats>;
+
 /** A request the bot refused to run (no key, a budget, a missing capability…). */
 export const AdminRefusal = z.object({
   id: z.uuid(),

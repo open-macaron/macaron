@@ -18,6 +18,7 @@ import {
   zGetMyModelsResponse,
   zGetMyMonthResponse,
   zGetMyUsageResponse,
+  zGetModelStatsResponse,
   zListEndpointsResponse,
   zListInvitationsResponse,
   zListProjectsResponse,
@@ -276,6 +277,8 @@ async function route(request: IncomingMessage): Promise<Reply> {
   }
   if (user.role !== "admin") return reply(403, undefined, { error: "forbidden" });
 
+  if (url.pathname === "/v1/admin/models") return reply(200, zGetModelStatsResponse, modelStats(url.searchParams.get("range") ?? "30d"));
+
   if (url.pathname === "/v1/admin/runs") {
     const { user: asker, repo, status, mode } = Object.fromEntries(url.searchParams);
     const matching = state.adminRuns.filter((run) => (asker === undefined || String(run.asker.githubId) === asker) && (repo === undefined || run.repo === repo) && (status === undefined || run.status === status) && (mode === undefined || run.mode === mode));
@@ -411,3 +414,20 @@ createServer((request, response) => {
 }).listen(PORTS.controller, "127.0.0.1", () => {
   console.info(`fake controller on ${String(PORTS.controller)}`);
 });
+
+/** Each model's runs over the range: a free one costs $0, and runs scale with the range. */
+function modelStats(range: string): z.infer<typeof zGetModelStatsResponse> {
+  const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
+  const models = [
+    { model: "claude-sonnet-5-5", perDay: 3, avgCostUsd: 0.59, avgTokens: 1_550_000 },
+    { model: "claude-opus-5-5", perDay: 1.5, avgCostUsd: 1.86, avgTokens: 2_510_000 },
+    { model: "claude-haiku-4-5", perDay: 1.4, avgCostUsd: 0.09, avgTokens: 980_000 },
+    { model: "claude-sonnet-4-5", perDay: 1.2, avgCostUsd: 0.93, avgTokens: 1_930_000 },
+    { model: "rits/deepseek-ai/DeepSeek-V4.1-Flash-1017", perDay: 0.8, avgCostUsd: 0, avgTokens: 3_290_000 },
+    { model: "claude-opus-4-5", perDay: 0.7, avgCostUsd: 0.71, avgTokens: 1_120_000 },
+  ].map(({ model, perDay, avgCostUsd, avgTokens }) => {
+    const runs = Math.max(1, Math.round(perDay * days));
+    return { model, runs, avgCostUsd, avgTokens, totalCostUsd: avgCostUsd * runs, totalTokens: avgTokens * runs };
+  });
+  return { since: new Date(Math.floor(Date.now() / DAY) * DAY - (days - 1) * DAY).toISOString(), models };
+}

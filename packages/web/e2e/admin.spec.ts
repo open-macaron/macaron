@@ -118,6 +118,22 @@ test("an admin sees every user's runs, who asked for each, and a run's details",
   await expect(page.getByRole("row")).toHaveCount(34);
 });
 
+test("an admin compares the models' average cost and tokens per run, over a period", async ({ signIn }) => {
+  const page = await signIn("octocat");
+  await page.goto("/");
+  await page.getByRole("link", { name: "Models" }).click();
+  await expect(page.getByText("Average cost per run")).toBeVisible();
+  // Each bar carries its value; the table names every model in full.
+  await expect(page.getByText("$1.86", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("3.29M", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("row", { name: /rits\/deepseek-ai\/DeepSeek-V4\.1-Flash-1017/ })).toContainText("$0.00");
+  await expect(page.getByRole("row", { name: /claude-sonnet-5-5/ })).toContainText("90");
+
+  await page.getByLabel("Period").selectOption("90d");
+  await expect(page.getByText("Last 3 months, most runs first.")).toBeVisible();
+  await expect(page.getByRole("row", { name: /claude-sonnet-5-5/ })).toContainText("270");
+});
+
 test("an admin filters the activity, and the filters stay in the URL", async ({ signIn }) => {
   const page = await signIn("octocat");
   await page.goto("/admin/activity");

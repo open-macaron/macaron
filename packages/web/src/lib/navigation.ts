@@ -1,5 +1,6 @@
 import type { LucideIcon } from "@lucide/svelte";
 import ActivityIcon from "@lucide/svelte/icons/activity";
+import ChartAreaIcon from "@lucide/svelte/icons/chart-area";
 import ChartColumnIcon from "@lucide/svelte/icons/chart-column";
 import FolderGit2Icon from "@lucide/svelte/icons/folder-git-2";
 import GaugeIcon from "@lucide/svelte/icons/gauge";
@@ -40,6 +41,7 @@ export const navigation: readonly NavSection[] = [
     adminOnly: true,
     items: [
       { title: "Activity", route: "/(app)/admin/activity", icon: ActivityIcon },
+      { title: "Models", route: "/(app)/admin/models", icon: ChartAreaIcon },
       { title: "Users", route: "/(app)/admin/users", icon: UsersIcon },
       { title: "Invitations", route: "/(app)/admin/invitations", icon: MailPlusIcon },
       { title: "Endpoints", route: "/(app)/admin/endpoints", icon: ServerIcon },

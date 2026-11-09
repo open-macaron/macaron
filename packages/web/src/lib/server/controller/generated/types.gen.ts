@@ -513,6 +513,38 @@ export type ListRefusalsResponses = {
 
 export type ListRefusalsResponse = ListRefusalsResponses[keyof ListRefusalsResponses];
 
+export type GetModelStatsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        range?: '7d' | '30d' | '90d';
+    };
+    url: '/v1/admin/models';
+};
+
+export type GetModelStatsErrors = {
+    /**
+     * Not an admin
+     */
+    403: unknown;
+};
+
+export type GetModelStatsResponses = {
+    200: {
+        since: string;
+        models: Array<{
+            model: string;
+            runs: number;
+            avgCostUsd: number;
+            avgTokens: number | null;
+            totalCostUsd: number;
+            totalTokens: number;
+        }>;
+    };
+};
+
+export type GetModelStatsResponse = GetModelStatsResponses[keyof GetModelStatsResponses];
+
 export type ListInvitationsData = {
     body?: never;
     path?: never;
