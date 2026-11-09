@@ -1,5 +1,11 @@
 # @open-macaron/contracts
 
+## 0.17.0
+
+### Minor Changes
+
+- 5eabb9c: Add an admin Models page: each model's average cost and tokens per settled run over the last 7, 30 or 90 days, as ranked bar charts, with totals in a table (`GET /v1/admin/models`).
+
 ## 0.16.0
 
 ### Minor Changes
