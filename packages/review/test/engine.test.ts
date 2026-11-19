@@ -161,6 +161,7 @@ describe("git diffs", () => {
       [11, "eval(input);"],
       [12, "done();"],
     ]);
+    expect(parseGitDiff(raw).files[0]?.removed).toEqual(["old();"]);
   });
 
   it("keeps only the sections of the files asked for", () => {

@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 import { selectRules } from "./select.ts";
-import { judge, RULES_PER_SESSION } from "./judge.ts";
+import { formatCost, judge, RULES_PER_SESSION } from "./judge.ts";
 import { DEFAULT_KNOWLEDGE_URL, KnowledgeSource } from "./knowledge.ts";
 import { reviewSystemPrompt, reviewTaskPrompt, type ReviewSubject, triageSystemPrompt, triageTaskPrompt } from "./prompts.ts";
 import { countResults, renderText, sortResults } from "./render.ts";
@@ -24,6 +24,7 @@ Options:
   --harness claude       the local agent that judges (only claude for now)
   --model M              the harness's model (default: its own)
   --show-prompts         print the prompts instead of running the review
+  --verbose              review: show every rule in full, including those that passed or don't apply
   --dir PATH             the git worktree to review (default: the current directory)
   --all                  rules: every rule of the project, whatever changed
   --knowledge-url URL    the knowledge read API (default: ${DEFAULT_KNOWLEDGE_URL})
@@ -52,6 +53,7 @@ export async function main(argv: readonly string[], dependencies: { readonly cla
       harness: { type: "string", default: "claude" },
       model: { type: "string" },
       "show-prompts": { type: "boolean", default: false },
+      verbose: { type: "boolean", default: false },
       dir: { type: "string", default: "." },
       all: { type: "boolean", default: false },
       "knowledge-url": { type: "string", default: DEFAULT_KNOWLEDGE_URL },
@@ -136,7 +138,10 @@ export async function main(argv: readonly string[], dependencies: { readonly cla
     }
     emit({ type: "complete", status: "done", counts, problems: verification.problems, model: values.model ?? null, sessions: judgement.sessions });
   } else {
-    process.stdout.write(`${renderText(verification.results, { knowledgeCommit: knowledge.commit })}\n`);
+    process.stdout.write(`${renderText(verification.results, { knowledgeCommit: knowledge.commit }, { verbose: values.verbose })}\n`);
+    const costs = judgement.sessions.map((session) => session.costUsd).filter((cost) => cost !== undefined);
+    const total = costs.length === judgement.sessions.length ? costs.reduce((sum, cost) => sum + cost, 0) : undefined;
+    process.stderr.write(`harness: ${String(judgement.sessions.length)} sessions, reported cost ${formatCost(total)} in total\n`);
   }
   return counts.violation > 0 ? 1 : 0;
 }
