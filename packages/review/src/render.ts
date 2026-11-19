@@ -26,6 +26,10 @@ export interface MarkdownOptions {
 
 const MAX_INLINE_COMMENTS = 20;
 const MAX_EVIDENCE_LINKS = 3;
+/** The terminal shows a quote to locate the line, not to read it whole. */
+const MAX_QUOTE_CHARS = 120;
+/** Why a rule was ignored when nothing about it needs a reader's attention. */
+const QUIET_REASONS: ReadonlySet<string> = new Set(["not applicable", "no matching file changed"]);
 
 export const ORDER: readonly RuleOutcome[] = ["violation", "warning", "valid", "ignored"];
 
@@ -109,15 +113,32 @@ export function renderMarkdown(results: readonly RuleResult[], meta: ReviewMeta,
   return { body: lines.join("\n"), comments };
 }
 
-/** For a terminal: one block per rule, most severe first, then the counts. */
-export function renderText(results: readonly RuleResult[], meta: Pick<ReviewMeta, "knowledgeCommit">): string {
-  const blocks = sortResults(results).map((result) => {
-    const lines = [`${LABEL[result.outcome]}  ${result.id}  (${result.severity})`, `    ${result.title}`];
-    for (const evidence of result.evidence) lines.push(`    ${evidence.file}:${String(evidence.line)}  ${evidence.quote.trim()}`);
+/**
+ * For a terminal: a block per rule that needs attention (violations, warnings, and claims the
+ * verification dropped), most severe first; the rules that passed or don't apply on one line each,
+ * unless `verbose`. Then the counts.
+ */
+export function renderText(results: readonly RuleResult[], meta: Pick<ReviewMeta, "knowledgeCommit">, options: { readonly verbose?: boolean } = {}): string {
+  const sorted = sortResults(results);
+  // Ignored for a reason the reader may want to see: the reviewer claimed a violation that didn't hold.
+  const notable = (result: RuleResult) => result.outcome !== "valid" && (result.outcome !== "ignored" || !QUIET_REASONS.has(result.reason ?? ""));
+  const detailed = options.verbose === true ? sorted : sorted.filter(notable);
+  const blocks = detailed.map((result) => {
+    const lines = [`${LABEL[result.outcome]}  ${result.id}`, `    ${result.title}`];
+    for (const evidence of result.evidence) lines.push(`    ${evidence.file}:${String(evidence.line)}  ${truncate(evidence.quote.replace(/\s+/g, " ").trim(), MAX_QUOTE_CHARS)}`);
     const why = result.outcome === "ignored" && result.reason !== "not applicable" ? result.reason : (result.explanation ?? result.reason);
     if (why !== undefined && why.trim() !== "") lines.push(`    ${why.replace(/\s+/g, " ").trim()}`);
     return lines.join("\n");
   });
+  if (options.verbose !== true) {
+    const passed = sorted.filter((result) => result.outcome === "valid").map((result) => result.id);
+    const quiet = sorted.filter((result) => result.outcome === "ignored" && !notable(result)).length;
+    const summary = [
+      passed.length > 0 ? `✅ ${String(passed.length)} passed: ${passed.join(", ")}` : undefined,
+      quiet > 0 ? `➖ ${String(quiet)} ignored: nothing they check changed (--verbose lists them)` : undefined,
+    ].filter((line) => line !== undefined);
+    if (summary.length > 0) blocks.push(summary.join("\n"));
+  }
   const counts = countResults(results);
   const knowledge = meta.knowledgeCommit === null ? "" : ` · rules from open-macaron/knowledge@${meta.knowledgeCommit.slice(0, 7)}`;
   blocks.push(`❌ ${String(counts.violation)} · ⚠️ ${String(counts.warning)} · ✅ ${String(counts.valid)} · ➖ ${String(counts.ignored)}${knowledge}`);
@@ -145,6 +166,10 @@ function explanationCell(result: RuleResult, meta: ReviewMeta, oneLine: (text: s
     .map(({ file, line }) => `[\`${escapeCell(file)}:${String(line)}\`](https://github.com/${meta.repo}/blob/${meta.headSha}/${encodeURI(file)}#L${String(line)})`)
     .join(", ");
   return evidence === "" ? why : `${why}${why === "" ? "" : "<br>"}${evidence}`;
+}
+
+function truncate(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
 /** A Markdown table cell on one line. */

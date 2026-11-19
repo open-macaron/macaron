@@ -40,7 +40,7 @@ const SKIP_REASON: Readonly<Record<ReviewContext["skipped"][number]["reason"], s
 /**
  * Turns the reviewer's verdicts into the published rows. Deterministic, and the reason the reviewer
  * can't accuse anyone falsely: a violation stands only if each piece of evidence it keeps quotes a
- * line the pull request adds, at that number, in a file the rule applies to. A violation without
+ * line the pull request adds (rather than moves), at that number, in a file the rule applies to. A violation without
  * such evidence is published as ignored, never as a pass. A rule left without a verdict is a problem:
  * a review that doesn't account for every rule it was given isn't published.
  */
@@ -56,6 +56,7 @@ export function verifyReview(review: Pick<ReviewContext, "rules" | "skipped">, v
   const missing = review.rules.map(({ rule }) => rule.id).filter((id) => !byRule.has(id));
   if (missing.length > 0) problems.push(`the review left rules unchecked: ${missing.join(", ")}`);
   const files = new Map(diff.files.map((file) => [file.path, file]));
+  const moved = movedLines(diff.files);
 
   const results: RuleResult[] = review.rules.map(({ rule, files: ruleFiles }) => {
     const row = { id: rule.id, title: rule.title, severity: rule.severity };
@@ -68,14 +69,18 @@ export function verifyReview(review: Pick<ReviewContext, "rules" | "skipped">, v
         return { ...row, outcome: "ignored", reason: "not applicable", evidence: [], explanation: verdict.explanation };
       case "violation": {
         const allowed = new Set(ruleFiles);
-        const evidence = verdict.evidence.filter(({ file, line, quote }) => {
+        const verifiable = verdict.evidence.filter(({ file, line, quote }) => {
           const added = allowed.has(file) ? files.get(file)?.added.get(line) : undefined;
           if (added === undefined) return false;
           const [text, cited] = [normalize(added), normalize(quote)];
           // A quote must be specific: a few characters would "match" almost any line.
           return cited.length >= Math.min(MIN_QUOTE_CHARS, text.length) && text.includes(cited);
         });
-        if (evidence.length === 0) return { ...row, outcome: "ignored", reason: "violation claimed without verifiable evidence", evidence: [], explanation: undefined };
+        const evidence = verifiable.filter(({ file, line }) => !moved.has(normalize(files.get(file)?.added.get(line) ?? "")));
+        if (evidence.length === 0) {
+          const reason = verifiable.length > 0 ? "violation found only in code the change moves" : "violation claimed without verifiable evidence";
+          return { ...row, outcome: "ignored", reason, evidence: [], explanation: undefined };
+        }
         return { ...row, outcome: rule.severity === "error" ? "violation" : "warning", reason: undefined, evidence, explanation: verdict.explanation };
       }
     }
@@ -90,6 +95,24 @@ export function verifyReview(review: Pick<ReviewContext, "rules" | "skipped">, v
     explanation: undefined,
   }));
   return { results: [...results, ...skipped], problems };
+}
+
+/**
+ * Added lines that only move existing code: removed at least as many times as added, in any file
+ * (a refactor moves code across files). The code was there before; the change isn't what broke the rule.
+ */
+function movedLines(files: readonly DiffFile[]): ReadonlySet<string> {
+  const count = (lines: Iterable<string>) => {
+    const counts = new Map<string, number>();
+    for (const line of lines) {
+      const text = normalize(line);
+      if (text !== "") counts.set(text, (counts.get(text) ?? 0) + 1);
+    }
+    return counts;
+  };
+  const added = count(files.flatMap((file) => [...file.added.values()]));
+  const removed = count(files.flatMap((file) => file.removed));
+  return new Set([...added].filter(([text, times]) => (removed.get(text) ?? 0) >= times).map(([text]) => text));
 }
 
 /** Quotes are compared whitespace-insensitively: models re-indent. */

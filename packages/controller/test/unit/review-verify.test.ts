@@ -68,6 +68,23 @@ describe("verifyReview", () => {
     expect(results[0]?.outcome).toBe("violation");
   });
 
+  it("ignores a violation found only in code the change moves, from another file or re-indented", () => {
+    const line = "  const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));";
+    const moved: PullDiff = { ...diff, files: [toDiffFile("src/extension.ts", undefined, `@@ -10,2 +10,3 @@\n context();\n+${line}\n done();`), toDiffFile("src/old.ts", undefined, `@@ -1,2 +1 @@\n keep();\n-${line.trim()}`)] };
+    const { results } = verifyReview(review, [verdict({ verdict: "violation", evidence: [quote] })], moved);
+    expect(results[0]).toMatchObject({ outcome: "ignored", reason: "violation found only in code the change moves", evidence: [] });
+  });
+
+  it("keeps a violation on a copy the change adds beyond the lines it removes", () => {
+    const line = "  const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));";
+    const copied: PullDiff = {
+      ...diff,
+      files: [toDiffFile("src/extension.ts", undefined, `@@ -10,3 +10,4 @@\n context();\n-${line}\n+${line}\n+${line}\n done();`)],
+    };
+    const { results } = verifyReview(review, [verdict({ verdict: "violation", evidence: [quote] })], copied);
+    expect(results[0]?.outcome).toBe("violation");
+  });
+
   it("refuses a review that leaves a rule without a verdict, and never shows it as valid", () => {
     const { results, problems } = verifyReview(review, [verdict({ ruleId: "sandbox/style" })], diff);
     expect(problems).toEqual(["the review left rules unchecked: sandbox/json, sandbox/quiet"]);

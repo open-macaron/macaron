@@ -13,22 +13,22 @@ npx @open-macaron/review --project podman-desktop-extensions
 ```
 
 ```
-❌ violation  podman-desktop-extensions/svelte-runes  (error)
+❌ violation  podman-desktop-extensions/svelte-runes
     Use Svelte 5 runes, not legacy reactivity
     packages/frontend/src/lib/monaco-editor/FileEditor.svelte:18  export let debugLabel: string = '';
-    This uses Svelte 4 `export let` syntax instead of Svelte 5 runes. Use `let { debugLabel = '' } = $props();` instead.
+    `debugLabel` is a prop declared with Svelte 4's `export let`. Write `let { debugLabel = '' } = $props();` instead.
 
-⚠️ warning  podman-desktop-extensions/no-console-debug  (warning)
+⚠️ warning  podman-desktop-extensions/no-console-debug
     No console.log or console.debug in shipped code
     packages/frontend/src/lib/monaco-editor/FileEditor.svelte:38  console.log('editor language', language);
-    A `console.log()` call was added in shipped component code. Remove this debug statement before shipping.
+    This `console.log()` is a debug statement left in shipped component code. Remove it before shipping.
 
-➖ ignored  podman-desktop-extensions/ui-svelte-components  (warning)
-    Use @podman-desktop/ui-svelte components for common controls
-    The added lines contain state declarations and logic, not raw HTML control elements.
+➖ 1 ignored: nothing they check changed (--verbose lists them)
 
 ❌ 1 · ⚠️ 1 · ✅ 0 · ➖ 1 · rules from open-macaron/knowledge@1aaf8f4
 ```
+
+Rules that pass or don't apply fit on one line each; `--verbose` shows them in full. A violation found only in code the change moves (removed elsewhere in the diff, or re-indented) is ignored: the change didn't introduce it.
 
 Requires Node.js 24, git, and [Claude Code](https://code.claude.com) (`claude`, logged in).
 
@@ -53,6 +53,7 @@ Requires Node.js 24, git, and [Claude Code](https://code.claude.com) (`claude`, 
 | `--harness claude` | The local agent that judges (only Claude Code for now) |
 | `--model M` | The harness's model. Default: its own |
 | `--show-prompts` | Print the prompts instead of running the review |
+| `--verbose` | Show every rule in full, including those that passed or don't apply |
 | `--dir PATH` | The git worktree to review. Default: the current directory |
 | `--knowledge-url URL` | The rules' read API. Default: `https://open-macaron.github.io/knowledge/v1` |
 

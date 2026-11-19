@@ -127,6 +127,25 @@ describe("macaron-review", () => {
     expect(events.at(-1)).toMatchObject({ type: "complete", status: "done", counts: { violation: 1, warning: 0, valid: 1, ignored: 1 } });
   });
 
+  it("prints what needs attention in full, and the rest on one line unless --verbose", async () => {
+    const claude = await fakeClaude({
+      verdicts: [
+        { ruleId: "sandbox/no-eval", verdict: "violation", evidence: [{ file: "b.ts", line: 1, quote: "eval(input);" }], explanation: "eval on input" },
+        { ruleId: "global/no-console-debug", verdict: "pass", evidence: [], explanation: "no console" },
+      ],
+    });
+    expect(await main(args(), { claude })).toBe(1);
+    expect(out).toContain("❌ violation  sandbox/no-eval\n");
+    expect(out).toContain("✅ 1 passed: global/no-console-debug");
+    expect(out).toContain("➖ 1 ignored: nothing they check changed");
+    expect(out).not.toContain("no console");
+
+    out = "";
+    expect(await main(args("--verbose"), { claude })).toBe(1);
+    expect(out).toContain("✅ valid  global/no-console-debug");
+    expect(out).toContain("no console");
+  });
+
   it("drops a violation whose quote isn't on an added line (exit 0, shown as ignored)", async () => {
     const claude = await fakeClaude({
       verdicts: [

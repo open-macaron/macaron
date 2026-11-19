@@ -112,7 +112,7 @@ export async function judge(options: JudgeOptions): Promise<Judgement> {
     const parsed = answer.safeParse(output);
     sessions.push({ phase, rules: rules.length, exitCode, turns, costUsd, answered: parsed.success });
     const why = parsed.success ? "" : `, no valid answer: ${output === undefined ? "no structured output" : z.prettifyError(parsed.error)}`;
-    process.stderr.write(`harness ${phase} (${String(rules.length)} rules): ${String(turns ?? "?")} turns, reported cost $${String(costUsd ?? "?")}${isError ? ", ended with an error" : ""}${why}\n`);
+    process.stderr.write(`harness ${phase} (${String(rules.length)} rules): ${String(turns ?? "?")} turns, reported cost ${formatCost(costUsd)}${isError ? ", ended with an error" : ""}${why}\n`);
     return parsed.success ? parsed.data : undefined;
   };
   const check = async (rules: Rules): Promise<RuleVerdict[]> => {
@@ -230,4 +230,9 @@ function jsonText(text: string | undefined): unknown {
   } catch {
     return undefined;
   }
+}
+
+/** `$0.80`: the harness reports floats such as 0.7980240000000001. */
+export function formatCost(costUsd: number | undefined): string {
+  return costUsd === undefined ? "$?" : `$${costUsd.toFixed(2)}`;
 }

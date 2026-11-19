@@ -6,6 +6,8 @@ export interface DiffFile {
   readonly previousPath: string | undefined;
   /** Lines the change adds, by their number in the new version of the file. */
   readonly added: ReadonlyMap<number, string>;
+  /** Lines the change removes: an added line that repeats one of them only moves existing code. */
+  readonly removed: readonly string[];
   /** False when there is no patch (binary, too large) or it can't be parsed: nothing in it can be verified. */
   readonly readable: boolean;
 }
@@ -22,7 +24,7 @@ export interface PullDiff {
  * jsdiff can't parse makes the file unreadable: its evidence can't be verified.
  */
 export function diffFileFromPatch(path: string, previousPath: string | undefined, patch: string | undefined): DiffFile {
-  const unreadable = { path, previousPath, added: new Map<number, string>(), readable: false };
+  const unreadable = { path, previousPath, added: new Map<number, string>(), removed: [], readable: false };
   if (patch === undefined) return unreadable;
   let hunks: StructuredPatch["hunks"];
   try {
@@ -30,7 +32,7 @@ export function diffFileFromPatch(path: string, previousPath: string | undefined
   } catch {
     return unreadable;
   }
-  return { path, previousPath, added: addedLines(hunks), readable: true };
+  return { path, previousPath, ...changedLines(hunks), readable: true };
 }
 
 /** Every file of a `git diff` (with file headers), and the same diff annotated with line numbers. */
@@ -41,7 +43,7 @@ export function parseGitDiff(raw: string): { readonly files: DiffFile[]; readonl
     const path = stripPrefix(file.newFileName) ?? stripPrefix(file.oldFileName);
     if (path === undefined) continue;
     const previous = stripPrefix(file.oldFileName);
-    files.push({ path, previousPath: previous === path ? undefined : previous, added: addedLines(file.hunks), readable: file.hunks.length > 0 });
+    files.push({ path, previousPath: previous === path ? undefined : previous, ...changedLines(file.hunks), readable: file.hunks.length > 0 });
     sections.push(annotate(path, file.hunks));
   }
   return { files, annotated: sections.join("\n\n") };
@@ -67,17 +69,19 @@ export function annotatedFiles(annotated: string, paths: readonly string[]): str
     .join("\n\n");
 }
 
-function addedLines(hunks: StructuredPatch["hunks"]): Map<number, string> {
+function changedLines(hunks: StructuredPatch["hunks"]): { added: Map<number, string>; removed: string[] } {
   const added = new Map<number, string>();
+  const removed: string[] = [];
   for (const hunk of hunks) {
     let line = hunk.newStart;
     for (const text of hunk.lines) {
       if (text.startsWith("+")) added.set(line++, text.slice(1));
       else if (text.startsWith(" ")) line++;
-      // "-" lines and "\ No newline at end of file" don't exist in the new version.
+      else if (text.startsWith("-")) removed.push(text.slice(1));
+      // "\ No newline at end of file" doesn't exist in either version.
     }
   }
-  return added;
+  return { added, removed };
 }
 
 function annotate(path: string, hunks: StructuredPatch["hunks"]): string {
