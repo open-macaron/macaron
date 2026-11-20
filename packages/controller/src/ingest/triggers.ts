@@ -22,10 +22,11 @@ export function parseSubjectUrl(url: string | null): NotificationSubject | undef
  * `retry` runs the thread's last failed or stopped loop again, with the same mode and trigger.
  * `review` checks a pull request against the knowledge rules (explicit command only, no alias).
  * `remember` (`@macaron-bot remember: …`) proposes a lesson to open-macaron/knowledge: a `retro` run.
+ * `full-review` (or `full_review`) runs `verify` and `review` in one run (explicit command only, no alias).
  */
 export type Command = Mode | "stop" | "retry" | "remember";
 
-const COMMANDS: ReadonlySet<string> = new Set<Command>(["plan", "implement", "reproduce", "verify", "triage", "stop", "retry", "review", "remember"]);
+const COMMANDS: ReadonlySet<string> = new Set<Command>(["plan", "implement", "reproduce", "verify", "triage", "stop", "retry", "review", "full_review", "remember"]);
 /** Natural phrasings mapped to commands, e.g. "@macaron-bot can you reproduce?". */
 const ALIASES: readonly (readonly [RegExp, Command])[] = [
   [/\breproduc(e|ing)\b/i, "reproduce"],
@@ -62,7 +63,8 @@ export function parseMention(body: string, login: string): Mention | undefined {
     const after = range.start + match.index + match[0].length;
     const lineEnd = body.indexOf("\n", after);
     const rest = body.slice(after, lineEnd === -1 ? undefined : lineEnd).trim();
-    const first = rest.split(/\s+/)[0]?.toLowerCase().replace(/[^a-z_]/g, "") ?? "";
+    // `full-review` is written as people write it, and read as the mode's name.
+    const first = rest.split(/\s+/)[0]?.toLowerCase().replaceAll("-", "_").replace(/[^a-z_]/g, "") ?? "";
     const command = isCommand(first) ? first : ALIASES.find(([regex]) => regex.test(rest))?.[1];
     const platform = command === undefined ? undefined : Platform.safeParse(ON_PLATFORM.exec(rest)?.[1]?.toLowerCase()).data;
     return { command, platform, instruction: rest };

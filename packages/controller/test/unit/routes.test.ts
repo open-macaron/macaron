@@ -39,7 +39,7 @@ describe("routes from an issue", () => {
     expect(route(afterClosedPullRequest, issue, "implement")).toEqual({ mode: "implement", subject: issue, checkout: { from: "defaultBranch" }, branch: `${BRANCH}-5` });
   });
 
-  it.each<[Mode]>([["verify"], ["review"]])("%s is refused when the issue has no pull request", (mode) => {
+  it.each<[Mode]>([["verify"], ["review"], ["full_review"]])("%s is refused when the issue has no pull request", (mode) => {
     expect(route(fresh, issue, mode)).toEqual<Refusal>({ refused: `\`${mode}\` runs on a pull request, and this issue has none yet.` });
   });
 
@@ -57,8 +57,8 @@ describe("routes from the bot's own pull request", () => {
     expect(route(withOwnPullRequest, ownPullRequest, mode)).toEqual<Route>({ mode, subject: ownPullRequest, checkout: { from: "botBranch" }, branch: BRANCH });
   });
 
-  it("review is refused: the bot doesn't review itself", () => {
-    expect(route(withOwnPullRequest, ownPullRequest, "review")).toEqual<Refusal>({ refused: "I don't review my own pull requests. To check this change, use `verify` on it." });
+  it.each<[Mode]>([["review"], ["full_review"]])("%s is refused: the bot doesn't review itself", (mode) => {
+    expect(route(withOwnPullRequest, ownPullRequest, mode)).toEqual<Refusal>({ refused: "I don't review my own pull requests. To check this change, use `verify` on it." });
   });
 
   it.each<[Mode]>([["implement"], ["plan"]])("%s is refused: it belongs to the issue", (mode) => {
@@ -73,7 +73,7 @@ describe("routes from the bot's own pull request", () => {
 });
 
 describe("routes from another pull request", () => {
-  it.each<[Mode]>([["triage"], ["verify"], ["review"]])("%s runs on its head and answers there", (mode) => {
+  it.each<[Mode]>([["triage"], ["verify"], ["review"], ["full_review"]])("%s runs on its head and answers there", (mode) => {
     expect(route(humanPullRequest, pullRequest, mode)).toEqual<Route>({
       mode,
       subject: pullRequest,
@@ -132,6 +132,10 @@ describe("platforms", () => {
 
   it.each<[Mode, Subject]>([["triage", issue], ["review", pullRequest]])("refuses %s on another platform: it doesn't set the project up", (mode, subject) => {
     expect(route(withOwnPullRequest, subject, mode, "windows")).toEqual<Refusal>({ refused: `\`${mode}\` doesn't set the project up, so it always runs on Linux.` });
+  });
+
+  it("sends a full review to another platform, the rule checks with it: it sets the project up", () => {
+    expect(route(humanPullRequest, pullRequest, "full_review", "windows")).toMatchObject({ mode: "full_review", checkout: { from: "pullRequestHead", pullRequest: 40 }, platform: "windows" });
   });
 
   it("finds the platform of an earlier run, Linux for runs without a route", () => {

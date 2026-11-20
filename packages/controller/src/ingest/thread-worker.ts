@@ -194,8 +194,8 @@ export class ThreadWorker implements OnApplicationBootstrap {
       throw error;
     }
     const context = await this.contexts.build(config, thread, routed, trigger);
-    // Nothing to check: no runner, no cost.
-    if (context.review?.rules.length === 0) {
+    // Nothing to check: no runner, no cost. A full review still has its verification to do.
+    if (routed.mode === "review" && context.review?.rules.length === 0) {
       return { kind: "refused", reason: "no rule from open-macaron/knowledge applies to the files this pull request changes" };
     }
     return this.launcher.launch({ config, thread, route: routed, context, triggerGithubId });

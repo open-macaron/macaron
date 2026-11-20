@@ -23,10 +23,23 @@ describe("parseMention", () => {
     ["@macaron-bot stop", "stop"],
     ["@macaron-bot retry", "retry"],
     ["@macaron-bot review", "review"],
+    ["@macaron-bot full-review", "full_review"],
+    ["@macaron-bot full_review", "full_review"],
+    ["@macaron-bot Full-Review, please", "full_review"],
+    ["@macaron-bot verify and review", "verify"],
+    ["@macaron-bot verify that no regression is introduced", "verify"],
     ["@macaron-bot remember: Hyper-V machines run on windows-2025", "remember"],
     ["@macaron-bot could you try again?", "retry"],
   ])("reads %j as %s", (body, command) => {
     expect(parseMention(body, "macaron-bot")?.command).toBe(command);
+  });
+
+  it("reads a full review's platform and keeps its hint as the instruction", () => {
+    expect(parseMention("@macaron-bot full-review on windows check the dialog", "macaron-bot")).toEqual({
+      command: "full_review",
+      platform: "windows",
+      instruction: "full-review on windows check the dialog",
+    });
   });
 
   it("returns no command for a bare mention, so triage decides", () => {
