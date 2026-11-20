@@ -1,5 +1,11 @@
 # @open-macaron/agent-cli
 
+## 0.5.2
+
+### Patch Changes
+
+- 4e01949: `finish` collects the working tree's changes only in modes that can commit (#200). A `verify`, `reproduce` or `full_review` no longer fails when a build, or the repository's own Claude Code hooks (a formatter), leaves files changed: those changes can't be published, so they are logged and dropped instead of getting the run's answer refused.
+
 ## 0.5.1
 
 ### Patch Changes
