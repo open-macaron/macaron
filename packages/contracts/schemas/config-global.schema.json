@@ -18,6 +18,7 @@
           "minLength": 1
         },
         "models": {
+          "default": {},
           "type": "object",
           "propertyNames": {
             "type": "string",
@@ -332,7 +333,6 @@
       "required": [
         "harness",
         "model",
-        "models",
         "fastModel",
         "runsOn",
         "draftPr",

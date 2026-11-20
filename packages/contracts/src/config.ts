@@ -87,8 +87,8 @@ const DeprecatedModels = z.partialRecord(Mode, z.string().min(1)).meta({ depreca
 export const RepoSettings = z.strictObject({
   harness: Harness,
   model: z.string().min(1),
-  /** Deprecated and ignored: each user picks the model that checks rules (`ModelPreference.reviewModel`). Accepted until configurations drop it. */
-  models: DeprecatedModels,
+  /** Deprecated and ignored: each user picks the model that checks rules (`ModelPreference.reviewModel`). Accepted until configurations drop it, which they may. */
+  models: DeprecatedModels.default({}),
   /** The harness's small background model (Claude Code's "haiku" slot). Names follow the LLM backend. */
   fastModel: z.string().min(1),
   /** The Linux runner label. */
