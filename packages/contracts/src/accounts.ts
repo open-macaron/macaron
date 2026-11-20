@@ -330,13 +330,15 @@ export type SavedLlmKey = z.infer<typeof SavedLlmKey>;
 
 /**
  * The models a user's runs use instead of the projects' defaults, among the ones the gateway prices
- * or serves for free. Each field left out keeps the configuration's choice.
+ * or serves for free. Each field left out keeps the default it names.
  */
 export const ModelPreference = z.object({
-  /** The model runs use, unless the configuration sets one for their mode. */
+  /** The model runs use; the configuration's model when left out. */
   model: z.string().min(1).max(200).optional(),
   /** The model for quick chores (titles, summaries); the configuration's fast model when left out. */
   fastModel: z.string().min(1).max(200).optional(),
+  /** The model that checks the knowledge rules (`review`, a full review's rule checks); `model` when left out. */
+  reviewModel: z.string().min(1).max(200).optional(),
 });
 export type ModelPreference = z.infer<typeof ModelPreference>;
 

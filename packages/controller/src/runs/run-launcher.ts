@@ -17,7 +17,7 @@ import { type Asker, capabilityRefusal } from "../accounts/access.ts";
 import { MonthlyCapService, monthStart } from "../accounts/monthly-cap.service.ts";
 import { UsersService } from "../accounts/users.service.ts";
 import { LlmKeysService } from "../keys/llm-keys.service.ts";
-import { ModelPreferencesService } from "../keys/model-preferences.service.ts";
+import { ModelPreferencesService, type RunModels } from "../keys/model-preferences.service.ts";
 import { BudgetService, type RunKeyRef } from "../budget/budget.service.ts";
 import { PriceList } from "../budget/price-list.ts";
 import type { Route } from "../routing/routes.ts";
@@ -77,6 +77,16 @@ function keyOf(run: RunRecord): RunKeyRef | undefined {
 }
 
 /**
+ * A full review's rule sessions run on the payer's review model, named in the context (and allowed
+ * by the key, `keyModels`) when it isn't the run's.
+ */
+export function withRuleModel(context: RunContext, mode: Mode, models: RunModels): RunContext {
+  const { review } = context;
+  if (mode !== "full_review" || review === undefined || models.reviewModel === models.model) return context;
+  return { ...context, review: { ...review, model: models.reviewModel } };
+}
+
+/**
  * A run's whole life: launch (caps → key → dispatch), bootstrap (OIDC → one-time key hand-over),
  * completion (settle cost → artifact → Gate → publish) and abort. Every money decision is here.
  */
@@ -114,12 +124,13 @@ export class RunLauncher {
     if ("refusal" in resolved) return { kind: "refused", reason: resolved.refusal };
     const { upstream } = resolved;
 
-    const { config, thread, route, context } = request;
+    const { config, thread, route } = request;
     const mode = route.mode;
     // The payer's picks come first: one that lost its price refuses the run.
     const chosen = await this.preferences.resolve(payer.userId, mode, config, settings);
     if ("refusal" in chosen) return { kind: "refused", reason: chosen.refusal };
     const { models } = chosen;
+    const context = withRuleModel(request.context, mode, models);
     const limitUsd = runLimitUsd(config, mode, context);
     const limitTokens = runLimitTokens(keyModels(models, context), (model) => this.prices.runTokens(model));
     // Runs on free models cost $0: their payer's token cap bounds them instead, with the same words.
