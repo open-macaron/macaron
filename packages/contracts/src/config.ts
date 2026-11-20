@@ -1,7 +1,7 @@
 import { deepmergeCustom } from "deepmerge-ts";
 import { z } from "zod";
 import { CommitSha, GitHubLogin, RepoSlug, Slug, Usd } from "./ids.ts";
-import { Harness, Mode, Platform } from "./mode.ts";
+import { Harness, Platform } from "./mode.ts";
 
 const Params = z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/), z.string());
 
@@ -80,15 +80,10 @@ const OtherPlatform = Platform.exclude(["linux"]);
 /** Longest a run may take, in minutes. The controller derives how long run keys may live from it. */
 export const MAX_TIMEOUT_MINUTES = 360;
 
-/** Per-mode models, formerly `models.review`: no run reads them, each user picks their review model. */
-const DeprecatedModels = z.partialRecord(Mode, z.string().min(1)).meta({ deprecated: true, description: "Ignored: each user picks the model that checks rules, in the web app." });
-
 /** Every setting a repo ends up with once global → org → repo are merged. */
 export const RepoSettings = z.strictObject({
   harness: Harness,
   model: z.string().min(1),
-  /** Deprecated and ignored: each user picks the model that checks rules (`ModelPreference.reviewModel`). Accepted until configurations drop it, which they may. */
-  models: DeprecatedModels.default({}),
   /** The harness's small background model (Claude Code's "haiku" slot). Names follow the LLM backend. */
   fastModel: z.string().min(1),
   /** The Linux runner label. */
@@ -118,7 +113,6 @@ export type RepoSettings = z.infer<typeof RepoSettings>;
 export const RepoSettingsPatch = z.strictObject({
   harness: Harness.optional(),
   model: z.string().min(1).optional(),
-  models: DeprecatedModels.optional(),
   fastModel: z.string().min(1).optional(),
   runsOn: z.string().min(1).optional(),
   platforms: z.partialRecord(OtherPlatform, PlatformSettings.partial()).optional(),

@@ -68,8 +68,7 @@ describe("ModelPreferencesService", () => {
     expect(await service.resolve("alice", "plan", config, SETTINGS)).toEqual({ models: { model: "claude-haiku-5-5", fastModel: "claude-haiku-5-5", reviewModel: "claude-haiku-5-5" } });
   });
 
-  it("checks rules on the user's default model, not on the configuration's deprecated `models.review`", async () => {
-    expect(config.models.review).toBe("claude-sonnet-5-5");
+  it("checks rules on the user's default model", async () => {
     expect(await service.resolve("alice", "review", config, SETTINGS)).toEqual({ models: { model: "claude-haiku-5-5", fastModel: "claude-haiku-5-5", reviewModel: "claude-haiku-5-5" } });
   });
 

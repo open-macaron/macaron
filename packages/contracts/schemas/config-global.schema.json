@@ -17,30 +17,6 @@
           "type": "string",
           "minLength": 1
         },
-        "models": {
-          "default": {},
-          "type": "object",
-          "propertyNames": {
-            "type": "string",
-            "enum": [
-              "triage",
-              "plan",
-              "implement",
-              "address_review",
-              "reproduce",
-              "verify",
-              "retro",
-              "review",
-              "full_review"
-            ]
-          },
-          "additionalProperties": {
-            "type": "string",
-            "minLength": 1
-          },
-          "deprecated": true,
-          "description": "Ignored: each user picks the model that checks rules, in the web app."
-        },
         "fastModel": {
           "type": "string",
           "minLength": 1

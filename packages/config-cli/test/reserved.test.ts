@@ -6,7 +6,7 @@ const org = (extra = "") => `org: sandbox\nid: 1\nowners: "@o/t"\nbots: [alice]\
 
 describe("changesReserved", () => {
   it("lets owners change what they own", () => {
-    expect(changesReserved(org(), org("defaults:\n  models: { review: claude-sonnet-5-5 }\n"))).toBe(false);
+    expect(changesReserved(org(), org("defaults:\n  model: claude-sonnet-5-5\n"))).toBe(false);
     expect(changesReserved(org(), org("repos:\n  x: { commands: { build: npm run build } }\n"))).toBe(false);
     expect(changesReserved(org("repos:\n  x: {}\n"), org("repos:\n  y:\n"))).toBe(false);
     expect(changesReserved(org("repos:\n  x: { budgets: { implement: 9 } }\n"), org("repos:\n  X: { budgets: { implement: 9 }, commands: { test: npm test } }\n"))).toBe(false);

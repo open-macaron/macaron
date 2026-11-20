@@ -59,7 +59,7 @@ export const ReviewContext = z.strictObject({
   ),
   /** open-macaron/knowledge commit the rules come from; null when no slice exists for the repo. */
   knowledgeCommit: CommitSha.nullable(),
-  /** The rule sessions' model when it isn't the run's: a full review's `models.review`. */
+  /** The rule sessions' model when it isn't the run's: the payer's review model, for a full review. */
   model: z.string().min(1).optional(),
 });
 export type ReviewContext = z.infer<typeof ReviewContext>;

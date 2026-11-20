@@ -97,7 +97,6 @@ function repoConfig(compact: boolean): RepoConfig {
     bots: [],
     harness: "claude",
     model: "anthropic/claude-sonnet-5.5",
-    models: {},
     fastModel: "anthropic/claude-haiku-5.5",
     runsOn: "ubuntu-24.04",
     draftPr: true,
