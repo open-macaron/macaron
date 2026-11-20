@@ -17,7 +17,6 @@ describe("a realistic configuration tree", () => {
       knowledge: "podman-desktop-extensions",
       runsOn: "ubuntu-26.04",
       environment: { source: "shared", name: "podman-desktop-extensions" },
-      models: { review: "claude-sonnet-5-5" },
       contribution: { dco: true },
       fallback: false,
     });
@@ -144,15 +143,6 @@ describe("parseConfigTree", () => {
       expect.stringMatching(/^README\.md: not a configuration file/),
       expect.stringMatching(/^orgs\/a\/notes\.md: not a configuration file/),
     ]);
-  });
-
-  it("accepts a configuration without the deprecated per-mode models", async () => {
-    const global = (await readConfigFiles(repoConfigDir)).get("global.yaml") ?? "";
-    const withoutModels = global.replace(/^ {2}models:\n( {4}.*\n)+/m, "");
-    expect(withoutModels).not.toMatch(/^ {2}models:/m);
-
-    const files = new Map(Object.entries({ "global.yaml": withoutModels, "orgs/a/org.yaml": `${org}repos:\n  r: {}\n` }));
-    expect(parseConfigTree(files).repos.get("a/r")?.models).toEqual({});
   });
 
   it("reports a missing global.yaml", () => {

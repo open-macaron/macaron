@@ -5,7 +5,6 @@ const global = GlobalFile.parse({
   defaults: {
     harness: "claude",
     model: "anthropic/claude-sonnet-5.5",
-    models: { review: "anthropic/claude-haiku-5.5" },
     fastModel: "anthropic/claude-haiku-5.5",
     runsOn: "ubuntu-24.04",
     draftPr: true,
@@ -120,9 +119,8 @@ describe("resolveRepoConfig", () => {
     expect(RepoSettingsPatch.safeParse({ environment: { source: "upstream", path: "scripts/env" } }).success).toBe(false);
   });
 
-  it("merges per-mode model overrides and rejects unknown modes", () => {
-    expect(resolve({ models: { implement: "anthropic/claude-opus-5.5" } })?.models).toEqual({ review: "anthropic/claude-haiku-5.5", implement: "anthropic/claude-opus-5.5" });
-    expect(RepoSettingsPatch.safeParse({ models: { reviw: "m" } }).success).toBe(false);
+  it("refuses the per-mode models it no longer has: each user picks their review model", () => {
+    expect(RepoSettingsPatch.safeParse({ models: { review: "anthropic/claude-haiku-5.5" } }).success).toBe(false);
   });
 
   it("runs on Linux by default, and on the other platforms a level enables", () => {
