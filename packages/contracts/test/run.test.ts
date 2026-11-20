@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ReviewVerdicts, RunResult, allowedActions } from "../src/index.ts";
+import { ReviewVerdicts, RunResult, allowedActions, fullEnvironmentModes } from "../src/index.ts";
 
 const base = {
   replies: [],
@@ -47,9 +47,18 @@ describe("RunResult", () => {
     expect(allowedActions.review).toEqual(["review"]);
   });
 
-  it("never lets triage or reproduce commit", () => {
+  it("lets a full review carry its verify answer next to the verdicts, and publish that answer alone", () => {
+    const verdict = { ruleId: "sandbox/no-null", verdict: "pass", evidence: [], explanation: "No null." };
+    expect(RunResult.safeParse({ ...base, action: "review", review: [verdict], message: "### Verdict\n✅ **Verified**: it works." }).success).toBe(true);
+    expect(allowedActions.full_review).toEqual(["review", "reply", "ask", "noop"]);
+    expect(fullEnvironmentModes.has("full_review")).toBe(true);
+    expect(fullEnvironmentModes.has("review")).toBe(false);
+  });
+
+  it("never lets triage, reproduce or the checking modes commit", () => {
     expect(allowedActions.triage).not.toContain("commit");
     expect(allowedActions.reproduce).not.toContain("commit");
     expect(allowedActions.verify).not.toContain("commit");
+    expect(allowedActions.full_review).not.toContain("commit");
   });
 });

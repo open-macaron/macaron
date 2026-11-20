@@ -1,4 +1,4 @@
-import { type Capability, type Mode, requiredCapability } from "@open-macaron/contracts";
+import { type Capability, type Mode, requiredCapabilities } from "@open-macaron/contracts";
 
 /** The account a run is for: what its owner may ask the bot for. */
 export interface Asker {
@@ -31,7 +31,7 @@ export function askedBy(batch: readonly Requester[], isBot: (login: string) => b
  */
 export function capabilityRefusal(asker: Asker | undefined, mode: Mode, webApp: string): string | undefined {
   if (asker === undefined) return `this needs an account on macaron: ask an administrator for an invitation (${webApp})`;
-  const needed = requiredCapability[mode];
-  if (asker.capabilities.includes(needed)) return undefined;
-  return `this account can't ask for \`${needed}\`: an administrator grants it on macaron (${webApp})`;
+  const missing = requiredCapabilities[mode].filter((capability) => !asker.capabilities.includes(capability));
+  if (missing.length === 0) return undefined;
+  return `this account can't ask for ${missing.map((capability) => `\`${capability}\``).join(" and ")}: an administrator grants ${missing.length === 1 ? "it" : "them"} on macaron (${webApp})`;
 }

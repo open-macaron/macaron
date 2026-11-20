@@ -41,6 +41,7 @@ export const runModeLabels: Readonly<Record<RunMode, string>> = {
   verify: "Verify",
   retro: "Retro",
   review: "Review",
+  full_review: "Full review",
 };
 
 /** Every run status, as users read it. */

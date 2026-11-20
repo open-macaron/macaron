@@ -190,6 +190,7 @@ export const RunResult = z
     review: z.array(RuleVerdict).max(200).optional(),
   })
   .superRefine((result, ctx) => {
+    // A review may also carry `message`: a full review's verify answer.
     if ((result.action === "review") !== (result.review !== undefined)) {
       ctx.addIssue({ code: "custom", path: ["review"], message: "required when action is review, and only then" });
     }

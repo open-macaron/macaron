@@ -10,17 +10,18 @@ export const Capability = z.enum(["triage", "plan", "implement", "reproduce", "v
 export type Capability = z.infer<typeof Capability>;
 
 /**
- * The capability a run of each mode needs from the user who pays for it. Exhaustive: a new Mode
- * doesn't compile without a decision here.
+ * The capabilities a run of each mode needs from the user who pays for it, all of them. Exhaustive:
+ * a new Mode doesn't compile without a decision here.
  */
-export const requiredCapability: Readonly<Record<Mode, Capability>> = {
-  triage: "triage",
-  plan: "plan",
-  implement: "implement",
+export const requiredCapabilities: Readonly<Record<Mode, readonly Capability[]>> = {
+  triage: ["triage"],
+  plan: ["plan"],
+  implement: ["implement"],
   // Replying to review comments on the bot's pull request changes code, like implementing.
-  address_review: "implement",
-  reproduce: "reproduce",
-  verify: "verify",
-  retro: "remember",
-  review: "review",
+  address_review: ["implement"],
+  reproduce: ["reproduce"],
+  verify: ["verify"],
+  retro: ["remember"],
+  review: ["review"],
+  full_review: ["verify", "review"],
 };

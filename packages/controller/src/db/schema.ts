@@ -25,7 +25,7 @@ export const threadKind = pgEnum("thread_kind", ["issue", "pull"]);
 /** `refused`: answered with a refusal, which `retry` replays once its cause is fixed. */
 export const eventStatus = pgEnum("event_status", ["pending", "done", "dropped", "refused"]);
 export const runStatus = pgEnum("run_status", ["pending", "dispatched", "running", "completed", "failed", "aborted"]);
-export const runMode = pgEnum("run_mode", ["triage", "plan", "implement", "address_review", "reproduce", "verify", "retro", "review"]);
+export const runMode = pgEnum("run_mode", ["triage", "plan", "implement", "address_review", "reproduce", "verify", "retro", "review", "full_review"]);
 export const ledgerKind = pgEnum("ledger_kind", ["run", "router"]);
 /** What a user may ask the bot for: one value per capability, appended by migrations, never renamed. */
 export const capability = pgEnum("capability", Capability.enum);

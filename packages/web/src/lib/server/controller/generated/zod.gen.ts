@@ -218,7 +218,8 @@ export const zListRunsQuery = z.object({
         'reproduce',
         'verify',
         'retro',
-        'review'
+        'review',
+        'full_review'
     ]).optional()
 });
 
