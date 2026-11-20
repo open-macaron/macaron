@@ -41,7 +41,7 @@ export const AttachmentLimits = z.strictObject({
 export type AttachmentLimits = z.infer<typeof AttachmentLimits>;
 
 /**
- * What a `review` run checks (DESIGN.md §6.3): the pull request at an exact head, and the knowledge
+ * What a `review` or `full_review` run checks (DESIGN.md §6.3): the pull request at an exact head, and the knowledge
  * rules whose globs match its changed files. Rules that match nothing are listed so the review's
  * table can show them as ignored; the agent never sees them.
  */
@@ -59,6 +59,8 @@ export const ReviewContext = z.strictObject({
   ),
   /** open-macaron/knowledge commit the rules come from; null when no slice exists for the repo. */
   knowledgeCommit: CommitSha.nullable(),
+  /** The rule sessions' model when it isn't the run's: a full review's `models.review`. */
+  model: z.string().min(1).optional(),
 });
 export type ReviewContext = z.infer<typeof ReviewContext>;
 
@@ -95,13 +97,13 @@ export const RunContext = z.strictObject({
   priorLoops: z.array(LoopSummary),
   commands: Commands,
   attachments: AttachmentLimits,
-  /** Set iff mode is `review`. */
+  /** Set iff the mode runs a rule review (`ruleReviewModes`). */
   review: ReviewContext.optional(),
   /** The machine's operating system. Defaults keep contexts from controllers that predate platforms valid. */
   platform: Platform.default("linux"),
   /** The platforms this repository's runs can use: where a triage run may escalate to. */
   platforms: z.array(Platform).min(1).default(["linux"]),
-  /** Empty for reviews (they get rules, in `review`) and in contexts from controllers that predate it. */
+  /** Empty for `review` runs (they get rules, in `review`) and in contexts from controllers that predate it. */
   knowledge: RunKnowledge.default({ commit: null, lessons: [], rules: [] }),
 });
 export type RunContext = z.infer<typeof RunContext>;

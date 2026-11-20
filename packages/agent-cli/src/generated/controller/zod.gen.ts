@@ -111,7 +111,8 @@ export const zBootstrapResponse = z.object({
                 severity: z.enum(['error', 'warning']),
                 reason: z.enum(['no_matching_file', 'over_limit'])
             })),
-            knowledgeCommit: z.string().regex(/^[0-9a-f]{40}$/).nullable()
+            knowledgeCommit: z.string().regex(/^[0-9a-f]{40}$/).nullable(),
+            model: z.string().min(1).optional()
         }).optional(),
         platform: z.enum([
             'linux',

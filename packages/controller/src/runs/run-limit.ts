@@ -1,4 +1,4 @@
-import type { Mode, RepoConfig } from "@open-macaron/contracts";
+import type { Mode, RepoConfig, RunContext } from "@open-macaron/contracts";
 import type { TokenUsage } from "../budget/run-keys.ts";
 
 /**
@@ -14,6 +14,14 @@ export function runLimitUsd(config: Pick<RepoConfig, "budgets" | "reviewCost">, 
   if (mode === "review") return rules();
   if (mode === "full_review") return config.budgets.verify + rules();
   return config.budgets[mode];
+}
+
+/**
+ * The models a run's key allows, fixed at launch: its token cap and its settlement follow from them.
+ * A full review's rule sessions may use another model (`review.model`).
+ */
+export function keyModels(run: { readonly model: string; readonly fastModel: string | null }, context: Pick<RunContext, "review">): readonly string[] {
+  return [run.model, run.fastModel ?? run.model, ...(context.review?.model === undefined ? [] : [context.review.model])];
 }
 
 /**
