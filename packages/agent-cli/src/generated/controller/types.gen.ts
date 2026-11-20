@@ -42,7 +42,7 @@ export type BootstrapResponses = {
         harness: 'claude' | 'codex' | 'opencode';
         model: string;
         context: {
-            mode: 'triage' | 'plan' | 'implement' | 'address_review' | 'reproduce' | 'verify' | 'retro' | 'review';
+            mode: 'triage' | 'plan' | 'implement' | 'address_review' | 'reproduce' | 'verify' | 'retro' | 'review' | 'full_review';
             repo: string;
             number: number;
             kind: 'issue' | 'pull';
@@ -72,7 +72,7 @@ export type BootstrapResponses = {
             }>;
             priorLoops: Array<{
                 loop: number;
-                mode: 'triage' | 'plan' | 'implement' | 'address_review' | 'reproduce' | 'verify' | 'retro' | 'review';
+                mode: 'triage' | 'plan' | 'implement' | 'address_review' | 'reproduce' | 'verify' | 'retro' | 'review' | 'full_review';
                 summary: string;
                 costUsd: number;
             }>;

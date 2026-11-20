@@ -186,6 +186,16 @@ describe("prompts", () => {
     expect(system).toContain("`git status --short`");
   });
 
+  it("give a full review's verify session the verify instructions and actions, and leave the rules to the other session", async () => {
+    const context = RunContext.parse(JSON.parse(await readFile(paths(inputs).contextFile, "utf8")));
+    const system = systemPrompt(RunContext.parse({ ...context, mode: "full_review" }), "/out");
+
+    expect(system).toContain("## Mode: full_review");
+    expect(system).toContain("Verify that the change on this branch does what it should");
+    expect(system).toContain("Another session checks the pull request against the project's rules");
+    expect(system).toContain("Allowed actions in this mode: reply, ask, noop.");
+  });
+
   it("tell the agent its mode, the allowed actions, where to write, how to link code, and include the schema", async () => {
     const context = RunContext.parse(JSON.parse(await readFile(paths(inputs).contextFile, "utf8")));
     const system = systemPrompt(context, "/out");

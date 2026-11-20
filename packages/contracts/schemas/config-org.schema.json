@@ -56,7 +56,8 @@
               "reproduce",
               "verify",
               "retro",
-              "review"
+              "review",
+              "full_review"
             ]
           },
           "additionalProperties": {
@@ -305,7 +306,8 @@
                 "reproduce",
                 "verify",
                 "retro",
-                "review"
+                "review",
+                "full_review"
               ]
             },
             "additionalProperties": {
@@ -555,7 +557,8 @@
                   "reproduce",
                   "verify",
                   "retro",
-                  "review"
+                  "review",
+                  "full_review"
                 ]
               },
               "additionalProperties": {

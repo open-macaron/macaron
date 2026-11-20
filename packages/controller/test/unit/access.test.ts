@@ -39,6 +39,14 @@ describe("capabilityRefusal", () => {
     expect(capabilityRefusal({ userId: "u1", githubId: 1, capabilities: ["triage"] }, "retro", WEB)).toMatch(/`remember`/);
   });
 
+  it("asks both verify and review for a full review, naming what is missing", () => {
+    expect(capabilityRefusal({ userId: "u1", githubId: 1, capabilities: ["verify", "review"] }, "full_review", WEB)).toBeUndefined();
+    expect(capabilityRefusal({ userId: "u1", githubId: 1, capabilities: ["review"] }, "full_review", WEB)).toBe(`this account can't ask for \`verify\`: an administrator grants it on macaron (${WEB})`);
+    expect(capabilityRefusal({ userId: "u1", githubId: 1, capabilities: ["triage"] }, "full_review", WEB)).toBe(
+      `this account can't ask for \`verify\` and \`review\`: an administrator grants them on macaron (${WEB})`,
+    );
+  });
+
   it("refuses someone without an account, pointing to the web app", () => {
     expect(capabilityRefusal(undefined, "triage", WEB)).toBe(`this needs an account on macaron: ask an administrator for an invitation (${WEB})`);
   });

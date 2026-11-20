@@ -1,4 +1,4 @@
-import { allowedActions, type Mode, type Platform, RunResult, type RunContext } from "@open-macaron/contracts";
+import { allowedActions, type Mode, type Platform, type ResultAction, RunResult, type RunContext } from "@open-macaron/contracts";
 import { z } from "zod";
 import type { RuleFile } from "./skills.ts";
 
@@ -21,6 +21,16 @@ ${words.example}
 The overall verdict is the worst item: any ❌ makes it ❌, otherwise any ⚠️ makes it ⚠️. Items are the claims you were asked to check, at most 6, not your steps: a check you skipped (unit tests not run, another theme) is not an item; mention it in the body if it matters. Something you noticed that the request isn't about goes in an "Other observations" paragraph above the verdict, never in it. Don't open \`message\` with a verdict word: start with what you ran and where (commit, platform). Start \`summary\` with the overall verdict line.`;
 }
 
+const VERIFY =
+  "Verify that the change on this branch does what it should: what the trigger asks you to check, otherwise what the pull request and its linked issue describe. Use the repository's own tooling. Capture evidence: the commands you ran and their output, and screenshots or a video with `macaron-agent attach` when the environment can show the application (see its section below). Do not change files. Report with action `reply`: what you checked, what you found, and the evidence. If this environment can't show it, say what you tried." +
+    verdict({
+      pass: "Verified",
+      fail: "Not verified",
+      partial: "Partially verified",
+      none: "Could not verify",
+      example: "❌ **Not verified**\n- ✅ Update Image appears in the image's menu and runs without error\n- ❌ The confirmation reads `alpine.10` instead of `alpine:3.10`\n- ⚠️ Pulling a newer digest: the only image here has a frozen tag",
+    });
+
 const MODE_INSTRUCTIONS: Readonly<Record<Mode, string>> = {
   triage:
     "Decide what the trigger needs, cheaply. Do not set up the project or change files. If it is a question you can answer from the code and the thread, answer it (`reply`, in `message`; `replies` only to specific review comments). If real work is needed, `escalate` with `escalateTo` = `plan`, `implement`, `reproduce` or `address_review`. If the request is unclear, `ask` one precise question.",
@@ -39,20 +49,18 @@ const MODE_INSTRUCTIONS: Readonly<Record<Mode, string>> = {
       example: "⚠️ **Partially reproduced**\n- ✅ The `.env` tab is shown as plain text\n- ⚠️ The same file on Windows: this runner is Linux",
     }) +
     " ❌ means you tried and the behaviour was correct; ✅ means the reported problem is real.",
-  verify:
-    "Verify that the change on this branch does what it should: what the trigger asks you to check, otherwise what the pull request and its linked issue describe. Use the repository's own tooling. Capture evidence: the commands you ran and their output, and screenshots or a video with `macaron-agent attach` when the environment can show the application (see its section below). Do not change files. Report with action `reply`: what you checked, what you found, and the evidence. If this environment can't show it, say what you tried." +
-    verdict({
-      pass: "Verified",
-      fail: "Not verified",
-      partial: "Partially verified",
-      none: "Could not verify",
-      example: "❌ **Not verified**\n- ✅ Update Image appears in the image's menu and runs without error\n- ❌ The confirmation reads `alpine.10` instead of `alpine:3.10`\n- ⚠️ Pulling a newer digest: the only image here has a frozen tag",
-    }),
+  verify: VERIFY,
   retro:
     "A trusted user asked you to remember something for future work on this project (the trigger, `remember: …`). Check the claim against the code, the thread and the existing lessons. Then propose it as `learnings`, each a complete lesson future runs will load as a skill: `topic`; `description` (what it covers and when it matters, front-loading the words a future task would match, at most 1024 characters); `text` (the lesson in concise Markdown: the facts, and how to check them again); `evidence` (the trigger's URL, or a better source you found); `scope` (`project` by default: every repository of the project; `repo` only for facts about this repository's own code; `global` for what holds in any project). Revise rather than duplicate: when an existing lesson covers the topic, load it and set `updates` to its id, with its whole revised text. Leave out what the code or its documentation already says plainly. If the claim is wrong or can't be checked, propose nothing and explain why in `summary`. Do not change files. Action `noop`; `summary` says what you proposed.",
   review:
     "Review the pull request against each rule in `review.rules`, one rule at a time, only on the lines the pull request adds. Do not change files.",
+  full_review: `${VERIFY} Another session checks the pull request against the project's rules at the same time: don't review the code against them, report on what the change does.`,
 };
+
+/** What the agent's own session may return: a full review's `review` is the rule session's verdicts, merged in by agent-cli. */
+function sessionActions(mode: Mode): readonly ResultAction[] {
+  return mode === "full_review" ? allowedActions.verify : allowedActions[mode];
+}
 
 /** What the agent needs to know about a machine that isn't Linux. */
 const PLATFORM_NOTES: Readonly<Record<Exclude<Platform, "linux">, string>> = {
@@ -114,7 +122,7 @@ You contribute to the open-source repository ${context.repo} as an outside contr
 ${platform}${knowledgeSection(context)}${rulesSection(context, rules)}${commands.length > 0 ? `\n## Repository commands\n${commands}\n` : ""}
 ## Mode: ${context.mode}
 ${MODE_INSTRUCTIONS[context.mode]}${platformChoice(context)}
-Allowed actions in this mode: ${allowedActions[context.mode].join(", ")}.
+Allowed actions in this mode: ${sessionActions(context.mode).join(", ")}.
 
 ## How to finish
 1. Write your result as JSON to \`${outDir}/result.json\`, following the schema below. Your file changes in the working tree are collected automatically: do not describe them in the JSON. \`replies\` are threaded under review comments only: answer any other comment in \`message\`, a reply to it is refused.

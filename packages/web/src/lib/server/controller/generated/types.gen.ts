@@ -426,7 +426,7 @@ export type ListRunsData = {
         user?: number;
         repo?: string;
         status?: 'pending' | 'dispatched' | 'running' | 'completed' | 'failed' | 'aborted';
-        mode?: 'triage' | 'plan' | 'implement' | 'address_review' | 'reproduce' | 'verify' | 'retro' | 'review';
+        mode?: 'triage' | 'plan' | 'implement' | 'address_review' | 'reproduce' | 'verify' | 'retro' | 'review' | 'full_review';
     };
     url: '/v1/admin/runs';
 };

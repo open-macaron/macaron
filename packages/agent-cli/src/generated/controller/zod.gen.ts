@@ -27,7 +27,8 @@ export const zBootstrapResponse = z.object({
             'reproduce',
             'verify',
             'retro',
-            'review'
+            'review',
+            'full_review'
         ]),
         repo: z.string().regex(/^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}$/),
         number: z.int().gt(0).lte(9007199254740991),
@@ -71,7 +72,8 @@ export const zBootstrapResponse = z.object({
                 'reproduce',
                 'verify',
                 'retro',
-                'review'
+                'review',
+                'full_review'
             ]),
             summary: z.string().max(4096),
             costUsd: z.number().gte(0).lte(1000)

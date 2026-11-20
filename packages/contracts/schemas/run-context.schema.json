@@ -12,7 +12,8 @@
         "reproduce",
         "verify",
         "retro",
-        "review"
+        "review",
+        "full_review"
       ]
     },
     "repo": {
@@ -193,7 +194,8 @@
               "reproduce",
               "verify",
               "retro",
-              "review"
+              "review",
+              "full_review"
             ]
           },
           "summary": {

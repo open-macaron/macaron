@@ -14,6 +14,11 @@ describe("runLimitUsd", () => {
     expect(runLimitUsd(config, "review", review(40))).toBe(1);
   });
 
+  it("gives a full review a verify's budget plus a review's", () => {
+    expect(runLimitUsd(config, "full_review", review(3))).toBeCloseTo(3.22);
+    expect(runLimitUsd(config, "full_review", review(40))).toBe(4);
+  });
+
   it("keeps other modes' budgets flat", () => {
     expect(runLimitUsd(config, "implement", {})).toBe(5);
   });
