@@ -146,6 +146,15 @@ describe("parseConfigTree", () => {
     ]);
   });
 
+  it("accepts a configuration without the deprecated per-mode models", async () => {
+    const global = (await readConfigFiles(repoConfigDir)).get("global.yaml") ?? "";
+    const withoutModels = global.replace(/^ {2}models:\n( {4}.*\n)+/m, "");
+    expect(withoutModels).not.toMatch(/^ {2}models:/m);
+
+    const files = new Map(Object.entries({ "global.yaml": withoutModels, "orgs/a/org.yaml": `${org}repos:\n  r: {}\n` }));
+    expect(parseConfigTree(files).repos.get("a/r")?.models).toEqual({});
+  });
+
   it("reports a missing global.yaml", () => {
     expect(problems({ "orgs/a/org.yaml": org })).toEqual(["global.yaml: missing"]);
   });
