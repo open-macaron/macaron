@@ -136,4 +136,64 @@ describe("review run", () => {
     await fakeClaude({ result: "I ran out of budget." });
     expect(await run(inputs)).toBe(1);
   });
+
+  describe("full review", () => {
+    const verdict = { ruleId: "org-x/no-eval", verdict: "violation", evidence: [{ file: "a.ts", line: 2, quote: "eval(input);" }], explanation: "eval on input" };
+    const answer = { action: "reply", message: "Ran `node a.ts`.\n\n### Verdict\n✅ **Verified**: it evaluates the input.", summary: "✅ **Verified**: it evaluates the input." };
+
+    beforeEach(async () => {
+      const p = paths(inputs);
+      const context = RunContext.parse(JSON.parse(await readFile(p.contextFile, "utf8")));
+      await writeFile(p.contextFile, JSON.stringify({ ...context, mode: "full_review" }));
+    });
+
+    /**
+     * Claude Code for both sessions: the read-only one (`dontAsk`) answers `judgement`; the verify
+     * session writes `result` as its result.json, or nothing when undefined. Each logs its arguments.
+     */
+    async function fakeSessions(judgement: unknown, result: unknown): Promise<string> {
+      const p = paths(inputs);
+      const log = join(root, "claude.log");
+      const quote = (value: unknown) => `'${JSON.stringify(value).replaceAll("'", "'\\''")}'`;
+      const verify = result === undefined ? "exit 1" : `printf '%s' ${quote(result)} > '${p.resultFile}'`;
+      const script = `#!/bin/sh\ncat > /dev/null\nprintf '%s\\n' "$*" >> '${log}'\ncase " $* " in\n  *" dontAsk "*) printf '%s' ${quote(judgement)} ;;\n  *) ${verify} ;;\nesac\n`;
+      const bin = claudeBinary(p.tools);
+      await writeFile(bin, script);
+      await chmod(bin, 0o755);
+      return log;
+    }
+
+    it("runs the verify session and the read-only rule session, and publishes both as one review", async () => {
+      const log = await fakeSessions({ structured_output: { verdicts: [verdict] }, num_turns: 1 }, answer);
+
+      expect(await run(inputs)).toBe(0);
+      const result = RunResult.parse(JSON.parse(await readFile(paths(inputs).resultFile, "utf8")));
+      expect(result).toMatchObject({ action: "review", review: [verdict], message: answer.message, summary: "✅ **Verified**: it evaluates the input. Checked 1 of 1 rule." });
+      const sessions = (await readFile(log, "utf8")).trim().split("\n");
+      expect(sessions.filter((args) => args.includes("bypassPermissions"))).toHaveLength(1);
+      expect(sessions.filter((args) => args.includes("dontAsk"))).toHaveLength(1);
+      expect(sessions.find((args) => args.includes("dontAsk"))).not.toContain("--mcp-config");
+    });
+
+    it("publishes the verify answer alone when the rule checks fail", async () => {
+      await fakeSessions({ result: "I ran out of budget." }, answer);
+
+      expect(await run(inputs)).toBe(0);
+      const result = RunResult.parse(JSON.parse(await readFile(paths(inputs).resultFile, "utf8")));
+      expect(result).toMatchObject({ action: "reply", summary: "✅ **Verified**: it evaluates the input. The rule checks didn't complete." });
+    });
+
+    it("publishes the rule checks alone when the verify session leaves no result", async () => {
+      await fakeSessions({ structured_output: { verdicts: [verdict] }, num_turns: 1 }, undefined);
+
+      expect(await run(inputs)).toBe(0);
+      const result = RunResult.parse(JSON.parse(await readFile(paths(inputs).resultFile, "utf8")));
+      expect(result).toMatchObject({ action: "review", review: [verdict], summary: "The verification didn't complete. Checked 1 of 1 rule." });
+    });
+
+    it("fails when neither completes, so the run can be retried", async () => {
+      await fakeSessions({ result: "I ran out of budget." }, undefined);
+      expect(await run(inputs)).toBe(1);
+    });
+  });
 });
