@@ -1,5 +1,12 @@
 # @open-macaron/review
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [bdba764]
+  - @open-macaron/contracts@0.19.0
+
 ## 0.4.0
 
 ### Minor Changes
