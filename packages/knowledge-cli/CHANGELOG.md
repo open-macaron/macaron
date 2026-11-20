@@ -1,5 +1,13 @@
 # @open-macaron/knowledge-cli
 
+## 0.1.23
+
+### Patch Changes
+
+- Updated dependencies [8295d64]
+  - @open-macaron/contracts@0.21.1
+  - @open-macaron/owners@0.1.23
+
 ## 0.1.22
 
 ### Patch Changes
