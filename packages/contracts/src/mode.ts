@@ -34,6 +34,9 @@ export const allowedActions: Readonly<Record<Mode, readonly ResultAction[]>> = {
   full_review: ["review", "reply", "ask", "noop"],
 };
 
+/** Modes that check a pull request against the knowledge rules: their result carries verdicts the controller verifies. */
+export const ruleReviewModes: ReadonlySet<Mode> = new Set<Mode>(["review", "full_review"]);
+
 /**
  * Modes that need the repo's full environment (setup layers 1–3). Not `review`: it only reads, and
  * on a pull request anyone can open, the environment step would run that pull request's code.

@@ -58,6 +58,13 @@ class RecordingWriter extends UpstreamWriter {
     return Promise.resolve();
   }
 
+  readonly reviews: { readonly pull: number; readonly commitId: string; readonly body: string; readonly comments: number }[] = [];
+
+  override createReview(_upstream: RepoRef, pull: number, commitId: string, body: string, comments: readonly unknown[]): Promise<number> {
+    this.reviews.push({ pull, commitId, body, comments: comments.length });
+    return Promise.resolve(this.next++);
+  }
+
   bodies(): string[] {
     return [...this.comments.values()].map((comment) => comment.body);
   }
@@ -111,19 +118,24 @@ afterAll(async () => {
 
 let issue = 3000;
 
-/** A dispatched reproduce run on a fresh issue, its 👀 placed, and a publisher writing to memory. */
-async function dispatched() {
+/** A dispatched reproduce run on a fresh issue (or a full review on a pull request), its 👀 placed, and a publisher writing to memory. */
+async function dispatched(mode: "reproduce" | "full_review" = "reproduce") {
   const number = ++issue;
-  const thread = await runs.thread("org-x/repo-a", number, "issue");
+  const kind = mode === "reproduce" ? "issue" : "pull";
+  const thread = await runs.thread("org-x/repo-a", number, kind);
+  const review = { pull: number, baseSha: "b".repeat(40), headSha: "c".repeat(40), rules: [], skipped: [], knowledgeCommit: null, model: "anthropic/claude-haiku-5.5" };
   const created = await runs.createRun({
     threadId: thread.id,
     ticket: Ticket.parse(`t_${String(number).padStart(43, "2")}`),
-    mode: "reproduce",
+    mode,
     harness: "claude",
     model: "anthropic/claude-sonnet-5.5",
     fastModel: "anthropic/claude-haiku-5.5",
-    context: runContext({ mode: "reproduce", number }),
-    route: { mode: "reproduce", subject: { kind: "issue", number }, checkout: { from: "defaultBranch" }, branch: `macaron/${String(number)}-work` },
+    context: runContext({ mode, number, kind, ...(mode === "full_review" ? { review } : {}) }),
+    route:
+      mode === "reproduce"
+        ? { mode, subject: { kind: "issue", number }, checkout: { from: "defaultBranch" }, branch: `macaron/${String(number)}-work` }
+        : { mode, subject: { kind: "pullRequest", number }, checkout: { from: "pullRequestHead", pullRequest: number }, branch: `macaron/${String(number)}-work` },
     limitMicros: 1_000_000,
     triggerGithubId: 583231,
     payerId: PAYER_ID,
@@ -223,5 +235,33 @@ describe("Publisher with status comments", () => {
       `**macaron-bot** · loop 1 · \`reproduce\` · model \`claude-sonnet-5.5\` · [run](${RUN_URL})\n\n✅ Reproduced the crash.\n\n<sub>Spent on this thread: $0.00 ⏳.</sub>`,
       "Reproduced on Linux: the editor crashes on start.",
     ]);
+  });
+});
+
+describe("Publisher for a full review", () => {
+  const rule = { id: "org-x/no-eval", title: "No eval", severity: "error" as const, reason: undefined, explanation: "No eval, @mallory." };
+  const results = [
+    { ...rule, outcome: "violation" as const, evidence: [{ file: "src/a.ts", line: 2, quote: "eval(input);" }] },
+    { ...rule, id: "org-x/no-null", title: "No null", outcome: "valid" as const, evidence: [] },
+  ];
+  const answer = "Ran the tests, cc @alice and @mallory.\n\n### Verdict\n✅ **Verified**: it evaluates the input.";
+  const full = runResult({ action: "review", commitMessage: undefined, pr: undefined, message: answer, summary: "✅ **Verified**: it evaluates the input. Checked 2 of 2 rules.", review: [] });
+
+  it("posts one review, the verify answer first, and the status with the verdict and the rule counts", async () => {
+    const { thread, run, writer, publisher } = await dispatched("full_review");
+    const config = repoConfig(false);
+
+    await publisher.reportStarted(thread, run, RUN_URL, config);
+    await publisher.publish({ run, thread, config, publishable: { result: full, changes: undefined, attachments: [], review: results }, runUrl: RUN_URL });
+
+    expect(writer.reviews).toHaveLength(1);
+    const [review] = writer.reviews;
+    expect(review?.commitId).toBe("c".repeat(40));
+    expect(review?.comments).toBe(1);
+    expect(review?.body.startsWith("Ran the tests, cc @alice and `@mallory`.\n\n### Verdict\n✅ **Verified**: it evaluates the input.\n\n---\n\n**macaron-bot review**")).toBe(true);
+    expect(review?.body).toContain("model `claude-sonnet-5.5` · rules `claude-haiku-5.5`");
+    expect(writer.bodies()).toHaveLength(1);
+    expect(writer.bodies()[0]).toContain("✅ Review posted. ✅ **Verified**: it evaluates the input. Checked 2 of 2 rules.\n\nRules: ❌ 1 · ⚠️ 0 · ✅ 1 · ➖ 0.");
+    expect(writer.reactions).toEqual(["eyes", "+1"]);
   });
 });

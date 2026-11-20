@@ -22,6 +22,8 @@ export interface MarkdownOptions {
   readonly clean: (text: string) => string;
   /** Appended to the footer line (the bot: cost and run link). */
   readonly footer?: string;
+  /** Only violations and warnings get rows: the others are counted, for a review that would be too long for GitHub. */
+  readonly attentionOnly?: boolean;
 }
 
 const MAX_INLINE_COMMENTS = 20;
@@ -82,6 +84,10 @@ export function renderMarkdown(results: readonly RuleResult[], meta: ReviewMeta,
     for (const outcome of ORDER) {
       const group = of(outcome);
       if (group.length === 0) continue;
+      if (options.attentionOnly === true && !GROUP[outcome].open) {
+        lines.push(`${GROUP[outcome].icon} ${GROUP[outcome].title} (${String(group.length)}): left out, this review would be over GitHub's size limit.`, "");
+        continue;
+      }
       const rows = group.map((result) => [`${escapeCell(result.title)}<br>\`${result.id}\``, GROUP[outcome].icon, explanationCell(result, meta, oneLine)]);
       lines.push(
         GROUP[outcome].open ? "<details open>" : "<details>",

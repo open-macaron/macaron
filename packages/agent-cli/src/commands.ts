@@ -189,8 +189,8 @@ async function judgeRules(p: Paths, context: RunContext, state: BootstrapState, 
   return judge({
     command: claudeBinary(p.tools),
     cwd: p.work,
-    env: claudeEnvironment(await llmAccess(p, state), state.model),
-    model: state.model,
+    env: claudeEnvironment(await llmAccess(p, state), pull.model ?? state.model),
+    model: pull.model ?? state.model,
     subject: {
       what: `pull request ${context.repo}#${String(context.number)}`,
       title: context.title,

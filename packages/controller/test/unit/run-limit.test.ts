@@ -1,5 +1,6 @@
+import { CommitSha } from "@open-macaron/contracts";
 import { describe, expect, it } from "vitest";
-import { runLimitTokens, runLimitUsd, tokenBudgetExhausted } from "../../src/runs/run-limit.ts";
+import { keyModels, runLimitTokens, runLimitUsd, tokenBudgetExhausted } from "../../src/runs/run-limit.ts";
 
 const config = {
   budgets: { triage: 0.2, plan: 1, implement: 5, address_review: 2, reproduce: 3, verify: 3, retro: 0.5, review: 1 },
@@ -21,6 +22,15 @@ describe("runLimitUsd", () => {
 
   it("keeps other modes' budgets flat", () => {
     expect(runLimitUsd(config, "implement", {})).toBe(5);
+  });
+});
+
+describe("keyModels", () => {
+  it("allows the run's models, and a full review's rule model", () => {
+    expect(keyModels({ model: "sonnet", fastModel: "haiku" }, {})).toEqual(["sonnet", "haiku"]);
+    expect(keyModels({ model: "sonnet", fastModel: null }, {})).toEqual(["sonnet", "sonnet"]);
+    const review = { pull: 1, baseSha: CommitSha.parse("b".repeat(40)), headSha: CommitSha.parse("c".repeat(40)), rules: [], skipped: [], knowledgeCommit: null, model: "cheap" };
+    expect(keyModels({ model: "sonnet", fastModel: "haiku" }, { review })).toEqual(["sonnet", "haiku", "cheap"]);
   });
 });
 

@@ -110,6 +110,7 @@ export type BootstrapResponses = {
                     reason: 'no_matching_file' | 'over_limit';
                 }>;
                 knowledgeCommit: string | null;
+                model?: string;
             };
             platform: 'linux' | 'windows' | 'macos';
             platforms: Array<'linux' | 'windows' | 'macos'>;

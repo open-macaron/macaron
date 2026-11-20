@@ -10,6 +10,7 @@ import {
   type ReviewContext,
   RunContext,
   type RunKnowledge,
+  ruleReviewModes,
   type ThreadComment,
 } from "@open-macaron/contracts";
 import { GH_INTERACT, type GitHub } from "../github/github.ts";
@@ -59,7 +60,7 @@ export class ContextBuilder {
     const upstream = repoRef(thread.repo);
     const { data: issue } = await this.gh.rest.issues.get({ ...upstream, issue_number: thread.number });
     const { mode, branch, checkout } = route;
-    const review = mode === "review" && checkout.from === "pullRequestHead" ? await this.reviewContext(config, checkout.pullRequest) : undefined;
+    const review = ruleReviewModes.has(mode) && checkout.from === "pullRequestHead" ? await this.reviewContext(config, mode, checkout.pullRequest) : undefined;
     const baseSha = review?.headSha ?? (await this.resolve(config, route));
 
     // The issue body comes first, under the issue number as its id (comment ids are far larger).
@@ -93,7 +94,8 @@ export class ContextBuilder {
       review,
       platform: platformOf(route),
       platforms: platformsOf(config),
-      knowledge: review === undefined ? await this.knowledgeOf(config, mode) : { commit: null, lessons: [], rules: [] },
+      // A review's rules are in `review`; a full review's verify session gets the lessons, like a verify.
+      knowledge: mode === "review" ? { commit: null, lessons: [], rules: [] } : await this.knowledgeOf(config, mode),
     });
   }
 
@@ -130,11 +132,12 @@ export class ContextBuilder {
   }
 
   /** The pull request at its current head, and the knowledge rules its changed files call for. */
-  private async reviewContext(config: RepoConfig, pull: number): Promise<ReviewContext> {
+  private async reviewContext(config: RepoConfig, mode: Mode, pull: number): Promise<ReviewContext> {
     const { baseSha, headSha } = await this.diffs.head(config.repo, pull);
     const [diff, knowledge] = await Promise.all([this.diffs.read(config.repo, baseSha, headSha), this.knowledge.rulesFor(config)]);
     const paths = diff.files.map((file) => file.path);
-    return { pull, baseSha, headSha, ...selectRules(knowledge.rules, paths), knowledgeCommit: knowledge.commit };
+    const model = ruleModel(mode, config);
+    return { pull, baseSha, headSha, ...selectRules(knowledge.rules, paths), knowledgeCommit: knowledge.commit, ...(model === undefined ? {} : { model }) };
   }
 
   private async comments(upstream: { owner: string; repo: string }, number: number): Promise<ThreadComment[]> {
@@ -164,6 +167,14 @@ export class ContextBuilder {
       createdAt: comment.created_at,
     }));
   }
+}
+
+/**
+ * The rule sessions' model when it isn't the run's: a full review's rules are checked on the
+ * repository's review model (`models.review`), as a review's would be.
+ */
+export function ruleModel(mode: Mode, config: Pick<RepoConfig, "models">): string | undefined {
+  return mode === "full_review" ? config.models.review : undefined;
 }
 
 /** The rules a run works by: only a mode that can change code has something to check against them. */

@@ -175,6 +175,19 @@ describe("review run", () => {
       expect(sessions.find((args) => args.includes("dontAsk"))).not.toContain("--mcp-config");
     });
 
+    it("gives the rule sessions the review model when the context names one", async () => {
+      const p = paths(inputs);
+      const context = RunContext.parse(JSON.parse(await readFile(p.contextFile, "utf8")));
+      if (context.review === undefined) throw new Error("the fixture has a review context");
+      await writeFile(p.contextFile, JSON.stringify({ ...context, review: { ...context.review, model: "claude-haiku-5-5" } }));
+      const log = await fakeSessions({ structured_output: { verdicts: [verdict] }, num_turns: 1 }, answer);
+
+      expect(await run(inputs)).toBe(0);
+      const sessions = (await readFile(log, "utf8")).trim().split("\n");
+      expect(sessions.find((args) => args.includes("dontAsk"))).toContain("--model claude-haiku-5-5");
+      expect(sessions.find((args) => args.includes("bypassPermissions"))).toContain("--model claude-sonnet-5-5");
+    });
+
     it("publishes the verify answer alone when the rule checks fail", async () => {
       await fakeSessions({ result: "I ran out of budget." }, answer);
 

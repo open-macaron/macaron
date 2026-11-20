@@ -87,6 +87,28 @@ describe("gate", () => {
       expect(await check(reviewInput({ review: [] }))).toEqual(["the review left rules unchecked: org-x/no-eval"]);
       expect(await check(reviewInput({ review: [verdict] }, { diff: undefined }))).toEqual(["a review run needs the pull request's diff"]);
     });
+
+    describe("full review", () => {
+      const fullInput = (result: Record<string, unknown>, extra: Partial<GateInput> = {}): GateInput =>
+        reviewInput(result, { mode: "full_review", context: runContext({ mode: "full_review", kind: "pull", review }), ...extra });
+
+      it("verifies the verdicts and publishes them with the verify answer", async () => {
+        const outcome = await gate(fullInput({ review: [verdict], message: "### Verdict\n✅ **Verified**: it runs." }));
+        expect(outcome.ok && outcome.publishable.review?.map((row) => [row.id, row.outcome])).toEqual([["org-x/no-eval", "violation"]]);
+        expect(outcome.ok && outcome.publishable.result.message).toBe("### Verdict\n✅ **Verified**: it runs.");
+        expect(await check(fullInput({ review: [] }))).toEqual(["the review left rules unchecked: org-x/no-eval"]);
+      });
+
+      it("publishes the verify answer alone when the rule checks didn't complete", async () => {
+        const outcome = await gate(fullInput({ action: "reply", review: undefined, message: "### Verdict\n✅ **Verified**: it runs." }));
+        expect(outcome.ok && outcome.publishable.review).toBeUndefined();
+      });
+
+      it("checks the answer like a reply: no secret, no unknown attachment", async () => {
+        const answer = { review: [verdict], message: "token ghp_abcdefghijklmnopqrstuvwxyz0123456789 ![x](attachment:nope)" };
+        expect(await check(fullInput(answer))).toEqual(expect.arrayContaining([expect.stringMatching(/secret/), expect.stringMatching(/nope/)]));
+      });
+    });
   });
 
   it("accepts revisions of lessons the run was given, and refuses others", async () => {

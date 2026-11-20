@@ -5,6 +5,7 @@ import {
   DispatchInputs,
   fullEnvironmentModes,
   type Mode,
+  ruleReviewModes,
   type Platform,
   type RepoConfig,
   runnerFor,
@@ -35,7 +36,7 @@ import { Publisher } from "../publish/publisher.ts";
 import { PullDiffReader } from "../review/pull-diff.ts";
 import { ArtifactDownloader, ArtifactInvalid, readArtifact } from "./artifact.ts";
 import { OidcVerifier } from "./oidc-verifier.ts";
-import { runLimitTokens, runLimitUsd, tokenBudgetExhausted } from "./run-limit.ts";
+import { keyModels, runLimitTokens, runLimitUsd, tokenBudgetExhausted } from "./run-limit.ts";
 import { runUrl } from "./run-url.ts";
 import { type LedgerAttribution, type RunRecord, RunsRepository, type ThreadRecord } from "./runs.repository.ts";
 
@@ -73,11 +74,6 @@ export const KEY_GRACE_MINUTES = 15;
 /** The run's key, if it got one. */
 function keyOf(run: RunRecord): RunKeyRef | undefined {
   return run.keyHash === null ? undefined : { hash: run.keyHash };
-}
-
-/** The models a run's key allows, fixed at launch: its token cap and its settlement follow from them. */
-function keyModels(run: Pick<RunRecord, "model" | "fastModel">): readonly string[] {
-  return [run.model, run.fastModel ?? run.model];
 }
 
 /**
@@ -125,7 +121,7 @@ export class RunLauncher {
     if ("refusal" in chosen) return { kind: "refused", reason: chosen.refusal };
     const { models } = chosen;
     const limitUsd = runLimitUsd(config, mode, context);
-    const limitTokens = runLimitTokens(keyModels(models), (model) => this.prices.runTokens(model));
+    const limitTokens = runLimitTokens(keyModels(models, context), (model) => this.prices.runTokens(model));
     // Runs on free models cost $0: their payer's token cap bounds them instead, with the same words.
     const overTokens = limitTokens === undefined ? undefined : await this.caps.tokenRefusal(payer.userId, limitTokens, settings);
     if (overTokens !== undefined) return { kind: "refused", reason: overTokens };
@@ -147,7 +143,7 @@ export class RunLauncher {
     let key: RunKeyRef | undefined;
     let dispatched: RunRecord;
     try {
-      const allowed = keyModels(run);
+      const allowed = keyModels(run, context);
       const minted = await this.budget.mint(run.id, { usd: limitUsd, tokens: limitTokens }, config.timeoutMinutes + KEY_GRACE_MINUTES, allowed, upstream);
       key = minted;
       await this.keys.recordUse(payer.userId, run.id, upstream.endpointId, upstream.last4);
@@ -226,7 +222,7 @@ export class RunLauncher {
     }
 
     // Reviews: the diff comes from GitHub at the reviewed commit, never from the run.
-    const review = run.mode === "review" ? run.context.review : undefined;
+    const review = ruleReviewModes.has(run.mode) ? run.context.review : undefined;
     const diff = review === undefined ? undefined : await this.diffs.read(run.context.repo, review.baseSha, review.headSha);
     const verdict = await gate({ mode: run.mode, context: run.context, result: artifact.result, changes: artifact.changes, media: artifact.media, diff });
     if (!verdict.ok) {
@@ -274,7 +270,7 @@ export class RunLauncher {
     const observedMicros: UsdMicros = key === undefined ? 0 : await this.budget.usage(key, since);
     const decision = decideSettlement({
       redeemed: run.redeemedAt !== null,
-      allModelsFree: keyModels(run).every((model) => this.prices.isFree(model)),
+      allModelsFree: keyModels(run, run.context).every((model) => this.prices.isFree(model)),
       observedMicros,
       previousMicros,
       sinceFinishMs: now.getTime() - (run.finishedAt ?? run.createdAt).getTime(),
@@ -293,7 +289,7 @@ export class RunLauncher {
       if (key !== undefined) await this.budget.revoke(key);
       const current = await this.runs.threadById(thread.id);
       await this.publisher.refreshCost(current, run);
-      if (run.mode === "review") await this.publisher.refreshReviewCost(current, run, decision.costMicros);
+      if (ruleReviewModes.has(run.mode)) await this.publisher.refreshReviewCost(current, run, decision.costMicros);
     }
   }
 

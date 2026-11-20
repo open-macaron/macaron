@@ -1,7 +1,7 @@
 import { CommitSha, type PublishedRule, type ReviewContext, type RuleVerdict } from "@open-macaron/contracts";
 import { describe, expect, it } from "vitest";
 import { diffFileFromPatch as toDiffFile, type PullDiff, verifyReview } from "@open-macaron/review";
-import { renderReview, withReviewCost } from "../../src/review/render.ts";
+import { MAX_REVIEW_BODY, renderReview, withReviewCost } from "../../src/review/render.ts";
 
 const HEAD = CommitSha.parse("a".repeat(40));
 const BASE = CommitSha.parse("b".repeat(40));
@@ -138,5 +138,35 @@ describe("renderReview", () => {
     const { body } = renderReview(results, meta);
     expect(withReviewCost(body, 31_000)).toContain("Cost: $0.03");
     expect(withReviewCost("no segment", 1)).toBeUndefined();
+  });
+
+  describe("full review", () => {
+    const answer = "Ran the tests at `aaaaaaa`.\n\n### Verdict\n✅ **Verified**: the dialog opens.";
+
+    it("puts the verify answer first, then the rule checks, and names the rules' model", () => {
+      const { body, comments } = renderReview(results, { ...meta, ruleModel: "claude-haiku-5-5" }, answer);
+      expect(body.startsWith(`${answer}\n\n---\n\n**macaron-bot review** of \`aaaaaaa\`: 1 violation`)).toBe(true);
+      expect(body).toContain("model `claude-sonnet-5-5` · rules `claude-haiku-5-5` ·");
+      expect(withReviewCost(body, 31_000)).toContain("Cost: $0.03");
+      expect(comments).toHaveLength(1);
+    });
+
+    it("keeps only what needs attention when the review would be over GitHub's limit", () => {
+      // One character over the limit with every row; the separator is 7 characters.
+      const long = "x".repeat(MAX_REVIEW_BODY - renderReview(results, meta).body.length - 6);
+      const { body, comments } = renderReview(results, meta, long);
+      expect(body.length).toBeLessThanOrEqual(MAX_REVIEW_BODY);
+      expect(body.startsWith(long)).toBe(true);
+      expect(body).toContain("<details open>\n<summary>❌ Violations (1)</summary>");
+      expect(body).toContain("✅ Passed (1): left out, this review would be over GitHub's size limit.");
+      expect(body).toContain("Cost: ⏳");
+      expect(comments).toHaveLength(1);
+    });
+
+    it("cuts the answer as a last resort", () => {
+      const { body } = renderReview(results, meta, "y".repeat(MAX_REVIEW_BODY + 10));
+      expect(body.length).toBeLessThanOrEqual(MAX_REVIEW_BODY);
+      expect(body).toContain("… _Cut here: this review would be over GitHub's size limit._\n\n---\n\n**macaron-bot review**");
+    });
   });
 });

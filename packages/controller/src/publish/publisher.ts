@@ -226,25 +226,38 @@ export class Publisher {
 
   /**
    * A review run: one GitHub review (table + inline comments) on the commit that was checked, once.
-   * If GitHub refuses an inline comment (a line outside its diff view), the review is posted
-   * without them: the table carries the same evidence.
+   * A full review's verify answer comes first, its media hosted like a reply's. If GitHub refuses an
+   * inline comment (a line outside its diff view), the review is posted without them: the table
+   * carries the same evidence.
    */
   private async publishReview(input: PublishInput, results: readonly RuleResult[]): Promise<void> {
-    const { run, thread, config } = input;
+    const { run, thread, config, publishable } = input;
     const review = run.context.review;
     if (review === undefined) throw new Error(`run ${run.id} has review results but no review context`);
     const upstream = repoRef(thread.repo);
-    const { body, comments } = renderReview(results, {
-      repo: thread.repo,
-      headSha: review.headSha,
-      knowledgeCommit: review.knowledgeCommit,
-      loop: run.loop,
-      runner: runnerFor(config, HeaderContext.parse(run.context).platform),
-      model: run.model,
-      ghRunId: run.ghRunId,
-      runUrl: input.runUrl,
-      costMicros: null,
-    });
+    const message = publishable.result.message;
+    let answer: string | undefined;
+    if (message !== undefined && message.length > 0) {
+      // Media first: the answer references them by URL (posting the review makes them public).
+      const attachmentUrls = await this.evidence.publish(await this.forks.require(thread.repo), thread, run, publishable.attachments);
+      answer = sanitize(resolveAttachments(message, attachmentUrls), participants(run.context));
+    }
+    const { body, comments } = renderReview(
+      results,
+      {
+        repo: thread.repo,
+        headSha: review.headSha,
+        knowledgeCommit: review.knowledgeCommit,
+        loop: run.loop,
+        runner: runnerFor(config, HeaderContext.parse(run.context).platform),
+        model: run.model,
+        ruleModel: review.model,
+        ghRunId: run.ghRunId,
+        runUrl: input.runUrl,
+        costMicros: null,
+      },
+      answer,
+    );
     await this.post(() =>
       this.runs.once(thread.id, run.loop, "review", async () => {
         try {
@@ -259,7 +272,9 @@ export class Publisher {
     const count = (outcome: RuleResult["outcome"]) => String(results.filter((result) => result.outcome === outcome).length);
     // Compact mode: the review is the answer, its footer says the rest.
     if (!config.compact) {
-      await this.updateStatus(thread, subjectOfRun(run, thread), run, `✅ Review posted: ❌ ${count("violation")} · ⚠️ ${count("warning")} · ✅ ${count("valid")} · ➖ ${count("ignored")}.`, input.runUrl, config);
+      const rules = `❌ ${count("violation")} · ⚠️ ${count("warning")} · ✅ ${count("valid")} · ➖ ${count("ignored")}`;
+      const status = answer === undefined ? `✅ Review posted: ${rules}.` : `✅ Review posted. ${sanitize(publishable.result.summary, participants(run.context))}\n\nRules: ${rules}.`;
+      await this.updateStatus(thread, subjectOfRun(run, thread), run, status, input.runUrl, config);
     }
     await this.updateCostTable(thread);
     await this.reactions.finish(thread.id, run.loop, upstream, "+1");

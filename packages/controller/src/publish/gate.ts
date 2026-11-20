@@ -1,4 +1,4 @@
-import { ATTACHMENT_REFERENCE, type Attachment, allowedActions, type Changes, type FileChange, type Mode, type RunContext, type RunResult } from "@open-macaron/contracts";
+import { ATTACHMENT_REFERENCE, type Attachment, allowedActions, type Changes, type FileChange, type Mode, ruleReviewModes, type RunContext, type RunResult } from "@open-macaron/contracts";
 import { type PullDiff, type RuleResult, verifyReview } from "@open-macaron/review";
 import { type DetectedMedia, detectMedia } from "./media-type.ts";
 import { findSecrets } from "./secrets.ts";
@@ -83,10 +83,11 @@ export async function gate(input: GateInput): Promise<Verdict> {
   }
 
   // Reviews: every violation is checked against the diff; what can't be verified is published as ignored.
+  // Verdicts from a mode without a rule review are refused by the allowed actions above.
   let review: readonly RuleResult[] | undefined;
-  if (mode === "review") {
-    if (context.review === undefined) violations.push("a review run has no review context");
-    else if (input.diff === undefined) violations.push("a review run needs the pull request's diff");
+  if (ruleReviewModes.has(mode)) {
+    if (context.review === undefined) violations.push(`a ${mode} run has no review context`);
+    else if (input.diff === undefined) violations.push(`a ${mode} run needs the pull request's diff`);
     else if (result.review !== undefined) {
       const verification = verifyReview(context.review, result.review, input.diff);
       violations.push(...verification.problems);
