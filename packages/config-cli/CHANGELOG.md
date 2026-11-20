@@ -1,5 +1,13 @@
 # @open-macaron/config-cli
 
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [a62e0ea]
+  - @open-macaron/contracts@0.21.0
+  - @open-macaron/owners@0.1.22
+
 ## 0.2.2
 
 ### Patch Changes
