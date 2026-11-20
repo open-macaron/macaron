@@ -58,11 +58,22 @@ class RecordingWriter extends UpstreamWriter {
     return Promise.resolve();
   }
 
-  readonly reviews: { readonly pull: number; readonly commitId: string; readonly body: string; readonly comments: number }[] = [];
+  readonly reviews: { id: number; readonly pull: number; readonly commitId: string; body: string; readonly comments: number }[] = [];
 
   override createReview(_upstream: RepoRef, pull: number, commitId: string, body: string, comments: readonly unknown[]): Promise<number> {
-    this.reviews.push({ pull, commitId, body, comments: comments.length });
-    return Promise.resolve(this.next++);
+    const id = this.next++;
+    this.reviews.push({ id, pull, commitId, body, comments: comments.length });
+    return Promise.resolve(id);
+  }
+
+  override review(_upstream: RepoRef, _pull: number, reviewId: number): Promise<{ body: string; nodeId: string }> {
+    return Promise.resolve({ body: this.reviews.find((review) => review.id === reviewId)?.body ?? "", nodeId: `PRR_${String(reviewId)}` });
+  }
+
+  override updateReview(nodeId: string, body: string): Promise<void> {
+    const review = this.reviews.find((candidate) => `PRR_${String(candidate.id)}` === nodeId);
+    if (review !== undefined) review.body = body;
+    return Promise.resolve();
   }
 
   bodies(): string[] {
@@ -263,5 +274,16 @@ describe("Publisher for a full review", () => {
     expect(writer.bodies()).toHaveLength(1);
     expect(writer.bodies()[0]).toContain("✅ Review posted. ✅ **Verified**: it evaluates the input. Checked 2 of 2 rules.\n\nRules: ❌ 1 · ⚠️ 0 · ✅ 1 · ➖ 0.");
     expect(writer.reactions).toEqual(["eyes", "+1"]);
+  });
+
+  it("shows the settled cost in the review, through its GraphQL id", async () => {
+    const { thread, run, writer, publisher } = await dispatched("full_review");
+    await publisher.publish({ run, thread, config: repoConfig(true), publishable: { result: full, changes: undefined, attachments: [], review: results }, runUrl: RUN_URL });
+    expect(writer.reviews[0]?.body).toContain("Cost: ⏳");
+
+    await publisher.refreshReviewCost(thread, run, 260_000);
+
+    expect(writer.reviews[0]?.body).toContain("Cost: $0.26");
+    expect(writer.reviews[0]?.body.startsWith("Ran the tests")).toBe(true);
   });
 });
