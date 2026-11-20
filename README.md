@@ -15,6 +15,7 @@ Only people with an account of its web app (invited by an administrator, who gra
 | `@macaron-bot review` | On a pull request it didn't open (it refuses to review its own): checks the changes against the rules of [open-macaron/knowledge](https://github.com/open-macaron/knowledge) and posts one review, a table with one row per rule (✅ valid, ⚠️ warning, ❌ violation, ➖ ignored) and an inline comment on each violation |
 | `@macaron-bot reproduce` | Tries to reproduce a reported problem with the repository's own tooling, with the commands it ran and their output, and screenshots or videos where its environment can show the application |
 | `@macaron-bot verify` | On a pull request: checks that the change does what it should (what you ask, or what the pull request describes), the same way |
+| `@macaron-bot full-review` | Experimental, opt-in. On a pull request it didn't open: `verify` and `review` in one run, posted as one review, the verify answer first. It needs both capabilities; `on windows` and a hint work as for `verify` |
 | `@macaron-bot triage` | Decides what a request needs: an answer, or one of the above |
 | `@macaron-bot retry` | Runs the last failed or stopped loop again, or the last refused request once its cause is fixed (a platform enabled, an account granted) |
 | `@macaron-bot stop` | Stops the running loop now |
