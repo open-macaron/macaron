@@ -1,5 +1,17 @@
 # @open-macaron/config-cli
 
+## 0.3.0
+
+### Minor Changes
+
+- 11df33a: The configuration's per-mode `models` are gone (#209): each user picks the model that checks the knowledge rules, and open-macaron/config no longer uses them. A configuration that still sets `models` is now refused, like any unknown key.
+
+### Patch Changes
+
+- Updated dependencies [11df33a]
+  - @open-macaron/contracts@0.22.0
+  - @open-macaron/owners@0.1.24
+
 ## 0.2.4
 
 ### Patch Changes
