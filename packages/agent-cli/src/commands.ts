@@ -1,10 +1,11 @@
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import * as core from "@actions/core";
-import { Attachment, AttachmentId, type LlmAccess, RunContext, RunResult } from "@open-macaron/contracts";
-import { judge, localScope } from "@open-macaron/review";
+import { Attachment, AttachmentId, type LlmAccess, type ReviewContext, RunContext, RunResult } from "@open-macaron/contracts";
+import { type Judgement, judge, localScope, type Scope } from "@open-macaron/review";
 import { z } from "zod";
 import { bootstrap as requestBootstrap } from "./controller-api.ts";
+import { fullReviewResult } from "./full-review.ts";
 import { changesSince, checkout, crlfIntroduced } from "./git.ts";
 import { claudeBinary, claudeEnvironment, installHarness, runHarness } from "./harness.ts";
 import { type Inputs, type Paths, paths, readInputs } from "./inputs.ts";
@@ -62,11 +63,20 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
   const context = await readJson(p.contextFile, RunContext);
   const state = await readJson(p.bootstrapFile, BootstrapState);
   if (context.mode === "review") return review(inputs, context, state);
+  if (context.mode === "full_review") return fullReview(inputs, context, state);
+  const exitCode = await agentSession(p, context, state);
+  await rm(p.keyFile, { force: true });
+  if (exitCode !== 0) core.warning(`harness exited with ${String(exitCode)}`);
+  return finish(inputs, { final: true });
+}
+
+/** The agent's session, with every tool and the environment's MCP servers, to completion: the harness's exit code. */
+async function agentSession(p: Paths, context: RunContext, state: BootstrapState): Promise<number> {
   const systemPromptFile = join(p.state, "system-prompt.md");
   const environment = await environmentExtras(p.environment);
   const rules = await writeRules(p.knowledge, context.knowledge);
   await writeFile(systemPromptFile, [systemPrompt(context, p.out, rules), environment.notes].filter((part) => part !== undefined).join("\n\n"));
-  const exitCode = await runHarness({
+  return runHarness({
     harness: state.harness,
     toolsDir: p.tools,
     work: p.work,
@@ -77,9 +87,6 @@ export async function run(inputs: Inputs = readInputs()): Promise<number> {
     mcpConfigFile: environment.mcpConfigFile,
     skillsDir: context.knowledge.lessons.length === 0 && rules.length === 0 ? undefined : await writeSkills(p.knowledge, context.knowledge),
   });
-  await rm(p.keyFile, { force: true });
-  if (exitCode !== 0) core.warning(`harness exited with ${String(exitCode)}`);
-  return finish(inputs, { final: true });
 }
 
 /** The run's LLM endpoint and key, as bootstrap left them. */
@@ -109,25 +116,8 @@ const MAX_INLINE_DIFF_CHARS = 150_000;
  */
 async function review(inputs: Inputs, context: RunContext, state: BootstrapState): Promise<number> {
   const p = paths(inputs);
-  const pull = context.review;
-  if (pull === undefined) throw new Error("a review run needs its review context");
-  await fetchPullBase(p.work, pull.baseSha);
-  const scope = await localScope({ dir: p.work, base: pull.baseSha, mode: "committed", includeUntracked: false });
-  const judgement = await judge({
-    command: claudeBinary(p.tools),
-    cwd: p.work,
-    env: claudeEnvironment(await llmAccess(p, state), state.model),
-    model: state.model,
-    subject: {
-      what: `pull request ${context.repo}#${String(context.number)}`,
-      title: context.title,
-      head: pull.headSha,
-      diffCommand: scope.diffCommand,
-      request: context.trigger,
-      rules: pull.rules,
-    },
-    annotatedDiff: scope.annotated.length <= MAX_INLINE_DIFF_CHARS ? scope.annotated : undefined,
-  });
+  const pull = reviewOf(context);
+  const judgement = await judgeRules(p, context, state, pull, await reviewScope(p, pull));
   await rm(p.keyFile, { force: true });
   if (judgement.verdicts === undefined) {
     core.error(`the review didn't complete: ${judgement.problems.join("; ")}`);
@@ -142,6 +132,75 @@ async function review(inputs: Inputs, context: RunContext, state: BootstrapState
     learnings: [],
   });
   return finish(inputs, { final: true });
+}
+
+/**
+ * A full review: the verify session and the rule review side by side, each its own session (the
+ * rules' stays read-only, without MCP servers), merged into one result.json. What one of them
+ * couldn't finish doesn't discard the other's work.
+ */
+async function fullReview(inputs: Inputs, context: RunContext, state: BootstrapState): Promise<number> {
+  const p = paths(inputs);
+  const pull = reviewOf(context);
+  // The rules are checked on the pull request as committed, read before the verify session can touch the checkout.
+  const scope = await reviewScope(p, pull);
+  const [verify, rules] = await Promise.allSettled([agentSession(p, context, state), judgeRules(p, context, state, pull, scope)]);
+  await rm(p.keyFile, { force: true });
+  if (verify.status === "rejected") core.warning(`the verify session failed: ${String(verify.reason)}`);
+  else if (verify.value !== 0) core.warning(`harness exited with ${String(verify.value)}`);
+  const verdicts = rules.status === "fulfilled" ? rules.value.verdicts : undefined;
+  if (verdicts === undefined) core.warning(`the rule checks didn't complete: ${rules.status === "fulfilled" ? rules.value.problems.join("; ") : String(rules.reason)}`);
+  const result = fullReviewResult(await verifyAnswer(p), verdicts, pull.rules.length);
+  if (result === undefined) {
+    core.error("neither the verification nor the rule checks completed");
+    return 1;
+  }
+  await writeJson(p.resultFile, result);
+  return finish(inputs, { final: true });
+}
+
+/** The verify session's result.json, or undefined when it left none that parses. */
+async function verifyAnswer(p: Paths): Promise<RunResult | undefined> {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(p.resultFile, "utf8"));
+  } catch {
+    core.warning("the verify session left no result.json");
+    return undefined;
+  }
+  const parsed = RunResult.safeParse(typeof raw === "object" && raw !== null ? { replies: [], attachments: [], learnings: [], ...raw } : raw);
+  if (!parsed.success) core.warning(`the verify session's result.json does not match the schema:\n${z.prettifyError(parsed.error)}`);
+  return parsed.data;
+}
+
+function reviewOf(context: RunContext): ReviewContext {
+  if (context.review === undefined) throw new Error(`a ${context.mode} run needs its review context`);
+  return context.review;
+}
+
+/** The pull request's diff from its merge base, as committed. */
+async function reviewScope(p: Paths, pull: ReviewContext): Promise<Scope> {
+  await fetchPullBase(p.work, pull.baseSha);
+  return localScope({ dir: p.work, base: pull.baseSha, mode: "committed", includeUntracked: false });
+}
+
+/** The rules the controller selected, checked by @open-macaron/review's read-only sessions. */
+async function judgeRules(p: Paths, context: RunContext, state: BootstrapState, pull: ReviewContext, scope: Scope): Promise<Judgement> {
+  return judge({
+    command: claudeBinary(p.tools),
+    cwd: p.work,
+    env: claudeEnvironment(await llmAccess(p, state), state.model),
+    model: state.model,
+    subject: {
+      what: `pull request ${context.repo}#${String(context.number)}`,
+      title: context.title,
+      head: pull.headSha,
+      diffCommand: scope.diffCommand,
+      request: context.trigger,
+      rules: pull.rules,
+    },
+    annotatedDiff: scope.annotated.length <= MAX_INLINE_DIFF_CHARS ? scope.annotated : undefined,
+  });
 }
 
 /** `macaron-agent attach <file> --kind image|video --caption …`: prints the reference to use in text. */
