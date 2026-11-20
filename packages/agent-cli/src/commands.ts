@@ -1,12 +1,12 @@
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import * as core from "@actions/core";
-import { Attachment, AttachmentId, type LlmAccess, type ReviewContext, RunContext, RunResult } from "@open-macaron/contracts";
+import { allowedActions, Attachment, AttachmentId, type LlmAccess, type ReviewContext, RunContext, RunResult } from "@open-macaron/contracts";
 import { type Judgement, judge, localScope, type Scope } from "@open-macaron/review";
 import { z } from "zod";
 import { bootstrap as requestBootstrap } from "./controller-api.ts";
 import { fullReviewResult } from "./full-review.ts";
-import { changesSince, checkout, crlfIntroduced } from "./git.ts";
+import { changedPaths, changesSince, checkout, crlfIntroduced } from "./git.ts";
 import { claudeBinary, claudeEnvironment, installHarness, runHarness } from "./harness.ts";
 import { type Inputs, type Paths, paths, readInputs } from "./inputs.ts";
 import { presentationProblems, repairPresentation } from "./presentation.ts";
@@ -264,6 +264,15 @@ export async function finish(inputs: Inputs = readInputs(), { final = false }: {
   }
   await writeJson(p.resultFile, result);
 
+  // Only a commit publishes the working tree. In a mode that can't commit, what a build or the
+  // repository's own hooks left changed is dropped: refusing it would lose the run's answer.
+  if (!allowedActions[context.mode].includes("commit")) {
+    await rm(p.changesFile, { force: true });
+    const left = await changedPaths(p.work, context.baseSha);
+    if (left.length > 0) core.warning(`ignored ${String(left.length)} changed file(s), \`${context.mode}\` can't commit: ${left.slice(0, 10).join(", ")}${left.length > 10 ? ", …" : ""}`);
+    core.info(`result ready: ${result.action}, ${String(result.attachments.length)} attachment(s)`);
+    return 0;
+  }
   const changes = await changesSince(p.work, context.baseSha);
   if (changes.files.length > 0) await writeJson(p.changesFile, changes);
   else await rm(p.changesFile, { force: true });

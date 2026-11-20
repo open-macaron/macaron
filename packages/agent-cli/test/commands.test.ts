@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -81,6 +81,22 @@ describe("finish", () => {
       ["upsert", "new.ts"],
     ]);
     expect(RunResult.parse(JSON.parse(await readFile(p.resultFile, "utf8"))).replies).toEqual([]);
+  });
+
+  it("ignores what a mode that can't commit left changed, a symlink and .github/ included", async () => {
+    const p = paths(inputs);
+    const context = RunContext.parse(JSON.parse(await readFile(p.contextFile, "utf8")));
+    await writeFile(p.contextFile, JSON.stringify({ ...context, mode: "verify" }));
+    // A formatter hook, a build output, a link: none of it can be published, so none of it fails the run.
+    await writeFile(join(p.work, "README.md"), "hello\n\n");
+    await mkdir(join(p.work, ".github"), { recursive: true });
+    await writeFile(join(p.work, ".github", "ci.yml"), "on: push\n");
+    await symlink("README.md", join(p.work, "link.md"));
+    await writeFile(p.changesFile, "{}");
+    await writeFile(p.resultFile, JSON.stringify({ action: "reply", message: "### Verdict\n✅ **Verified**: it works.", summary: "✅ **Verified**: it works." }));
+
+    expect(await finish(inputs)).toBe(0);
+    await expect(readFile(p.changesFile, "utf8")).rejects.toThrow();
   });
 
   it("merges attachments recorded with `attach`", async () => {

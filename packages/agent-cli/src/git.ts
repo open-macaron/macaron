@@ -61,6 +61,12 @@ export async function changesSince(work: string, baseSha: string): Promise<Chang
   return Changes.parse({ baseSha, files });
 }
 
+/** The paths the working tree changed since `baseSha`, untracked files included: what a run left behind. */
+export async function changedPaths(work: string, baseSha: string): Promise<string[]> {
+  await git(work, "add", "--all");
+  return (await git(work, "diff", "--cached", "--no-renames", "--name-only", "-z", baseSha)).split("\0").filter((path) => path.length > 0);
+}
+
 /** Files the changes turn from LF to CRLF line endings (new files count as LF), to convert back before publishing. */
 export async function crlfIntroduced(work: string, changes: Changes): Promise<string[]> {
   const paths: string[] = [];
