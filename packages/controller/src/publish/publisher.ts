@@ -219,9 +219,9 @@ export class Publisher {
     const reviewId = ReviewId.safeParse(await this.runs.effect(thread.id, run.loop, "review"));
     if (review === undefined || !reviewId.success) return;
     const upstream = repoRef(thread.repo);
-    const body = await this.writer.reviewBody(upstream, review.pull, reviewId.data);
+    const { body, nodeId } = await this.writer.review(upstream, review.pull, reviewId.data);
     const updated = withReviewCost(body, costMicros);
-    if (updated !== undefined && updated !== body) await this.post(() => this.writer.updateReview(upstream, review.pull, reviewId.data, updated));
+    if (updated !== undefined && updated !== body) await this.post(() => this.writer.updateReview(nodeId, updated));
   }
 
   /**

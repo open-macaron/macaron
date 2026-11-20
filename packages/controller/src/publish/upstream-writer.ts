@@ -8,6 +8,8 @@ export type ReactionTarget =
   | { readonly kind: "issue-comment"; readonly id: number }
   | { readonly kind: "review-comment"; readonly id: number };
 
+const UPDATE_REVIEW = "mutation($id: ID!, $body: String!) { updatePullRequestReview(input: { pullRequestReviewId: $id, body: $body }) { clientMutationId } }";
+
 /** Thrown when the upstream refuses our comment (locked conversation, interaction limits). */
 export class CannotPost extends Error {
   constructor(readonly status: number) {
@@ -73,13 +75,18 @@ export class UpstreamWriter {
     return data.id;
   }
 
-  async reviewBody(upstream: RepoRef, pull: number, reviewId: number): Promise<string> {
+  /** A review's body, and its GraphQL id to update it with. */
+  async review(upstream: RepoRef, pull: number, reviewId: number): Promise<{ readonly body: string; readonly nodeId: string }> {
     const { data } = await this.gh.rest.pulls.getReview({ ...upstream, pull_number: pull, review_id: reviewId });
-    return data.body;
+    return { body: data.body, nodeId: data.node_id };
   }
 
-  async updateReview(upstream: RepoRef, pull: number, reviewId: number, body: string): Promise<void> {
-    await this.posting(() => this.gh.rest.pulls.updateReview({ ...upstream, pull_number: pull, review_id: reviewId, body }));
+  /**
+   * Replaces a review's body. Through GraphQL: REST's update answers 404 to an author without write
+   * access to the repository, which the bot never has upstream (#204).
+   */
+  async updateReview(nodeId: string, body: string): Promise<void> {
+    await this.posting(() => this.gh.graphql(UPDATE_REVIEW, { id: nodeId, body }));
   }
 
   async comment(upstream: RepoRef, number: number, body: string): Promise<number> {
