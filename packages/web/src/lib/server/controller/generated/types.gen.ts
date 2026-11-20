@@ -284,6 +284,7 @@ export type GetMyModelsResponses = {
         preference: {
             model?: string;
             fastModel?: string;
+            reviewModel?: string;
         };
     };
 };
@@ -295,6 +296,7 @@ export type SetMyModelsData = {
         preference: {
             model?: string;
             fastModel?: string;
+            reviewModel?: string;
         };
     };
     path?: never;
@@ -326,6 +328,7 @@ export type SetMyModelsResponses = {
         preference: {
             model?: string;
             fastModel?: string;
+            reviewModel?: string;
         };
     };
 };

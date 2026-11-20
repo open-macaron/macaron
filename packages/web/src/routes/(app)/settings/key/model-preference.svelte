@@ -12,13 +12,14 @@
   const fields = setModels.fields;
 
   // Read once: after a save the selects already show what was saved.
-  function initial(): { model: string; fastModel: string } {
-    return { model: models.preference.model ?? "", fastModel: models.preference.fastModel ?? "" };
+  function initial(): { model: string; fastModel: string; reviewModel: string } {
+    return { model: models.preference.model ?? "", fastModel: models.preference.fastModel ?? "", reviewModel: models.preference.reviewModel ?? "" };
   }
   const start = initial();
-  // Blank means the configuration's choice.
+  // Blank means the default each field names.
   let model = $state(start.model);
   let fastModel = $state(start.fastModel);
+  let reviewModel = $state(start.reviewModel);
 
   function label(option: string): string {
     return models.free.includes(option) ? `${option} (free, capped by tokens)` : option;
@@ -29,7 +30,7 @@
   <Card.Header>
     <Card.Title>Models</Card.Title>
     <Card.Description>
-      The models your runs use, among the ones the gateway prices or serves for free. They replace the configuration's defaults for the runs you pay for; a mode the configuration gives its own model (reviews) keeps it. Runs on a free model are capped by tokens instead of dollars.
+      The models your runs use, among the ones the gateway prices or serves for free. They replace the configuration's defaults for the runs you pay for. Runs on a free model are capped by tokens instead of dollars.
     </Card.Description>
   </Card.Header>
   <Card.Content>
@@ -61,6 +62,17 @@
           </NativeSelect.Root>
           <Field.Description>For quick chores: titles, summaries. The run's model when the configuration has none set apart.</Field.Description>
           <Field.Error errors={fields.fastModel.issues()} />
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="model-review">Review model</Field.Label>
+          <NativeSelect.Root id="model-review" {...fields.reviewModel.as("select")} bind:value={reviewModel}>
+            <NativeSelect.Option value="">Your default model</NativeSelect.Option>
+            {#each models.models as option (option)}
+              <NativeSelect.Option value={option}>{label(option)}</NativeSelect.Option>
+            {/each}
+          </NativeSelect.Root>
+          <Field.Description>Checks pull requests against the knowledge rules: <code>review</code>, and the rule checks of <code>full-review</code>.</Field.Description>
+          <Field.Error errors={fields.reviewModel.issues()} />
         </Field.Field>
       </Field.Group>
 

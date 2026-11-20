@@ -7,5 +7,5 @@ export const CONFIGURED_MODELS = Symbol("CONFIGURED_MODELS");
 export function configuredModels(snapshot: ConfigSnapshot): string[] {
   const fallbacks = [...snapshot.orgs.values()].flatMap((org) => fallbackSettings(snapshot.global, org) ?? []);
   const settings: readonly RepoSettings[] = [...snapshot.repos.values(), ...fallbacks];
-  return [...new Set(settings.flatMap((repo) => [repo.model, repo.fastModel, ...Object.values(repo.models)]))];
+  return [...new Set(settings.flatMap((repo) => [repo.model, repo.fastModel]))];
 }

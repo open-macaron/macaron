@@ -59,29 +59,39 @@ describe("ModelPreferencesService", () => {
     await service.save("alice", {});
   });
 
-  it("stores the picks, and a run uses them over the configuration's defaults", async () => {
-    expect(await service.save("alice", { model: "claude-haiku-5-5", fastModel: "claude-haiku-5-5" })).toMatchObject({ preference: { model: "claude-haiku-5-5", fastModel: "claude-haiku-5-5" } });
-    expect(await service.resolve("alice", "plan", config, SETTINGS)).toEqual({ models: { model: "claude-haiku-5-5", fastModel: "claude-haiku-5-5" } });
+  it("refuses a review model without a price, naming its field", async () => {
+    await expect(service.save("alice", { reviewModel: "forgotten" })).rejects.toMatchObject({ field: "reviewModel" });
   });
 
-  it("keeps a model the configuration sets for a mode: reviews stay on the one their rules were tuned for", async () => {
+  it("stores the picks, and a run uses them over the configuration's defaults", async () => {
+    expect(await service.save("alice", { model: "claude-haiku-5-5", fastModel: "claude-haiku-5-5" })).toMatchObject({ preference: { model: "claude-haiku-5-5", fastModel: "claude-haiku-5-5" } });
+    expect(await service.resolve("alice", "plan", config, SETTINGS)).toEqual({ models: { model: "claude-haiku-5-5", fastModel: "claude-haiku-5-5", reviewModel: "claude-haiku-5-5" } });
+  });
+
+  it("checks rules on the user's default model, not on the configuration's deprecated `models.review`", async () => {
     expect(config.models.review).toBe("claude-sonnet-5-5");
-    expect(await service.resolve("alice", "review", config, SETTINGS)).toEqual({ models: { model: "claude-sonnet-5-5", fastModel: "claude-haiku-5-5" } });
+    expect(await service.resolve("alice", "review", config, SETTINGS)).toEqual({ models: { model: "claude-haiku-5-5", fastModel: "claude-haiku-5-5", reviewModel: "claude-haiku-5-5" } });
+  });
+
+  it("checks rules on the review model the user picked, for a review and a full review's rule sessions", async () => {
+    await service.save("alice", { model: "free-preview", reviewModel: "claude-sonnet-5-5" });
+    expect(await service.resolve("alice", "review", config, SETTINGS)).toEqual({ models: { model: "claude-sonnet-5-5", fastModel: config.fastModel, reviewModel: "claude-sonnet-5-5" } });
+    expect(await service.resolve("alice", "full_review", config, SETTINGS)).toEqual({ models: { model: "free-preview", fastModel: config.fastModel, reviewModel: "claude-sonnet-5-5" } });
   });
 
   it("leaves every choice to the configuration when the user picked nothing", async () => {
     await service.save("alice", {});
-    expect(await service.resolve("alice", "plan", config, SETTINGS)).toEqual({ models: { model: config.models.plan ?? config.model, fastModel: config.fastModel } });
+    expect(await service.resolve("alice", "review", config, SETTINGS)).toEqual({ models: { model: config.model, fastModel: config.fastModel, reviewModel: config.model } });
   });
 
   it("refuses a run whose pick lost its price, pointing at the key page", async () => {
-    await service.save("alice", { model: "claude-haiku-5-5" });
+    await service.save("alice", { reviewModel: "claude-haiku-5-5" });
     // A redeploy took the model out of the pinned prices.
     const repriced = new ModelPreferencesService(db, PriceList.of(new Map([["claude-sonnet-5-5", { input_cost_per_token: 2e-6, output_cost_per_token: 1e-5 }]])), new FakeClock(new Date()));
-    const resolved = await repriced.resolve("alice", "plan", config, SETTINGS);
-    expect(resolved).toEqual({ refusal: expect.stringContaining("claude-haiku-5-5") });
+    const resolved = await repriced.resolve("alice", "review", config, SETTINGS);
+    expect(resolved).toEqual({ refusal: expect.stringContaining("the review model you picked (claude-haiku-5-5)") });
     expect(JSON.stringify(resolved)).toContain(SETTINGS);
-    // A review doesn't use the pick: the configuration's model runs it.
-    expect(await repriced.resolve("alice", "review", config, SETTINGS)).toEqual({ models: { model: "claude-sonnet-5-5", fastModel: config.fastModel } });
+    // A run that checks no rule doesn't use it.
+    expect(await repriced.resolve("alice", "plan", config, SETTINGS)).toMatchObject({ models: { model: config.model } });
   });
 });

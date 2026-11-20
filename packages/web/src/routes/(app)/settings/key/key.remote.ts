@@ -57,7 +57,10 @@ export const setModels = form(ModelPreferenceInput, async (preference, issue) =>
   requireUser();
   const result = await setMyModels({ client: controller(), body: { preference } });
   const refusal = fieldRefusal(result);
-  if (refusal !== undefined) invalid(refusal.field === "fastModel" ? issue.fastModel(refusal.message) : issue.model(refusal.message));
+  if (refusal !== undefined) {
+    const field = refusal.field === "fastModel" || refusal.field === "reviewModel" ? refusal.field : "model";
+    invalid(issue[field](refusal.message));
+  }
   const models = unwrap(result);
   void getModels().refresh();
   return models;

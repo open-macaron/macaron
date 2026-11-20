@@ -142,14 +142,16 @@ export const zGetMyModelsResponse = z.object({
     free: z.array(z.string()),
     preference: z.object({
         model: z.string().min(1).max(200).optional(),
-        fastModel: z.string().min(1).max(200).optional()
+        fastModel: z.string().min(1).max(200).optional(),
+        reviewModel: z.string().min(1).max(200).optional()
     })
 });
 
 export const zSetMyModelsBody = z.object({
     preference: z.object({
         model: z.string().min(1).max(200).optional(),
-        fastModel: z.string().min(1).max(200).optional()
+        fastModel: z.string().min(1).max(200).optional(),
+        reviewModel: z.string().min(1).max(200).optional()
     })
 });
 
@@ -158,7 +160,8 @@ export const zSetMyModelsResponse = z.object({
     free: z.array(z.string()),
     preference: z.object({
         model: z.string().min(1).max(200).optional(),
-        fastModel: z.string().min(1).max(200).optional()
+        fastModel: z.string().min(1).max(200).optional(),
+        reviewModel: z.string().min(1).max(200).optional()
     })
 });
 

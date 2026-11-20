@@ -61,4 +61,4 @@ const ModelField = z
   .transform((model) => (model === "" ? undefined : model));
 
 /** The models form's input: the controller's preference, a blank field left out. */
-export const ModelPreferenceInput = z.object({ model: ModelField, fastModel: ModelField });
+export const ModelPreferenceInput = z.object({ model: ModelField, fastModel: ModelField, reviewModel: ModelField });

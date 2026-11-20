@@ -256,7 +256,7 @@ async function route(request: IncomingMessage): Promise<Reply> {
     if (method === "PUT") {
       const { preference } = zSetMyModelsBody.parse(await readJson(request));
       const refused = (field: string, model: string | undefined): Reply | undefined => (model === undefined || PRICED.includes(model) ? undefined : reply(409, undefined, { error: "field_refused", field, message: `${model} has no pinned price and isn't marked free, so nothing could cap a run on it.` }));
-      const refusal = refused("model", preference.model) ?? refused("fastModel", preference.fastModel);
+      const refusal = refused("model", preference.model) ?? refused("fastModel", preference.fastModel) ?? refused("reviewModel", preference.reviewModel);
       if (refusal !== undefined) return refusal;
       state.preferences.set(user.id, preference);
     }

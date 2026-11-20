@@ -63,7 +63,9 @@
           "additionalProperties": {
             "type": "string",
             "minLength": 1
-          }
+          },
+          "deprecated": true,
+          "description": "Ignored: each user picks the model that checks rules, in the web app."
         },
         "fastModel": {
           "type": "string",
@@ -313,7 +315,9 @@
             "additionalProperties": {
               "type": "string",
               "minLength": 1
-            }
+            },
+            "deprecated": true,
+            "description": "Ignored: each user picks the model that checks rules, in the web app."
           },
           "fastModel": {
             "type": "string",
@@ -564,7 +568,9 @@
               "additionalProperties": {
                 "type": "string",
                 "minLength": 1
-              }
+              },
+              "deprecated": true,
+              "description": "Ignored: each user picks the model that checks rules, in the web app."
             },
             "fastModel": {
               "type": "string",
