@@ -78,11 +78,12 @@ export class CoreModule {}
 /** Run keys: the only module holding the credentials that mint them. */
 @Module({
   providers: [
+    { provide: PriceList, inject: [APP_ENV], useFactory: (env: AppEnv) => PriceList.fromFile(env.bifrost.pricingFile) },
     {
       provide: RunKeys,
-      inject: [APP_ENV, RepoConfigService],
-      useFactory: (env: AppEnv, config: RepoConfigService) => {
-        const keys = new BifrostKeys(env.bifrost, PriceList.fromFile(env.bifrost.pricingFile));
+      inject: [APP_ENV, RepoConfigService, PriceList],
+      useFactory: (env: AppEnv, config: RepoConfigService, prices: PriceList) => {
+        const keys = new BifrostKeys(env.bifrost, prices);
         // A reloaded configuration naming a model the gateway can't bill is refused as a whole,
         // as at boot, rather than failing every run that would use it.
         config.addCheck(async (snapshot) => {
@@ -95,7 +96,7 @@ export class CoreModule {}
     { provide: CONFIGURED_MODELS, inject: [RepoConfigService], useFactory: (config: RepoConfigService) => () => configuredModels(config.snapshot) },
     BudgetService,
   ],
-  exports: [BudgetService],
+  exports: [BudgetService, PriceList],
 })
 export class BudgetModule {}
 
@@ -123,6 +124,7 @@ export class ReviewModule {}
 
 /** The web app's users: sign-in (better-auth), invitations, capabilities, usage and activity, endpoints and their LLM keys. */
 @Module({
+  imports: [BudgetModule],
   providers: [
     InvitationsService,
     SessionsService,
@@ -133,13 +135,12 @@ export class ReviewModule {}
     LlmKeysService,
     ModelPreferencesService,
     MonthlyCapService,
-    { provide: PriceList, inject: [APP_ENV], useFactory: (env: AppEnv) => PriceList.fromFile(env.bifrost.pricingFile) },
     { provide: RESOLVE, useValue: resolveAll },
     { provide: PROBE, useValue: probeEndpoint },
     { provide: CONFIGURED_MODELS, inject: [RepoConfigService], useFactory: (config: RepoConfigService) => () => configuredModels(config.snapshot) },
     { provide: KEY_RING, inject: [APP_ENV], useFactory: (env: AppEnv) => (env.LLM_KEK_DIR === undefined ? undefined : KeyRing.fromDirectory(env.LLM_KEK_DIR)) },
   ],
-  exports: [InvitationsService, SessionsService, UsersService, UsageService, ActivityService, EndpointsService, LlmKeysService, ModelPreferencesService, MonthlyCapService, PriceList],
+  exports: [InvitationsService, SessionsService, UsersService, UsageService, ActivityService, EndpointsService, LlmKeysService, ModelPreferencesService, MonthlyCapService],
 })
 export class AccountsModule {}
 

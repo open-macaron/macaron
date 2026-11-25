@@ -49,17 +49,19 @@ The modules are declared in `src/modules.ts`, wired in `AppModule` with `EnvModu
 flowchart LR
   HTTP["HttpModule<br/>Bootstrap, Webhook, Health controllers"] --> RUNS
   ING["IngestModule<br/>NotificationsPoller, IngestService,<br/>ThreadWorker, ContextBuilder, ThreadStates"] --> RUNS
-  RUNS["RunsModule<br/>RunLauncher, OidcVerifier,<br/>ArtifactDownloader, Housekeeping"] --> BUD["BudgetModule<br/>RunKeys (BifrostKeys),<br/>BudgetService"]
+  RUNS["RunsModule<br/>RunLauncher, OidcVerifier,<br/>ArtifactDownloader, Housekeeping"] --> BUD["BudgetModule<br/>RunKeys (BifrostKeys),<br/>BudgetService, PriceList"]
   RUNS --> PUB["PublishModule<br/>Publisher, ForkCommitter, UpstreamWriter,<br/>ReactionTargets, EvidenceHost, KnowledgeProposer,<br/>ForkRegistry, OnboardingNotice, OrgsService"]
   RUNS --> REV["ReviewModule<br/>KnowledgeClient, PullDiffReader"]
   ING --> PUB
   ING --> REV
   CORE["CoreModule (global)<br/>RepoConfigService, OwnerLogins, PublishedConfigClient, ConfigSnapshotStore, ConfigUpdates,<br/>Jobs, BotIdentity, RunsRepository, EventsRepository, PollStateStore"]
   HTTP --> ACC["AccountsModule<br/>SessionsService (better-auth), InvitationsService,<br/>UsersService, UsageService"]
+  ACC --> BUD
 ```
 
 - **Routing is plain code, not a module.** `src/routing/routes.ts` (`ROUTES`, `route()`, subjects) is pure and table-tested; `ThreadStates` reads what it needs from GitHub and the ledger, and `ThreadWorker` applies it (DESIGN.md §4 "Subjects and routes").
 - **Dependencies point one way:** HTTP and ingest → runs → budget, publish, review. Each module exports only what its users need. Nothing enforces the direction automatically yet; reviews do.
+- **Prices have one owner.** `BudgetModule` reads the pinned price list once and exports `PriceList` to `AccountsModule` and `RunsModule`, so model preferences, run limits and key minting use the same instance.
 - **State lives in Postgres, not in memory.** Background work runs on [pg-boss](https://github.com/timgit/pg-boss), on the same database: per-thread debounce (`upsert` on a `stately` queue moves the pending job back), deduplicated `run-completed` and `ensure-fork` jobs, and cron-scheduled `reconcile` and `sweep-keys`. The notifications poller is itself a pg-boss job (see DESIGN.md §4), so a restart loses nothing.
 - **Idempotency.** Every external effect (reaction, comment, push, dispatch) is keyed in the database by `(thread, loop, effect)`. A retried job never double-posts.
 
