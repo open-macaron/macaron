@@ -12,7 +12,8 @@ const ANSWER_CUT = "\n\n… _Cut here: this review would be over GitHub's size l
 
 /**
  * The bot's GitHub review: the shared rendering (@open-macaron/review), with the reviewer's text
- * defused (mentions) and the bot's footer: the cost (⏳ until settled), the loop, the runner, the model and the run.
+ * defused (mentions) and the bot's footer: the cost (⏳ until settled), the loop, the runner, the model, the run,
+ * and the command that runs the same review locally, so contributors can check before they push.
  * A full review's `answer` (its verify message, ready to publish) comes first. Over GitHub's limit,
  * the rule checks keep their violations and warnings only, and as a last resort the answer is cut.
  */
@@ -25,6 +26,8 @@ export function renderReview(
     readonly ghRunId: number | null;
     readonly runUrl: string | null;
     readonly costMicros: UsdMicros | null;
+    /** The repository's knowledge project, for the local command's `--project`. */
+    readonly knowledge: string;
     /** The rule sessions' model, when it isn't the run's. */
     readonly ruleModel?: string | undefined;
   },
@@ -35,6 +38,7 @@ export function renderReview(
   parts.push(`model \`${modelName(meta.model)}\``);
   if (meta.ruleModel !== undefined && meta.ruleModel !== meta.model) parts.push(`rules \`${modelName(meta.ruleModel)}\``);
   if (meta.runUrl !== null) parts.push(`[run${meta.ghRunId === null ? "" : ` ${String(meta.ghRunId)}`}](${meta.runUrl})`);
+  parts.push(`run it locally: \`npx @open-macaron/review --project ${meta.knowledge}\``);
   const render = (attentionOnly: boolean) => renderMarkdown(results, meta, { clean: (text) => sanitize(text, new Set()), footer: parts.join(" · "), attentionOnly });
   const withAnswer = (rules: string, text = answer) => (text === undefined ? rules : `${text}${ANSWER_SEPARATOR}${rules}`);
   const full = render(false);
