@@ -104,7 +104,7 @@ describe("renderReview", () => {
     [verdict({ verdict: "violation", evidence: [quote], explanation: "Reads it at runtime, ping @someone" }), verdict({ ruleId: "sandbox/quiet" })],
     diff,
   );
-  const meta = { repo: "axel7083/foobar-tmp-demo", headSha: HEAD, knowledgeCommit: review.knowledgeCommit, loop: 2, runner: "ubuntu-24.04", model: "claude-sonnet-5-5", ghRunId: 1, runUrl: "https://example.test/run/1", costMicros: null };
+  const meta = { repo: "axel7083/foobar-tmp-demo", headSha: HEAD, knowledgeCommit: review.knowledgeCommit, loop: 2, runner: "ubuntu-24.04", model: "claude-sonnet-5-5", ghRunId: 1, runUrl: "https://example.test/run/1", costMicros: null, knowledge: "sandbox" };
 
   it("stays short: one sentence, then the checks collapsed and grouped, what needs action open", () => {
     const { body } = renderReview(results, meta);
@@ -118,7 +118,7 @@ describe("renderReview", () => {
     expect(body).toContain(`[\`src/extension.ts:11\`](https://github.com/axel7083/foobar-tmp-demo/blob/${HEAD}/src/extension.ts#L11)`);
     expect(body).toContain("| title of sandbox/svelte<br>`sandbox/svelte` | ➖ | no matching file changed |");
     expect(body).toContain("[open-macaron/knowledge@ccccccc]");
-    expect(body).toContain("Cost: ⏳<!-- /macaron:review-cost --> · loop 2 · runner `ubuntu-24.04` · model `claude-sonnet-5-5` · [run 1](https://example.test/run/1)</sub>");
+    expect(body).toContain("Cost: ⏳<!-- /macaron:review-cost --> · loop 2 · runner `ubuntu-24.04` · model `claude-sonnet-5-5` · [run 1](https://example.test/run/1) · run it locally: `npx @open-macaron/review --project sandbox`</sub>");
   });
 
   it("says plainly when everything passes, or nothing could be checked", () => {
@@ -160,6 +160,7 @@ describe("renderReview", () => {
       expect(body).toContain("<details open>\n<summary>❌ Violations (1)</summary>");
       expect(body).toContain("✅ Passed (1): left out, this review would be over GitHub's size limit.");
       expect(body).toContain("Cost: ⏳");
+      expect(body).toContain("`npx @open-macaron/review --project sandbox`</sub>");
       expect(comments).toHaveLength(1);
     });
 

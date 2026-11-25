@@ -255,6 +255,7 @@ export class Publisher {
         ghRunId: run.ghRunId,
         runUrl: input.runUrl,
         costMicros: null,
+        knowledge: config.knowledge,
       },
       answer,
     );
