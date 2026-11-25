@@ -1,5 +1,11 @@
 # @open-macaron/controller
 
+## 0.26.4
+
+### Patch Changes
+
+- b996000: The footer of a review (`review`, `full-review`) gives the command that runs the same review locally: `npx @open-macaron/review --project <project>`.
+
 ## 0.26.3
 
 ### Patch Changes
