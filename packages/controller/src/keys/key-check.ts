@@ -36,7 +36,7 @@ const MAX_BODY_BYTES = 1_000_000;
  * change in between.
  */
 export const publicLookup: LookupFunction = (hostname, options, callback) => {
-  dnsLookup(hostname, { all: true, verbatim: true }, (error, addresses) => {
+  dnsLookup(hostname, { all: true, order: "verbatim" }, (error, addresses) => {
     if (error !== null) {
       callback(error, "", 4);
       return;

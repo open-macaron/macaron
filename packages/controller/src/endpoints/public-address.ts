@@ -4,7 +4,7 @@ import ipaddr from "ipaddr.js";
 /** Resolves a host name to every address it has (A and AAAA). */
 export type Resolve = (host: string) => Promise<readonly string[]>;
 
-export const resolveAll: Resolve = async (host) => (await lookup(host, { all: true, verbatim: true })).map(({ address }) => address);
+export const resolveAll: Resolve = async (host) => (await lookup(host, { all: true, order: "verbatim" })).map(({ address }) => address);
 
 /**
  * Is `address` on the public internet? Only global unicast: no private, loopback, link-local,
