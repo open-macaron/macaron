@@ -1,5 +1,33 @@
 # @open-macaron/controller
 
+## 0.26.8
+
+### Patch Changes
+
+- 487471e: Bump `@sindresorhus/slugify` (3.0.1 → 4.0.1).
+
+## 0.26.7
+
+### Patch Changes
+
+- 8114bef: Bump `@secretlint/secretlint-rule-pattern` (13.0.7 → 13.1.0), `@secretlint/secretlint-rule-preset-recommend` (13.0.7 → 13.1.0), `better-auth` (1.7.11 → 1.7.27), `file-type` (22.1.1 → 22.3.0), `jose` (6.2.12 → 6.2.18), `markdown-table` (3.0.4 → 3.1.0), `unist-util-visit` (5.1.0 → 5.2.0), `zod` (4.6.6 → 4.6.7).
+- Updated dependencies [8114bef]
+  - @open-macaron/contracts@0.22.1
+  - @open-macaron/review@0.5.4
+
+## 0.26.6
+
+### Patch Changes
+
+- 53f552b: Bump `@nestjs/common` (12.1.3 → 12.6.0), `@nestjs/core` (12.1.3 → 12.6.0), `@nestjs/platform-express` (12.1.3 → 12.6.0), `@nestjs/swagger` (12.0.2 → 12.1.2), `@nestjs/terminus` (12.1.0 → 12.2.0), `@nestjs/testing` (12.1.3 → 12.6.0), `nestjs-pino` (5.3.1 → 5.3.2).
+
+## 0.26.5
+
+### Patch Changes
+
+- 4f09441: Bump `hummingbird/nodejs:24` (new digest).
+- f34f9b1: Bump `pg-boss` (12.37.1 → 12.39.0).
+
 ## 0.26.4
 
 ### Patch Changes
