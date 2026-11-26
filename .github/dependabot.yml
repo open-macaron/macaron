@@ -1,0 +1,116 @@
+# Security updates open as soon as an advisory is published; version updates are checked daily and
+# grouped, so a group's PR is updated in place. A bump that touches a package gets its changeset from
+# dependabot-changeset.yml.
+version: 2
+
+updates:
+  # Every dependency is a pinned entry of the catalog in pnpm-workspace.yaml.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: daily
+      time: "06:00"
+      timezone: Europe/Paris
+    # pnpm refuses a version younger than minimumReleaseAge (3 days): never propose one.
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore(deps)
+    # Majors match no group below: one PR each, read before merging. A dependency goes to the first
+    # group it matches.
+    groups:
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
+      nestjs:
+        update-types: [minor, patch]
+        patterns: ["@nestjs/*", reflect-metadata, rxjs, nestjs-pino, "pino*"]
+      svelte:
+        update-types: [minor, patch]
+        patterns:
+          - svelte
+          - "svelte-*"
+          - "@sveltejs/*"
+          - vite
+          - "@vitejs/*"
+          - tailwindcss
+          - "@tailwindcss/*"
+          - tailwind-variants
+          - tw-animate-css
+          - shadcn-svelte
+          - bits-ui
+          - mode-watcher
+          - layerchart
+          - "d3-*"
+          - "@types/d3-*"
+          - "@lucide/svelte"
+          - "@internationalized/date"
+          - "@fontsource-variable/*"
+          - cn
+          - eslint-plugin-svelte
+      octokit:
+        update-types: [minor, patch]
+        patterns: ["@octokit/*"]
+      database:
+        update-types: [minor, patch]
+        patterns: ["drizzle-*", pg, pg-boss, "@types/pg", "@nestjs/drizzle"]
+      tooling:
+        update-types: [minor, patch]
+        patterns:
+          - typescript
+          - typescript-eslint
+          - eslint
+          - "@eslint/*"
+          - globals
+          - vitest
+          - "@vitest/*"
+          - "@swc/core"
+          - unplugin-swc
+          - esbuild
+          - msw
+          - "@testcontainers/*"
+          - "@playwright/test"
+          - "@types/node"
+      other:
+        update-types: [minor, patch]
+        patterns: ["*"]
+    ignore:
+      # engines pins Node 24.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
+
+  # Pinned by full SHA; Dependabot updates the SHA and its `# vX.Y.Z` comment.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+      time: "06:00"
+      timezone: Europe/Paris
+    cooldown:
+      default-days: 3
+    commit-message:
+      prefix: ci(deps)
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # The base images, pinned by tag and digest: the digest follows the tag. The images in
+  # deploy/openshift are pinned by digest alone and bumped by hand (docs/DEPLOYMENT.md §7).
+  - package-ecosystem: docker
+    directories: [/packages/controller, /packages/web]
+    schedule:
+      interval: daily
+      time: "06:00"
+      timezone: Europe/Paris
+    cooldown:
+      default-days: 3
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      base-images:
+        patterns: ["*"]
+    ignore:
+      # Node 25 is outside engines.
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]

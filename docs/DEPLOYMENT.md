@@ -183,4 +183,4 @@ Neither a configuration change nor a controller release is a deploy: the control
 
    The cluster has user-workload monitoring (`ServiceMonitor`, `PrometheusRule`), which would need a metrics endpoint on the controller.
 3. **Signature check at pull time:** the controller follows `:latest` without a signature check, because OpenShift's `ImagePolicy` can't match a GitHub workflow's keyless signature yet (#35). Only the CLI bundles are verified, by a maintainer, before they are pinned.
-4. **Image updates:** base images, Postgres, nginx and Bifrost are bumped by hand. Renovate isn't set up.
+4. **Image updates:** Dependabot bumps the Containerfiles' base images (their digest within the tag). Postgres, nginx and Bifrost are pinned by digest alone and bumped by hand.

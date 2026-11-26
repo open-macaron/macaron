@@ -7,4 +7,6 @@ On `main`, `release.yml` collects the changesets into one "Version Packages" pul
 - Every package is private: changesets tags each released version (`@open-macaron/<package>@<version>`) and writes its GitHub release. npm is untouched.
 - `release.yml` then builds what was released: the controller image, the agent-cli, knowledge-cli and config-cli bundles, and `@open-macaron/review` on npm (once the repository variable `NPM_PUBLISH` is `true`).
 
+Dependabot's PRs get their changeset from `dependabot-changeset.yml`: a patch for every package that names a bumped dependency, every package for a transitive one, the package whose Containerfile changed for a base image, nothing for an Actions or root-only bump. Edit it on the PR when the bump deserves more than a patch. Pushing to a Dependabot PR stops its rebases; `@dependabot recreate` starts over, and the changeset is added again.
+
 See docs/DEPLOYMENT.md §1.
