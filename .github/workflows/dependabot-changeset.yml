@@ -4,8 +4,14 @@ name: dependabot-changeset
 # asks for one when a file under packages/ changes, and a catalog bump touches only the root, so it
 # would pass CI and never be released. This adds a patch changeset for every package the bump
 # reaches; a bump that reaches none (Actions, root tooling) gets nothing.
+#
+# pull_request_target, not pull_request: the workflow and the actions it pins come from main, so a
+# bump of one of them only reaches the release app's key once it's merged. Under pull_request, the
+# PR's own version would run, and Dependabot runs only see Dependabot secrets, so the key would have
+# to be one. Nothing from the PR is checked out or executed: the manifests are main's, the bumps come
+# from Dependabot's metadata.
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
 
 permissions: {}
@@ -16,9 +22,9 @@ concurrency:
 
 jobs:
   changeset:
-    # Dependabot's own pushes only: a maintainer's push and the app's commit below don't run this.
-    # Such runs see Dependabot secrets only, so RELEASE_APP_PRIVATE_KEY is also a Dependabot secret.
-    if: github.actor == 'dependabot[bot]'
+    # Dependabot's PRs, on its own pushes only: a maintainer's push and the app's commit below don't
+    # run this.
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -27,17 +33,18 @@ jobs:
     steps:
       - id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
-      # Read with jq only: nothing from the checkout is executed.
+      # main, read with jq only.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - id: changeset
         env:
+          GH_TOKEN: ${{ github.token }}
           UPDATES: ${{ steps.metadata.outputs.updated-dependencies-json }}
           FILE: .changeset/dependabot-${{ github.event.pull_request.number }}.md
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [[ -e "$FILE" ]]; then
+          if gh api "repos/$GITHUB_REPOSITORY/contents/$FILE?ref=$HEAD_SHA" --silent 2> /dev/null; then
             echo "$FILE is already there"
             exit 0
           fi
