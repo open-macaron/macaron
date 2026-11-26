@@ -1,5 +1,13 @@
 # @open-macaron/review
 
+## 0.5.4
+
+### Patch Changes
+
+- 8114bef: Bump `@secretlint/secretlint-rule-pattern` (13.0.7 → 13.1.0), `@secretlint/secretlint-rule-preset-recommend` (13.0.7 → 13.1.0), `better-auth` (1.7.11 → 1.7.27), `file-type` (22.1.1 → 22.3.0), `jose` (6.2.12 → 6.2.18), `markdown-table` (3.0.4 → 3.1.0), `unist-util-visit` (5.1.0 → 5.2.0), `zod` (4.6.6 → 4.6.7).
+- Updated dependencies [8114bef]
+  - @open-macaron/contracts@0.22.1
+
 ## 0.5.3
 
 ### Patch Changes

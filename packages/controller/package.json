@@ -1,6 +1,6 @@
 {
   "name": "@open-macaron/controller",
-  "version": "0.26.4",
+  "version": "0.26.10",
   "private": true,
   "description": "macaron-bot controller: ingest, routing, run launching, budgets, gate and publishing",
   "license": "Apache-2.0",
@@ -35,8 +35,6 @@
     "@open-macaron/contracts": "workspace:*",
     "@open-macaron/review": "workspace:*",
     "@secretlint/core": "catalog:",
-    "@secretlint/secretlint-rule-pattern": "catalog:",
-    "@secretlint/secretlint-rule-preset-recommend": "catalog:",
     "@sindresorhus/slugify": "catalog:",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",

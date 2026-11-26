@@ -59,8 +59,8 @@ describe("migrations at startup", () => {
   it("are idempotent: a second instance starting finds nothing to do", async () => {
     const second = await connectAndMigrate(container.getConnectionUri());
     await second.$client.end();
-    const result = await db.execute(sql`select count(*)::int as n from information_schema.tables where table_name = 'runs'`);
-    expect(result.rows).toEqual([{ n: 1 }]);
+    const rows = await db.execute(sql`select count(*)::int as n from information_schema.tables where table_name = 'runs'`, "objects");
+    expect(rows).toEqual([{ n: 1 }]);
   });
 });
 
@@ -249,12 +249,12 @@ describe("Jobs (pg-boss)", () => {
     try {
       const threadId = "00000000-0000-4000-8000-000000000001";
       await jobs.threadReady(threadId, 60_000);
-      const first = await db.execute(sql`select start_after from pgboss.job where name = ${Queue.threadReady} and singleton_key = ${threadId}`);
+      const first = await db.execute(sql`select start_after from pgboss.job where name = ${Queue.threadReady} and singleton_key = ${threadId}`, "objects");
       await jobs.threadReady(threadId, 120_000);
-      const after = await db.execute(sql`select start_after from pgboss.job where name = ${Queue.threadReady} and singleton_key = ${threadId}`);
+      const after = await db.execute(sql`select start_after from pgboss.job where name = ${Queue.threadReady} and singleton_key = ${threadId}`, "objects");
 
-      expect(after.rows).toHaveLength(1);
-      expect(String(after.rows[0]?.["start_after"])).not.toBe(String(first.rows[0]?.["start_after"]));
+      expect(after).toHaveLength(1);
+      expect(String(after[0]?.["start_after"])).not.toBe(String(first[0]?.["start_after"]));
     } finally {
       await jobs.onApplicationShutdown();
     }
