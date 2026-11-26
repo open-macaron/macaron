@@ -1,5 +1,14 @@
 # @open-macaron/controller
 
+## 0.26.12
+
+### Patch Changes
+
+- 07db484: Security fixes: bump `body-parser` (2.3.0 → 2.4.0), `qs` (6.16.0 → 6.17.1), `undici` (6.29.0 → 6.29.1).
+- Updated dependencies [07db484]
+  - @open-macaron/contracts@0.22.2
+  - @open-macaron/review@0.5.6
+
 ## 0.26.11
 
 ### Patch Changes

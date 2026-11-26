@@ -1,5 +1,11 @@
 # @open-macaron/contracts
 
+## 0.22.2
+
+### Patch Changes
+
+- 07db484: Security fixes: bump `body-parser` (2.3.0 → 2.4.0), `qs` (6.16.0 → 6.17.1), `undici` (6.29.0 → 6.29.1).
+
 ## 0.22.1
 
 ### Patch Changes
