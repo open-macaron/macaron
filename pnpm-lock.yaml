@@ -225,8 +225,8 @@ catalogs:
       specifier: 1.64.1
       version: 1.64.1
     '@secretlint/core':
-      specifier: 13.0.7
-      version: 13.0.7
+      specifier: 14.1.0
+      version: 14.1.0
     '@secretlint/secretlint-rule-pattern':
       specifier: 13.0.7
       version: 13.0.7
@@ -578,7 +578,7 @@ importers:
         version: link:../review
       '@secretlint/core':
         specifier: 'catalog:'
-        version: 13.0.7
+        version: 14.1.0
       '@secretlint/secretlint-rule-pattern':
         specifier: 'catalog:'
         version: 13.0.7
@@ -2013,8 +2013,16 @@ packages:
     resolution: {integrity: sha512-IcOR87MpNjp/WTO7bVMsIj3qkhVD+Qr/oNaA0Xl4Ok1LqG4bjXu5RjiY0Kid70BoR9eCJgkoq5gNHDGXPx+o1g==}
     engines: {node: '>=22.0.0'}
 
+  '@secretlint/core@14.1.0':
+    resolution: {integrity: sha512-K5fi9/LdFKL9M/sldhIGRUKZrhRWOTO/ARSqgjFzmQS+PX4yI4Is3jZzm+wpQXZZxr/5C9EnOtrNV0QartbEvg==}
+    engines: {node: '>=22.0.0'}
+
   '@secretlint/profiler@13.0.7':
     resolution: {integrity: sha512-srhOnrrS8u6vkje+YhYZXoXXwgwZlt60x5q9C2vDjPHfkQcEXMXNDdtX7Dx1Bkw7GKuCNIn+3R5AEOphHikQ/Q==}
+
+  '@secretlint/profiler@14.1.0':
+    resolution: {integrity: sha512-TWia4qNyW3aUTR5nMcGhu3tc7qFHMBA9U16PB/sCCqZwuuc8tyvggqRNiPr/FUOzFCZsnCwL69tu8k5z+O9svQ==}
+    engines: {node: '>=22.0.0'}
 
   '@secretlint/resolver@13.0.7':
     resolution: {integrity: sha512-Ru3qBQqfi9s/uazHiVcyAvlQuq3X8q/8eXNqacZ0r/DvWtjb2JBBhIjzx/RrbfJhlsd5yjsrE6C1/Q710Em1Hw==}
@@ -2022,10 +2030,12 @@ packages:
   '@secretlint/secretlint-rule-pattern@13.0.7':
     resolution: {integrity: sha512-h05l2ZJalQvD/udVQUPNOsIsBtNHx7gfLCvn9z4/IcGwxLgNoD+iDnYN7uZaerCbGGkgcKNMCXmaH+72rzYBuw==}
     engines: {node: '>=22.0.0'}
+    deprecated: Built into secretlint v14 and later. Remove this package; the rule id still works. https://github.com/secretlint/secretlint/blob/HEAD/docs/rules/pattern.md
 
   '@secretlint/secretlint-rule-preset-recommend@13.0.7':
     resolution: {integrity: sha512-hfdYra+ZB6RmviEApxeL/YCx4ovBtpj0d9c+uhlCZaCikObjb8Sb8yqBN6g8/9tt7qD7LXGE3k9RtVvGK1fNVw==}
     engines: {node: '>=22.0.0'}
+    deprecated: Built into secretlint v14 and later. Remove this package; the rule id still works. https://github.com/secretlint/secretlint/blob/HEAD/docs/rules/preset-recommend.md
 
   '@secretlint/source-creator@13.0.7':
     resolution: {integrity: sha512-agf2lHf3f5CRHl7ZSQV2NTx4niPOf9qkLnuowSGoqeWycK5PTuyinlTqp6iq0gQt6TBhvyFu3nKNkXcrB9jWxw==}
@@ -2037,6 +2047,10 @@ packages:
 
   '@secretlint/types@13.0.7':
     resolution: {integrity: sha512-5DI1W8vTjBt5ZSrLXNMCX439f+36fzQLrSGi0JPu1vhBKl3QLxPu/ilPJ5x2Ul7pU3aWUrpRva9mvojSAi4h0A==}
+    engines: {node: '>=22.0.0'}
+
+  '@secretlint/types@14.1.0':
+    resolution: {integrity: sha512-Z4VJk5upfLfanrjDbYwTJN1WK+KmZygoCoi1kvPdfS1KyNsLQIqCBG3ALNJLQV+hhHKD1qD3DfT+RLChaHyXGQ==}
     engines: {node: '>=22.0.0'}
 
   '@sindresorhus/slugify@3.0.1':
@@ -2282,6 +2296,9 @@ packages:
 
   '@textlint/regexp-string-matcher@2.0.2':
     resolution: {integrity: sha512-OXLD9XRxMhd3S0LWuPHpiARQOI7z9tCOs0FsynccW2lmyZzHHFJ9/eR6kuK9xF459Qf+740qI5h+/0cx+NljzA==}
+
+  '@textlint/regexp-string-matcher@2.0.4':
+    resolution: {integrity: sha512-wK/RrUO/UsfxKa/Flhu2583n2Om38w4Ds5uh4nMedIX/+wL1uL9FH8vgK9YDlsO4jNkp5LbjTp5XDnQTd1VYPg==}
 
   '@tokenizer/inflate@0.4.1':
     resolution: {integrity: sha512-2mAv+8pkG6GIZiF1kNg1jAjh27IDxEPKwdGul3snfztFerfPGI1LjDezZp3i7BElXompqEtPmoPx6c2wgtWsOA==}
@@ -6305,7 +6322,20 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@secretlint/core@14.1.0':
+    dependencies:
+      '@secretlint/profiler': 14.1.0
+      '@secretlint/types': 14.1.0
+      '@textlint/regexp-string-matcher': 2.0.4
+      debug: 4.4.3
+      picomatch: 4.0.7
+      structured-source: 4.0.0
+    transitivePeerDependencies:
+      - supports-color
+
   '@secretlint/profiler@13.0.7': {}
+
+  '@secretlint/profiler@14.1.0': {}
 
   '@secretlint/resolver@13.0.7': {}
 
@@ -6335,6 +6365,8 @@ snapshots:
       - supports-color
 
   '@secretlint/types@13.0.7': {}
+
+  '@secretlint/types@14.1.0': {}
 
   '@sindresorhus/slugify@3.0.1':
     dependencies:
@@ -6529,6 +6561,8 @@ snapshots:
       lodash.sortby: 4.7.0
       lodash.uniq: 4.5.0
       lodash.uniqwith: 4.5.0
+
+  '@textlint/regexp-string-matcher@2.0.4': {}
 
   '@tokenizer/inflate@0.4.1':
     dependencies:
