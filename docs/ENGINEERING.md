@@ -183,7 +183,7 @@ Code conventions:
 3. Generated code drift check (§5) and `drizzle-kit check` (migrations consistent with the schema).
 4. Container builds of the controller and the web app (`image` job, buildah), without pushing (pushing happens in `release.yml`, DEPLOYMENT.md §1).
 
-Actions are pinned by full SHA and bumped by hand. Wanted, not wired yet (#39): `actionlint` and `zizmor` on the workflows, Renovate, `knip`, `dependency-cruiser`, `gitleaks` and an image scan.
+Actions are pinned by full SHA. Dependabot (`.github/dependabot.yml`) bumps them, the catalog and the Containerfiles' base images: security updates as soon as an advisory is published, version updates daily in groups, never a version younger than `minimumReleaseAge`. `dependabot-changeset.yml` adds a patch changeset to its PRs for every package a bump reaches. Wanted, not wired yet (#39): `actionlint` and `zizmor` on the workflows, `knip`, `dependency-cruiser`, `gitleaks` and an image scan.
 
 Conventional commits. `main` has a ruleset: a PR for every change, the `check` and `image` jobs required, no bypass. Approvals aren't required (one maintainer can't approve their own PRs); the Version Packages PR merges itself once CI is green.
 
