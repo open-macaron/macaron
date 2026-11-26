@@ -27,13 +27,15 @@ Only people with an account of its web app (invited by an administrator, who gra
 
 **Cost.** Every run is billed to the LLM key of whoever asked for it, saved in the web app under an optional monthly cap, through its own Bifrost key capped at the mode's budget and limited to the run's models. Without a saved key, the bot answers a mention with a refusal that links to the key page. The cost of each loop is reported: in a table at the end of the bot's pull requests, and in each review. Per-thread and per-repository monthly caps stop the bot before it spends more.
 
+**Want it on your repository?** [docs/ONBOARDING.md](docs/ONBOARDING.md) is the guide for maintainers: what to check, getting an account, the configuration pull request, and the first run.
+
 ## How it works
 
 - A **controller** in our OpenShift namespace holds every credential. It reads the bot's GitHub notifications, decides what to do, and does everything deterministic: budget keys, policy checks, commits, comments.
 - **Agents** (Claude Code, Codex, opencode) run on throwaway GitHub-hosted runners in [`open-macaron/runner`](https://github.com/open-macaron/runner), with no GitHub credential and one LLM key capped at the run's budget.
 - The agent's output goes through a **Gate** (paths, sizes, secrets, media types) before the controller publishes anything.
 
-Read [docs/DESIGN.md](docs/DESIGN.md) first; [docs/SCALING.md](docs/SCALING.md), [docs/REPOSITORIES.md](docs/REPOSITORIES.md), [docs/ENGINEERING.md](docs/ENGINEERING.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) cover the rest.
+To onboard a repository, read [docs/ONBOARDING.md](docs/ONBOARDING.md). To understand the system, read [docs/DESIGN.md](docs/DESIGN.md) first; [docs/SCALING.md](docs/SCALING.md), [docs/REPOSITORIES.md](docs/REPOSITORIES.md), [docs/ENGINEERING.md](docs/ENGINEERING.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) cover the rest.
 
 ## Repository layout
 
