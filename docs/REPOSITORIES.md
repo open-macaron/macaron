@@ -78,6 +78,8 @@ The `macaron-bot` account itself: 2FA on; the profile says it's a bot and links 
 
 ## 5. Onboarding an upstream repo
 
+The maintainers' side of this, from their account to their first run, is in [ONBOARDING.md](ONBOARDING.md).
+
 A maintainer checks the upstream first:
 - it is public (DESIGN.md "Everything is public");
 - its contribution rules: DCO, a CLA to sign once for macaron-bot, interaction limits.

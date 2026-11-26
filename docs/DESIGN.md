@@ -1,6 +1,7 @@
 # macaron-bot — design draft
 
 Companion docs:
+- [ONBOARDING.md](ONBOARDING.md): the guide for maintainers who want the bot on their repository;
 - [SCALING.md](SCALING.md): environments (shared/own/upstream), config hierarchy, limits;
 - [REPOSITORIES.md](REPOSITORIES.md): the `open-macaron` org, its repos, accounts, tokens and onboarding;
 - [ENGINEERING.md](ENGINEERING.md): stack, code layout, quality gates;
