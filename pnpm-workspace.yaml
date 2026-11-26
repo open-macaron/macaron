@@ -22,7 +22,7 @@ catalog:
   drizzle-orm: 1.0.0-rc.4
   drizzle-kit: 1.0.0-rc.4
   pg: 8.23.1
-  pg-boss: 12.37.1
+  pg-boss: 12.39.0
   "@types/pg": 8.23.1
   # Validation and contracts
   "@hey-api/openapi-ts": 0.99.0
