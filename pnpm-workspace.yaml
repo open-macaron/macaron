@@ -32,9 +32,7 @@ catalog:
   deepmerge-ts: 8.0.2
   # Hand-rolled code replaced by maintained libraries
   file-type: 22.3.0
-  "@secretlint/core": 13.0.7
-  "@secretlint/secretlint-rule-preset-recommend": 13.1.0
-  "@secretlint/secretlint-rule-pattern": 13.1.0
+  "@secretlint/core": 14.1.0
   mdast-util-from-markdown: 2.1.0
   mdast-util-gfm: 3.1.0
   mdast-util-frontmatter: 2.0.1
@@ -46,7 +44,7 @@ catalog:
   unist-util-visit: 5.2.0
   "@types/mdast": 4.0.4
   markdown-table: 3.1.0
-  "@sindresorhus/slugify": 3.0.1
+  "@sindresorhus/slugify": 4.0.1
   p-retry: 8.0.1
   diff: 9.0.0
   "@octokit/webhooks": 14.2.0
