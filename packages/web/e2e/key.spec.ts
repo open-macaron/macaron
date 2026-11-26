@@ -145,7 +145,7 @@ test("a user picks the models their runs use, among the ones the gateway prices"
   // The priced or free models, beside the configuration's choice.
   await expect(defaultModel.locator("option")).toHaveText(["The configuration's default", ...PRICED.map(labelled)]);
   // Rules are checked on the default model unless the user picks one for them.
-  await expect(reviewModel.locator("option")).toHaveText(["Your default model", ...PRICED.map(labelled)]);
+  await expect(reviewModel.locator("option")).toHaveText(["Same as your default model", ...PRICED.map(labelled)]);
 
   const picked = PRICED.at(-1) ?? "";
   const pickedFast = PRICED.at(0) ?? "";
