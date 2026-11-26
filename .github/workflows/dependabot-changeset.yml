@@ -1,0 +1,92 @@
+name: dependabot-changeset
+
+# A Dependabot bump ships like any other change: through a changeset (.changeset/README.md). CI only
+# asks for one when a file under packages/ changes, and a catalog bump touches only the root, so it
+# would pass CI and never be released. This adds a patch changeset for every package the bump
+# reaches; a bump that reaches none (Actions, root tooling) gets nothing.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: dependabot-changeset-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changeset:
+    # Dependabot's own pushes only: a maintainer's push and the app's commit below don't run this.
+    # Such runs see Dependabot secrets only, so RELEASE_APP_PRIVATE_KEY is also a Dependabot secret.
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+      # Read with jq only: nothing from the checkout is executed.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - id: changeset
+        env:
+          UPDATES: ${{ steps.metadata.outputs.updated-dependencies-json }}
+          FILE: .changeset/dependabot-${{ github.event.pull_request.number }}.md
+        run: |
+          if [[ -e "$FILE" ]]; then
+            echo "$FILE is already there"
+            exit 0
+          fi
+          packages=()
+          while IFS=$'\t' read -r ecosystem type name directory; do
+            case "$ecosystem" in
+              docker)
+                packages+=("$(jq -r .name ".${directory}/package.json")") ;;
+              npm_and_yarn)
+                for manifest in packages/*/package.json; do
+                  # A transitive bump can land in any package's build: release them all.
+                  if [[ "$type" == indirect ]] || jq -e --arg dep "$name" \
+                    '[.dependencies, .devDependencies, .peerDependencies, .optionalDependencies] | map(. // {} | has($dep)) | any' \
+                    "$manifest" > /dev/null; then
+                    packages+=("$(jq -r .name "$manifest")")
+                  fi
+                done ;;
+            esac
+          done < <(jq -r '.[] | [.packageEcosystem, .dependencyType, .dependencyName, .directory] | @tsv' <<< "$UPDATES")
+          if (( ${#packages[@]} == 0 )); then
+            echo "No package to release"
+            exit 0
+          fi
+          {
+            echo "---"
+            printf '%s\n' "${packages[@]}" | sort -u | jq -R -r '"\(tojson): patch"'
+            echo "---"
+            echo
+            # One line: the changelog's entry. A base image's digest moves within its tag.
+            jq -r '"Bump " + (map("`\(.dependencyName)` " + if .prevVersion == .newVersion
+              then "(\(.newVersion), new digest)" else "(\(.prevVersion) → \(.newVersion))" end) | join(", ")) + "."' <<< "$UPDATES"
+          } > "$FILE"
+          cat "$FILE"
+          echo "content=$(base64 -w0 "$FILE")" >> "$GITHUB_OUTPUT"
+      # The commit is the app's: one made with GITHUB_TOKEN runs no workflow, and the required checks
+      # would never report on the PR's new head.
+      - id: app-token
+        if: steps.changeset.outputs.content != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - if: steps.changeset.outputs.content != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          CONTENT: ${{ steps.changeset.outputs.content }}
+          FILE: .changeset/dependabot-${{ github.event.pull_request.number }}.md
+        run: >-
+          gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$FILE" --silent
+          -f branch="$BRANCH" -f content="$CONTENT" -f message="chore(deps): add a changeset"
