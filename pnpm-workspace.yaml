@@ -106,6 +106,13 @@ catalog:
   # The web app's end-to-end tests (packages/web/e2e)
   "@playwright/test": 1.65.1
 
+# Security fixes in transitive dependencies whose parent pins a vulnerable version exactly. Remove an
+# entry once the parent moves past it.
+overrides:
+  # @hey-api/openapi-ts (code generation) through json-schema-ref-parser 1.4.4, which pins 4.2.0
+  # (GHSA-5p4m-2wfm-xmqj, GHSA-2883-xcg3-v3hh).
+  "@hey-api/json-schema-ref-parser>js-yaml": 4.3.2
+
 allowBuilds:
   '@scarf/scarf': false
   '@swc/core': true
