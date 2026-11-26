@@ -1,6 +1,6 @@
 {
   "name": "@open-macaron/controller",
-  "version": "0.26.5",
+  "version": "0.26.6",
   "private": true,
   "description": "macaron-bot controller: ingest, routing, run launching, budgets, gate and publishing",
   "license": "Apache-2.0",

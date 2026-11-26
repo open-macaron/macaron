@@ -1,5 +1,11 @@
 # @open-macaron/web
 
+## 0.15.2
+
+### Patch Changes
+
+- e1b3579: Bump `tailwind-variants` (3.3.1 → 4.0.2).
+
 ## 0.15.1
 
 ### Patch Changes
