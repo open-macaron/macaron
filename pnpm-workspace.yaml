@@ -33,8 +33,6 @@ catalog:
   # Hand-rolled code replaced by maintained libraries
   file-type: 22.1.1
   "@secretlint/core": 14.1.0
-  "@secretlint/secretlint-rule-preset-recommend": 13.0.7
-  "@secretlint/secretlint-rule-pattern": 13.0.7
   mdast-util-from-markdown: 2.1.0
   mdast-util-gfm: 3.1.0
   mdast-util-frontmatter: 2.0.1
