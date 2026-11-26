@@ -46,7 +46,7 @@ catalog:
   unist-util-visit: 5.1.0
   "@types/mdast": 4.0.4
   markdown-table: 3.0.4
-  "@sindresorhus/slugify": 3.0.1
+  "@sindresorhus/slugify": 4.0.1
   p-retry: 8.0.1
   diff: 9.0.0
   "@octokit/webhooks": 14.2.0
