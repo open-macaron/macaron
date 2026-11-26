@@ -20,7 +20,7 @@ catalog:
   # Data
   "@nestjs/drizzle": 0.0.2
   drizzle-orm: 1.0.0-rc.4
-  drizzle-kit: 1.0.0-rc.4
+  drizzle-kit: 1.0.0-rc.6
   pg: 8.23.1
   pg-boss: 12.37.1
   "@types/pg": 8.23.1
