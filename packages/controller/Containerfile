@@ -3,7 +3,7 @@
 # Base images: Red Hat's hardened (Hummingbird) Node.js, pinned by digest; Renovate bumps
 # them. Unlike UBI's, they carry the fix for CVE-2026-111497 (Node2Shell): libbrotli 1.2.1.
 
-FROM quay.io/hummingbird/nodejs:24-builder@sha256:03d02a4ae12e0de51b33fe3233ae35aff07d8d3bb4cef6293c4442e553b917fd AS build
+FROM quay.io/hummingbird/nodejs:24-builder@sha256:bf929d72b583368ec6c6f9cb6ff5a555b96c4bc3ddaf7ad0dcba4c6590085d4e AS build
 USER 0
 RUN npm install --global --no-fund --no-audit pnpm@12.13.0
 WORKDIR /src
@@ -19,7 +19,7 @@ COPY packages/controller packages/controller
 RUN pnpm --filter @open-macaron/controller... run build \
  && pnpm --filter @open-macaron/controller deploy --prod --legacy /opt/app
 
-FROM quay.io/hummingbird/nodejs:24@sha256:c9640ede7ee86932dfbbbef53a123bcb6c96f0ef51244d38805e426568f9826b
+FROM quay.io/hummingbird/nodejs:24@sha256:3fef28300864adffdb5a35bd4523b213f2123c0316cf57bf7f2118cdc288441a
 ARG VERSION=dev
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="macaron-controller" \
