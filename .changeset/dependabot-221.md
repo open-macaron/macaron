@@ -1,5 +1,6 @@
 ---
 "@open-macaron/controller": patch
+"@open-macaron/web": patch
 ---
 
-Bump `hummingbird/nodejs` (`03d02a4` → 24), `hummingbird/nodejs` (`03d02a4` → 24).
+Bump `hummingbird/nodejs:24` (new digest).
