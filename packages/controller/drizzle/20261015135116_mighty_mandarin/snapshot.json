@@ -1,31 +1,597 @@
 {
-  "version": "8",
+  "type": "base",
+  "version": "10",
   "dialect": "postgres",
   "id": "265023ca-5687-4d45-9d28-323b850b7150",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
+  "footprints": [
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "event_status"
+      ],
+      "writes": [
+        "s|enum|public.event_status",
+        "n|enum|public.event_status",
+        "e|enum|public.event_status",
+        "n|type|public.event_status"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "ledger_kind"
+      ],
+      "writes": [
+        "s|enum|public.ledger_kind",
+        "n|enum|public.ledger_kind",
+        "e|enum|public.ledger_kind",
+        "n|type|public.ledger_kind"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "run_mode"
+      ],
+      "writes": [
+        "s|enum|public.run_mode",
+        "n|enum|public.run_mode",
+        "e|enum|public.run_mode",
+        "n|type|public.run_mode"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "run_status"
+      ],
+      "writes": [
+        "s|enum|public.run_status",
+        "n|enum|public.run_status",
+        "e|enum|public.run_status",
+        "n|type|public.run_status"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "thread_kind"
+      ],
+      "writes": [
+        "s|enum|public.thread_kind",
+        "n|enum|public.thread_kind",
+        "e|enum|public.thread_kind",
+        "n|type|public.thread_kind"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "effects"
+      ],
+      "writes": [
+        "s|tbl|public.effects",
+        "n|tbl|public.effects",
+        "e|tbl|public.effects",
+        "n|rel|public.effects",
+        "n|type|public.effects",
+        "n|rel|public.effects_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "events"
+      ],
+      "writes": [
+        "s|tbl|public.events",
+        "n|tbl|public.events",
+        "e|tbl|public.events",
+        "n|rel|public.events",
+        "n|type|public.events",
+        "n|rel|public.events_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.event_status"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ledger"
+      ],
+      "writes": [
+        "s|tbl|public.ledger",
+        "n|tbl|public.ledger",
+        "e|tbl|public.ledger",
+        "n|rel|public.ledger",
+        "n|type|public.ledger",
+        "n|rel|public.ledger_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.ledger_kind"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "poll_state"
+      ],
+      "writes": [
+        "s|tbl|public.poll_state",
+        "n|tbl|public.poll_state",
+        "e|tbl|public.poll_state",
+        "n|rel|public.poll_state",
+        "n|type|public.poll_state",
+        "n|rel|public.poll_state_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "runs"
+      ],
+      "writes": [
+        "s|tbl|public.runs",
+        "n|tbl|public.runs",
+        "e|tbl|public.runs",
+        "n|rel|public.runs",
+        "n|type|public.runs",
+        "n|rel|public.runs_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.run_mode",
+        "n|enum|public.run_status"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "threads"
+      ],
+      "writes": [
+        "s|tbl|public.threads",
+        "n|tbl|public.threads",
+        "e|tbl|public.threads",
+        "n|rel|public.threads",
+        "n|type|public.threads",
+        "n|rel|public.threads_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.thread_kind"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "effects",
+        "effects_thread_loop_kind"
+      ],
+      "writes": [
+        "s|idx|public.effects_thread_loop_kind",
+        "n|idx|public.effects_thread_loop_kind",
+        "e|idx|public.effects_thread_loop_kind",
+        "n|rel|public.effects_thread_loop_kind"
+      ],
+      "reads": [
+        "n|tbl|public.effects",
+        "n|sch|public",
+        "n|col|public.effects.thread_id",
+        "n|col|public.effects.loop",
+        "n|col|public.effects.kind"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "events",
+        "events_thread_external"
+      ],
+      "writes": [
+        "s|idx|public.events_thread_external",
+        "n|idx|public.events_thread_external",
+        "e|idx|public.events_thread_external",
+        "n|rel|public.events_thread_external"
+      ],
+      "reads": [
+        "n|tbl|public.events",
+        "n|sch|public",
+        "n|col|public.events.thread_id",
+        "n|col|public.events.external_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "events",
+        "events_thread_status"
+      ],
+      "writes": [
+        "s|idx|public.events_thread_status",
+        "n|idx|public.events_thread_status",
+        "e|idx|public.events_thread_status",
+        "n|rel|public.events_thread_status"
+      ],
+      "reads": [
+        "n|tbl|public.events",
+        "n|sch|public",
+        "n|col|public.events.thread_id",
+        "n|col|public.events.status"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ledger",
+        "ledger_repo_at"
+      ],
+      "writes": [
+        "s|idx|public.ledger_repo_at",
+        "n|idx|public.ledger_repo_at",
+        "e|idx|public.ledger_repo_at",
+        "n|rel|public.ledger_repo_at"
+      ],
+      "reads": [
+        "n|tbl|public.ledger",
+        "n|sch|public",
+        "n|col|public.ledger.repo",
+        "n|col|public.ledger.created_at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ledger",
+        "ledger_project_at"
+      ],
+      "writes": [
+        "s|idx|public.ledger_project_at",
+        "n|idx|public.ledger_project_at",
+        "e|idx|public.ledger_project_at",
+        "n|rel|public.ledger_project_at"
+      ],
+      "reads": [
+        "n|tbl|public.ledger",
+        "n|sch|public",
+        "n|col|public.ledger.project",
+        "n|col|public.ledger.created_at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "runs",
+        "runs_ticket"
+      ],
+      "writes": [
+        "s|idx|public.runs_ticket",
+        "n|idx|public.runs_ticket",
+        "e|idx|public.runs_ticket",
+        "n|rel|public.runs_ticket"
+      ],
+      "reads": [
+        "n|tbl|public.runs",
+        "n|sch|public",
+        "n|col|public.runs.ticket"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "runs",
+        "runs_gh_run"
+      ],
+      "writes": [
+        "s|idx|public.runs_gh_run",
+        "n|idx|public.runs_gh_run",
+        "e|idx|public.runs_gh_run",
+        "n|rel|public.runs_gh_run"
+      ],
+      "reads": [
+        "n|tbl|public.runs",
+        "n|sch|public",
+        "n|col|public.runs.gh_run_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "runs",
+        "runs_thread_loop"
+      ],
+      "writes": [
+        "s|idx|public.runs_thread_loop",
+        "n|idx|public.runs_thread_loop",
+        "e|idx|public.runs_thread_loop",
+        "n|rel|public.runs_thread_loop"
+      ],
+      "reads": [
+        "n|tbl|public.runs",
+        "n|sch|public",
+        "n|col|public.runs.thread_id",
+        "n|col|public.runs.loop"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "runs",
+        "runs_status"
+      ],
+      "writes": [
+        "s|idx|public.runs_status",
+        "n|idx|public.runs_status",
+        "e|idx|public.runs_status",
+        "n|rel|public.runs_status"
+      ],
+      "reads": [
+        "n|tbl|public.runs",
+        "n|sch|public",
+        "n|col|public.runs.status"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "threads",
+        "threads_repo_number"
+      ],
+      "writes": [
+        "s|idx|public.threads_repo_number",
+        "n|idx|public.threads_repo_number",
+        "e|idx|public.threads_repo_number",
+        "n|rel|public.threads_repo_number"
+      ],
+      "reads": [
+        "n|tbl|public.threads",
+        "n|sch|public",
+        "n|col|public.threads.repo",
+        "n|col|public.threads.number"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "threads",
+        "threads_repo_pr"
+      ],
+      "writes": [
+        "s|idx|public.threads_repo_pr",
+        "n|idx|public.threads_repo_pr",
+        "e|idx|public.threads_repo_pr",
+        "n|rel|public.threads_repo_pr"
+      ],
+      "reads": [
+        "n|tbl|public.threads",
+        "n|sch|public",
+        "n|col|public.threads.repo",
+        "n|col|public.threads.pr_number"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "effects"
+      ],
+      "writes": [
+        "s|fk|public.effects.effects_thread_id_threads_id_fkey",
+        "n|fk|public.effects.effects_thread_id_threads_id_fkey",
+        "e|fk|public.effects.effects_thread_id_threads_id_fkey",
+        "n|con|public.effects.effects_thread_id_threads_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.effects",
+        "n|sch|public",
+        "n|tbl|public.threads",
+        "n|sch|public",
+        "n|col|public.effects.thread_id",
+        "n|col|public.threads.id",
+        "e|uniqueness|public.threads.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "events"
+      ],
+      "writes": [
+        "s|fk|public.events.events_thread_id_threads_id_fkey",
+        "n|fk|public.events.events_thread_id_threads_id_fkey",
+        "e|fk|public.events.events_thread_id_threads_id_fkey",
+        "n|con|public.events.events_thread_id_threads_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.events",
+        "n|sch|public",
+        "n|tbl|public.threads",
+        "n|sch|public",
+        "n|col|public.events.thread_id",
+        "n|col|public.threads.id",
+        "e|uniqueness|public.threads.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "ledger"
+      ],
+      "writes": [
+        "s|fk|public.ledger.ledger_run_id_runs_id_fkey",
+        "n|fk|public.ledger.ledger_run_id_runs_id_fkey",
+        "e|fk|public.ledger.ledger_run_id_runs_id_fkey",
+        "n|con|public.ledger.ledger_run_id_runs_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.ledger",
+        "n|sch|public",
+        "n|tbl|public.runs",
+        "n|sch|public",
+        "n|col|public.ledger.run_id",
+        "n|col|public.runs.id",
+        "e|uniqueness|public.runs.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "runs"
+      ],
+      "writes": [
+        "s|fk|public.runs.runs_thread_id_threads_id_fkey",
+        "n|fk|public.runs.runs_thread_id_threads_id_fkey",
+        "e|fk|public.runs.runs_thread_id_threads_id_fkey",
+        "n|con|public.runs.runs_thread_id_threads_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.runs",
+        "n|sch|public",
+        "n|tbl|public.threads",
+        "n|sch|public",
+        "n|col|public.runs.thread_id",
+        "n|col|public.threads.id",
+        "e|uniqueness|public.threads.id"
+      ]
+    }
+  ],
   "ddl": [
     {
+      "schema": "public",
+      "name": "effects",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "events",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ledger",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "poll_state",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "runs",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "threads",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "event_status",
       "values": [
         "pending",
         "done",
         "dropped"
       ],
-      "name": "event_status",
-      "entityType": "enums",
-      "schema": "public"
+      "entityType": "enums"
     },
     {
+      "schema": "public",
+      "name": "ledger_kind",
       "values": [
         "run",
         "router"
       ],
-      "name": "ledger_kind",
-      "entityType": "enums",
-      "schema": "public"
+      "entityType": "enums"
     },
     {
+      "schema": "public",
+      "name": "run_mode",
       "values": [
         "triage",
         "plan",
@@ -35,11 +601,11 @@
         "verify",
         "retro"
       ],
-      "name": "run_mode",
-      "entityType": "enums",
-      "schema": "public"
+      "entityType": "enums"
     },
     {
+      "schema": "public",
+      "name": "run_status",
       "values": [
         "pending",
         "dispatched",
@@ -48,56 +614,21 @@
         "failed",
         "aborted"
       ],
-      "name": "run_status",
-      "entityType": "enums",
-      "schema": "public"
+      "entityType": "enums"
     },
     {
+      "schema": "public",
+      "name": "thread_kind",
       "values": [
         "issue",
         "pull"
       ],
-      "name": "thread_kind",
-      "entityType": "enums",
-      "schema": "public"
+      "entityType": "enums"
     },
     {
-      "isRlsEnabled": false,
-      "name": "effects",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": false,
-      "name": "events",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": false,
-      "name": "ledger",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": false,
-      "name": "poll_state",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": false,
-      "name": "runs",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": false,
-      "name": "threads",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
+      "schema": "public",
+      "table": "effects",
+      "name": "id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -105,12 +636,12 @@
       "default": "gen_random_uuid()",
       "generated": null,
       "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "effects"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "effects",
+      "name": "thread_id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -118,12 +649,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "thread_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "effects"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "effects",
+      "name": "loop",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -131,12 +662,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "loop",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "effects"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "effects",
+      "name": "kind",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -144,12 +675,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "kind",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "effects"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "effects",
+      "name": "external_id",
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -157,12 +688,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "external_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "effects"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "effects",
+      "name": "created_at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -170,12 +701,12 @@
       "default": "now()",
       "generated": null,
       "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "effects"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "events",
+      "name": "id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -183,12 +714,12 @@
       "default": "gen_random_uuid()",
       "generated": null,
       "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "events"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "events",
+      "name": "thread_id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -196,25 +727,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "thread_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "events"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "events",
       "name": "external_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "events"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -222,12 +740,12 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "events",
       "name": "author",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "events"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -235,12 +753,12 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "events",
       "name": "kind",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "events"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -248,12 +766,12 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "events",
       "name": "url",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "events"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -261,12 +779,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "body",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "events"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "events",
+      "name": "body",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "events",
+      "name": "status",
       "type": "event_status",
       "typeSchema": "public",
       "notNull": true,
@@ -274,12 +805,12 @@
       "default": "'pending'",
       "generated": null,
       "identity": null,
-      "name": "status",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "events"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "events",
+      "name": "created_at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -287,12 +818,12 @@
       "default": "now()",
       "generated": null,
       "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "events"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "ledger",
+      "name": "id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -300,12 +831,12 @@
       "default": "gen_random_uuid()",
       "generated": null,
       "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "ledger"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "ledger",
+      "name": "kind",
       "type": "ledger_kind",
       "typeSchema": "public",
       "notNull": true,
@@ -313,12 +844,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "kind",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "ledger"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "ledger",
+      "name": "run_id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": false,
@@ -326,25 +857,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "run_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "ledger"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "ledger",
       "name": "repo",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "ledger"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -352,12 +870,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "project",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "ledger"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "ledger",
+      "name": "project",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ledger",
+      "name": "usd_micros",
       "type": "bigint",
       "typeSchema": null,
       "notNull": true,
@@ -365,12 +896,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "usd_micros",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "ledger"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "ledger",
+      "name": "created_at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -378,12 +909,12 @@
       "default": "now()",
       "generated": null,
       "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "ledger"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "poll_state",
+      "name": "id",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -391,12 +922,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "poll_state"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "poll_state",
+      "name": "last_modified",
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -404,12 +935,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "last_modified",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "poll_state"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "poll_state",
+      "name": "interval_sec",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -417,12 +948,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "interval_sec",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "poll_state"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "poll_state",
+      "name": "not_before",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -430,12 +961,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "not_before",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "poll_state"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "poll_state",
+      "name": "consecutive_errors",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -443,12 +974,12 @@
       "default": "0",
       "generated": null,
       "identity": null,
-      "name": "consecutive_errors",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "poll_state"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -456,12 +987,12 @@
       "default": "gen_random_uuid()",
       "generated": null,
       "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "ticket",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -469,12 +1000,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "ticket",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "thread_id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -482,12 +1013,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "thread_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "loop",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -495,12 +1026,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "loop",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "mode",
       "type": "run_mode",
       "typeSchema": "public",
       "notNull": true,
@@ -508,12 +1039,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "mode",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "status",
       "type": "run_status",
       "typeSchema": "public",
       "notNull": true,
@@ -521,25 +1052,12 @@
       "default": "'pending'",
       "generated": null,
       "identity": null,
-      "name": "status",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "runs",
       "name": "harness",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -547,12 +1065,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "model",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "model",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "runs",
+      "name": "context",
       "type": "jsonb",
       "typeSchema": null,
       "notNull": true,
@@ -560,25 +1091,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "context",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "runs",
       "name": "key_hash",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -586,12 +1104,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "key_secret",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "key_secret",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "runs",
+      "name": "limit_micros",
       "type": "bigint",
       "typeSchema": null,
       "notNull": true,
@@ -599,25 +1130,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "limit_micros",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
-      "type": "bigint",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "runs",
       "name": "cost_micros",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
-    },
-    {
       "type": "bigint",
       "typeSchema": null,
       "notNull": false,
@@ -625,25 +1143,25 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "runs",
       "name": "gh_run_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
-    },
-    {
-      "type": "timestamp with time zone",
+      "type": "bigint",
       "typeSchema": null,
       "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "runs",
       "name": "redeemed_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
-    },
-    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": false,
@@ -651,12 +1169,12 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "runs",
       "name": "finished_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
-    },
-    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": false,
@@ -664,12 +1182,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "settled_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "settled_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "runs",
+      "name": "failure",
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -677,12 +1208,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "failure",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "created_at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -690,12 +1221,12 @@
       "default": "now()",
       "generated": null,
       "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "threads",
+      "name": "id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -703,12 +1234,12 @@
       "default": "gen_random_uuid()",
       "generated": null,
       "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "threads"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "threads",
+      "name": "repo",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -716,12 +1247,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "repo",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "threads"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "threads",
+      "name": "number",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -729,12 +1260,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "number",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "threads"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "threads",
+      "name": "kind",
       "type": "thread_kind",
       "typeSchema": "public",
       "notNull": true,
@@ -742,12 +1273,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "kind",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "threads"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "threads",
+      "name": "branch",
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -755,12 +1286,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "branch",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "threads"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "threads",
+      "name": "pr_number",
       "type": "integer",
       "typeSchema": null,
       "notNull": false,
@@ -768,12 +1299,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "pr_number",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "threads"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "threads",
+      "name": "loops",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -781,12 +1312,12 @@
       "default": "0",
       "generated": null,
       "identity": null,
-      "name": "loops",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "threads"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "threads",
+      "name": "status_comment_id",
       "type": "bigint",
       "typeSchema": null,
       "notNull": false,
@@ -794,12 +1325,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "status_comment_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "threads"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "threads",
+      "name": "created_at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -807,12 +1338,12 @@
       "default": "now()",
       "generated": null,
       "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "threads"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "effects",
+      "name": "effects_thread_loop_kind",
       "nameExplicit": true,
       "columns": [
         {
@@ -841,13 +1372,12 @@
       "where": null,
       "with": "",
       "method": "btree",
-      "concurrently": false,
-      "name": "effects_thread_loop_kind",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "effects"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "events",
+      "name": "events_thread_external",
       "nameExplicit": true,
       "columns": [
         {
@@ -869,13 +1399,12 @@
       "where": null,
       "with": "",
       "method": "btree",
-      "concurrently": false,
-      "name": "events_thread_external",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "events"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "events",
+      "name": "events_thread_status",
       "nameExplicit": true,
       "columns": [
         {
@@ -897,13 +1426,12 @@
       "where": null,
       "with": "",
       "method": "btree",
-      "concurrently": false,
-      "name": "events_thread_status",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "events"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "ledger",
+      "name": "ledger_repo_at",
       "nameExplicit": true,
       "columns": [
         {
@@ -925,13 +1453,12 @@
       "where": null,
       "with": "",
       "method": "btree",
-      "concurrently": false,
-      "name": "ledger_repo_at",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "ledger"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "ledger",
+      "name": "ledger_project_at",
       "nameExplicit": true,
       "columns": [
         {
@@ -953,13 +1480,12 @@
       "where": null,
       "with": "",
       "method": "btree",
-      "concurrently": false,
-      "name": "ledger_project_at",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "ledger"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "runs_ticket",
       "nameExplicit": true,
       "columns": [
         {
@@ -974,13 +1500,12 @@
       "where": null,
       "with": "",
       "method": "btree",
-      "concurrently": false,
-      "name": "runs_ticket",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "runs_gh_run",
       "nameExplicit": true,
       "columns": [
         {
@@ -995,13 +1520,12 @@
       "where": null,
       "with": "",
       "method": "btree",
-      "concurrently": false,
-      "name": "runs_gh_run",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "runs_thread_loop",
       "nameExplicit": true,
       "columns": [
         {
@@ -1023,13 +1547,12 @@
       "where": null,
       "with": "",
       "method": "btree",
-      "concurrently": false,
-      "name": "runs_thread_loop",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "runs_status",
       "nameExplicit": true,
       "columns": [
         {
@@ -1044,13 +1567,12 @@
       "where": null,
       "with": "",
       "method": "btree",
-      "concurrently": false,
-      "name": "runs_status",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "threads",
+      "name": "threads_repo_number",
       "nameExplicit": true,
       "columns": [
         {
@@ -1072,13 +1594,12 @@
       "where": null,
       "with": "",
       "method": "btree",
-      "concurrently": false,
-      "name": "threads_repo_number",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "threads"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "threads",
+      "name": "threads_repo_pr",
       "nameExplicit": true,
       "columns": [
         {
@@ -1100,30 +1621,12 @@
       "where": null,
       "with": "",
       "method": "btree",
-      "concurrently": false,
-      "name": "threads_repo_pr",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "threads"
+      "entityType": "indexes"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "thread_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "threads",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
+      "schema": "public",
+      "table": "effects",
       "name": "effects_thread_id_threads_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "effects"
-    },
-    {
       "nameExplicit": false,
       "columns": [
         "thread_id"
@@ -1135,12 +1638,29 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
-      "name": "events_thread_id_threads_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "events"
+      "entityType": "fks"
     },
     {
+      "schema": "public",
+      "table": "events",
+      "name": "events_thread_id_threads_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "thread_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "threads",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "ledger",
+      "name": "ledger_run_id_runs_id_fkey",
       "nameExplicit": false,
       "columns": [
         "run_id"
@@ -1152,12 +1672,12 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
-      "name": "ledger_run_id_runs_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "ledger"
+      "entityType": "fks"
     },
     {
+      "schema": "public",
+      "table": "runs",
+      "name": "runs_thread_id_threads_id_fkey",
       "nameExplicit": false,
       "columns": [
         "thread_id"
@@ -1169,78 +1689,74 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
-      "name": "runs_thread_id_threads_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "runs"
+      "entityType": "fks"
     },
     {
-      "columns": [
-        "id"
-      ],
-      "nameExplicit": false,
-      "name": "effects_pkey",
       "schema": "public",
       "table": "effects",
-      "entityType": "pks"
-    },
-    {
+      "name": "effects_pkey",
       "columns": [
         "id"
       ],
       "nameExplicit": false,
-      "name": "events_pkey",
+      "entityType": "pks"
+    },
+    {
       "schema": "public",
       "table": "events",
-      "entityType": "pks"
-    },
-    {
+      "name": "events_pkey",
       "columns": [
         "id"
       ],
       "nameExplicit": false,
-      "name": "ledger_pkey",
+      "entityType": "pks"
+    },
+    {
       "schema": "public",
       "table": "ledger",
-      "entityType": "pks"
-    },
-    {
+      "name": "ledger_pkey",
       "columns": [
         "id"
       ],
       "nameExplicit": false,
-      "name": "poll_state_pkey",
+      "entityType": "pks"
+    },
+    {
       "schema": "public",
       "table": "poll_state",
-      "entityType": "pks"
-    },
-    {
+      "name": "poll_state_pkey",
       "columns": [
         "id"
       ],
       "nameExplicit": false,
-      "name": "runs_pkey",
+      "entityType": "pks"
+    },
+    {
       "schema": "public",
       "table": "runs",
-      "entityType": "pks"
-    },
-    {
+      "name": "runs_pkey",
       "columns": [
         "id"
       ],
       "nameExplicit": false,
-      "name": "threads_pkey",
-      "schema": "public",
-      "table": "threads",
       "entityType": "pks"
     },
     {
-      "value": "\"id\" = 1",
-      "name": "poll_state_singleton",
-      "entityType": "checks",
       "schema": "public",
-      "table": "poll_state"
+      "table": "threads",
+      "name": "threads_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "poll_state",
+      "name": "poll_state_singleton",
+      "value": "\"id\" = 1",
+      "entityType": "checks"
     }
-  ],
-  "renames": []
+  ]
 }

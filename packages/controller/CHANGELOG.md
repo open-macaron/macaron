@@ -1,5 +1,11 @@
 # @open-macaron/controller
 
+## 0.26.10
+
+### Patch Changes
+
+- 9ad9af6: Bump `drizzle-orm` and `drizzle-kit` (1.0.0-rc.4 → 1.0.0-rc.6).
+
 ## 0.26.9
 
 ### Patch Changes
