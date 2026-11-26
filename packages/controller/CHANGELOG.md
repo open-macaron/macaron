@@ -1,5 +1,12 @@
 # @open-macaron/controller
 
+## 0.26.5
+
+### Patch Changes
+
+- 4f09441: Bump `hummingbird/nodejs:24` (new digest).
+- f34f9b1: Bump `pg-boss` (12.37.1 → 12.39.0).
+
 ## 0.26.4
 
 ### Patch Changes
