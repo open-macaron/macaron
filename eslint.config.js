@@ -96,6 +96,12 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
+    // Nest declares its factory options as a plain class it never instantiates nor checks with
+    // instanceof, and doesn't export it: its public API takes object literals.
+    files: ["packages/controller/**/*.ts"],
+    rules: { "@typescript-eslint/no-unsafe-class-instance-assignment": "off" },
+  },
+  {
     files: ["**/test/**/*.ts", "**/*.test.ts"],
     rules: {
       "@typescript-eslint/no-unsafe-assignment": "off",
