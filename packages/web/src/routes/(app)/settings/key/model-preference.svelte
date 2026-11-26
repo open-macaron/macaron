@@ -50,6 +50,9 @@
               <NativeSelect.Option value={option}>{label(option)}</NativeSelect.Option>
             {/each}
           </NativeSelect.Root>
+          <Field.Description>
+            Every command runs on it: <code>verify</code>, <code>implement</code>, <code>plan</code>, <code>triage</code>, <code>reproduce</code>, <code>address-review</code>, <code>retro</code>, <code>full-review</code>. So does <code>review</code>, unless you pick a review model.
+          </Field.Description>
           <Field.Error errors={fields.model.issues()} />
         </Field.Field>
         <Field.Field>
@@ -66,12 +69,12 @@
         <Field.Field>
           <Field.Label for="model-review">Review model</Field.Label>
           <NativeSelect.Root id="model-review" {...fields.reviewModel.as("select")} bind:value={reviewModel}>
-            <NativeSelect.Option value="">Your default model</NativeSelect.Option>
+            <NativeSelect.Option value="">Same as your default model</NativeSelect.Option>
             {#each models.models as option (option)}
               <NativeSelect.Option value={option}>{label(option)}</NativeSelect.Option>
             {/each}
           </NativeSelect.Root>
-          <Field.Description>Checks pull requests against the knowledge rules: <code>review</code>, and the rule checks of <code>full-review</code>.</Field.Description>
+          <Field.Description>Only for checking pull requests against the knowledge rules: <code>review</code>, and the rule checks of <code>full-review</code>. Left as is, it follows your default model.</Field.Description>
           <Field.Error errors={fields.reviewModel.issues()} />
         </Field.Field>
       </Field.Group>

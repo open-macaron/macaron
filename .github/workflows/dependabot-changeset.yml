@@ -43,6 +43,7 @@ jobs:
           UPDATES: ${{ steps.metadata.outputs.updated-dependencies-json }}
           FILE: .changeset/dependabot-${{ github.event.pull_request.number }}.md
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
           if gh api "repos/$GITHUB_REPOSITORY/contents/$FILE?ref=$HEAD_SHA" --silent 2> /dev/null; then
             echo "$FILE is already there"
@@ -51,8 +52,12 @@ jobs:
           packages=()
           while IFS=$'\t' read -r ecosystem type name directory; do
             case "$ecosystem" in
+              # One update across both Containerfiles names one directory only: take the PR's files.
               docker)
-                packages+=("$(jq -r .name ".${directory}/package.json")") ;;
+                while read -r dir; do
+                  packages+=("$(jq -r .name "$dir/package.json")")
+                done < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate \
+                  --jq '.[].filename | select(test("^packages/[^/]+/Containerfile$")) | sub("/Containerfile$"; "")') ;;
               npm_and_yarn)
                 for manifest in packages/*/package.json; do
                   # A transitive bump can land in any package's build: release them all.
@@ -73,9 +78,11 @@ jobs:
             printf '%s\n' "${packages[@]}" | sort -u | jq -R -r '"\(tojson): patch"'
             echo "---"
             echo
-            # One line: the changelog's entry. A base image's digest moves within its tag.
-            jq -r '"Bump " + (map("`\(.dependencyName)` " + if .prevVersion == .newVersion
-              then "(\(.newVersion), new digest)" else "(\(.prevVersion) → \(.newVersion))" end) | join(", ")) + "."' <<< "$UPDATES"
+            # One line: the changelog's entry. A base image's digest moves within its tag, and its
+            # previous "version" is that digest.
+            jq -r '"Bump " + (unique_by([.dependencyName, .newVersion]) | map(if .packageEcosystem == "docker"
+              then "`\(.dependencyName):\(.newVersion)` (new digest)"
+              else "`\(.dependencyName)` (\(.prevVersion) → \(.newVersion))" end) | join(", ")) + "."' <<< "$UPDATES"
           } > "$FILE"
           cat "$FILE"
           echo "content=$(base64 -w0 "$FILE")" >> "$GITHUB_OUTPUT"
@@ -83,7 +90,7 @@ jobs:
       # would never report on the PR's new head.
       - id: app-token
         if: steps.changeset.outputs.content != ''
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
