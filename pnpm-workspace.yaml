@@ -76,7 +76,7 @@ catalog:
   "@tailwindcss/vite": 4.3.3
   eslint-plugin-svelte: 3.23.1
   svelte-eslint-parser: 1.9.0
-  globals: 17.13.0
+  globals: 17.14.0
   # shadcn-svelte (components vendored in packages/web/src/lib/components/ui) and what they import
   shadcn-svelte: 1.7.0
   bits-ui: 2.19.5
@@ -96,17 +96,17 @@ catalog:
   "@actions/core": 3.0.1
   typescript: 6.0.3
   "@types/node": 24.19.2
-  eslint: 10.12.0
+  eslint: 10.15.0
   "@eslint/js": 10.0.1
-  typescript-eslint: 8.71.1
-  vitest: 5.0.4
-  "@vitest/coverage-v8": 5.0.4
+  typescript-eslint: 8.73.0
+  vitest: 5.1.1
+  "@vitest/coverage-v8": 5.1.1
   unplugin-swc: 2.0.0
-  "@swc/core": 1.16.18
-  msw: 3.0.3
-  "@testcontainers/postgresql": 12.2.0
+  "@swc/core": 1.16.22
+  msw: 3.0.7
+  "@testcontainers/postgresql": 12.2.2
   # The web app's end-to-end tests (packages/web/e2e)
-  "@playwright/test": 1.64.1
+  "@playwright/test": 1.65.1
 
 allowBuilds:
   '@scarf/scarf': false
