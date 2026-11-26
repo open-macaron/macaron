@@ -32,9 +32,7 @@ catalog:
   deepmerge-ts: 8.0.2
   # Hand-rolled code replaced by maintained libraries
   file-type: 22.3.0
-  "@secretlint/core": 13.0.7
-  "@secretlint/secretlint-rule-preset-recommend": 13.1.0
-  "@secretlint/secretlint-rule-pattern": 13.1.0
+  "@secretlint/core": 14.1.0
   mdast-util-from-markdown: 2.1.0
   mdast-util-gfm: 3.1.0
   mdast-util-frontmatter: 2.0.1

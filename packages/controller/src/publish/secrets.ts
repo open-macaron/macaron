@@ -1,6 +1,6 @@
 import { lintSource } from "@secretlint/core";
-import { creator as pattern } from "@secretlint/secretlint-rule-pattern";
-import { creator as recommended } from "@secretlint/secretlint-rule-preset-recommend";
+import { presetRecommend as recommended } from "@secretlint/core/builtin";
+import { creator as pattern } from "@secretlint/core/builtin/rules/pattern";
 
 const RULE_PREFIX = "@secretlint/secretlint-rule-";
 /** The pattern rule masks which pattern matched, so all of ours report as one kind. */
