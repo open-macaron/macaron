@@ -1,5 +1,11 @@
 # @open-macaron/controller
 
+## 0.26.8
+
+### Patch Changes
+
+- 487471e: Bump `@sindresorhus/slugify` (3.0.1 → 4.0.1).
+
 ## 0.26.7
 
 ### Patch Changes
