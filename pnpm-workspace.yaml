@@ -45,7 +45,7 @@ catalog:
   "@types/mdast": 4.0.4
   markdown-table: 3.1.0
   "@sindresorhus/slugify": 4.0.1
-  p-retry: 8.0.1
+  p-retry: 9.0.0
   diff: 9.0.0
   "@octokit/webhooks": 14.2.0
   # Users: GitHub sign-in and sessions (controller), its client (web)
